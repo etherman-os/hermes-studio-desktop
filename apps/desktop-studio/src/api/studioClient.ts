@@ -76,6 +76,17 @@ export async function getProfiles() {
   return request<ProfileInfo[]>("/studio/profiles");
 }
 
+export async function getActiveProfile() {
+  return request<ProfileInfo>("/studio/profiles/active");
+}
+
+export async function activateProfile(profileId: string) {
+  return request<{ status: string; message?: string }>("/studio/profiles/activate", {
+    method: "POST",
+    body: JSON.stringify({ profile_id: profileId }),
+  });
+}
+
 export async function getSessions() {
   return request<{ sessions: SessionSummary[]; total: number; source?: string }>("/studio/sessions");
 }
@@ -97,8 +108,12 @@ export async function stopRun(runId: string) {
   });
 }
 
-export async function getLogs() {
-  return request<{ source: string; lines: string[]; total: number }>("/studio/logs");
+export async function getLogs(source?: string, tail?: number) {
+  const params = new URLSearchParams();
+  if (source) params.set("source", source);
+  if (tail) params.set("tail", String(tail));
+  const qs = params.toString();
+  return request<{ source: string; lines: string[]; total: number }>(`/studio/logs${qs ? `?${qs}` : ""}`);
 }
 
 export async function getThemes() {

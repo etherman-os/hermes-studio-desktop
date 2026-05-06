@@ -114,6 +114,18 @@
 - [x] Tests: 19 new (log repo, profile repo, redaction) — 111 total passing
 - [x] docs/HERMES_LOGS_AND_PROFILES.md
 
+## Phase 4C.5 — Profiles + Logs UI Completion (Done)
+
+- [x] profileStore: load profiles/active, activate with 501 handling
+- [x] logStore: load recent, stream, source selector, level parsing
+- [x] Left sidebar: real profiles with activate + error display
+- [x] StatusBar: active profile name from store
+- [x] Bottom panel: real logs with source selector, stream, refresh, clear
+- [x] Log lines: level-colored (info/warn/error)
+- [x] AppFrame: loads profiles + logs on startup
+- [x] studioClient: getActiveProfile, activateProfile, getLogs(source, tail)
+- [x] Build: tsc + vite pass, 111 adapter tests passing
+
 ## Phase 5 — Polish and Accessibility
 
 - [ ] Keyboard navigation (full keyboard usability)

@@ -4,6 +4,8 @@ import { useThemeStore } from "../../stores/themeStore";
 import { useUiStore } from "../../stores/uiStore";
 import { useAdapterStore } from "../../stores/adapterStore";
 import { useSessionStore } from "../../stores/sessionStore";
+import { useProfileStore } from "../../stores/profileStore";
+import { useLogStore } from "../../stores/logStore";
 import { LeftRail } from "./LeftRail";
 import { LeftSidebar } from "./LeftSidebar";
 import { CenterArea } from "./CenterArea";
@@ -18,14 +20,20 @@ export function AppFrame() {
   const openPalette = useUiStore((s) => s.openCommandPalette);
   const checkConnection = useAdapterStore((s) => s.checkConnection);
   const loadSessions = useSessionStore((s) => s.loadFromAdapter);
+  const loadProfiles = useProfileStore((s) => s.loadProfiles);
+  const loadLogs = useLogStore((s) => s.loadRecent);
   const initTheme = useThemeStore((s) => s.initTheme);
 
   React.useEffect(() => {
     initTheme();
     checkConnection().then((ok) => {
-      if (ok) loadSessions();
+      if (ok) {
+        loadSessions();
+        loadProfiles();
+        loadLogs();
+      }
     });
-  }, [initTheme, checkConnection, loadSessions]);
+  }, [initTheme, checkConnection, loadSessions, loadProfiles, loadLogs]);
 
   React.useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {

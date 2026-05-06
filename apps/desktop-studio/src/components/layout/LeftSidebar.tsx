@@ -1,6 +1,7 @@
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useThemeStore } from "../../stores/themeStore";
 import { useSessionStore } from "../../stores/sessionStore";
+import { useProfileStore } from "../../stores/profileStore";
 
 export function LeftSidebar() {
   const section = useLayoutStore((s) => s.sidebarSection);
@@ -64,18 +65,48 @@ function SessionsList() {
 }
 
 function ProfilesList() {
-  const profiles = [
-    { name: "coder", isActive: true },
-    { name: "research", isActive: false },
-    { name: "writer", isActive: false },
-  ];
+  const profiles = useProfileStore((s) => s.profiles);
+  const activeProfile = useProfileStore((s) => s.activeProfile);
+  const profileCount = useProfileStore((s) => s.profileCount);
+  const loaded = useProfileStore((s) => s.loaded);
+  const activateError = useProfileStore((s) => s.activateError);
+  const activateProfile = useProfileStore((s) => s.activateProfile);
+
+  if (!loaded) {
+    return <div style={{ padding: "var(--app-spacing-md)", color: "var(--app-text-muted)", textAlign: "center" }}>Loading...</div>;
+  }
+
+  if (profiles.length === 0) {
+    return (
+      <div style={{ padding: "var(--app-spacing-md)", color: "var(--app-text-muted)", fontSize: "var(--app-font-size-sm)", textAlign: "center" }}>
+        No profiles found
+      </div>
+    );
+  }
+
   return (
     <>
-      {profiles.map((p) => (
-        <div key={p.name} className={`sidebar-item ${p.isActive ? "active" : ""}`}>
-          <span>{p.isActive ? "●" : "○"}</span>
-          <span>{p.name}</span>
+      <div style={{ padding: "var(--app-spacing-xs) var(--app-spacing-sm)", fontSize: "10px", color: "var(--app-text-muted)" }}>
+        {profileCount} profile{profileCount !== 1 ? "s" : ""}
+      </div>
+      {activateError && (
+        <div style={{ padding: "var(--app-spacing-xs) var(--app-spacing-sm)", fontSize: "11px", color: "var(--app-warn)", background: "rgba(210,153,34,0.1)", borderRadius: "var(--app-radius-sm)", margin: "0 var(--app-spacing-xs)" }}>
+          {activateError}
         </div>
+      )}
+      {profiles.map((p) => (
+        <button
+          key={p.id}
+          className={`sidebar-item ${p.name === activeProfile?.name ? "active" : ""}`}
+          onClick={() => {
+            if (p.name !== activeProfile?.name) {
+              activateProfile(p.name);
+            }
+          }}
+        >
+          <span>{p.name === activeProfile?.name ? "●" : "○"}</span>
+          <span>{p.name}</span>
+        </button>
       ))}
     </>
   );
