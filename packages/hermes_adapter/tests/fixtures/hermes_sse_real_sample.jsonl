@@ -1,0 +1,5 @@
+{"data": {"event": "message.delta", "run_id": "run_example_001", "timestamp": 1778105767.0, "delta": "Hello from Hermes."}}
+{"data": {"event": "tool.started", "run_id": "run_example_001", "timestamp": 1778105767.1, "tool": "bash", "preview": "echo hello"}}
+{"data": {"event": "tool.completed", "run_id": "run_example_001", "timestamp": 1778105767.2, "tool": "bash", "duration": 0.25, "error": false}}
+{"data": {"event": "reasoning.available", "run_id": "run_example_001", "timestamp": 1778105767.3, "text": "[sanitized reasoning excerpt omitted]"}}
+{"data": {"event": "run.completed", "run_id": "run_example_001", "timestamp": 1778105767.4, "output": "[sanitized assistant output omitted]", "usage": {"total_tokens": 12}}}

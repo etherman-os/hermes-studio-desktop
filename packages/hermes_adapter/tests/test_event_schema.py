@@ -17,6 +17,7 @@ from hermes_adapter.mock_backend import MockBackend
 
 SCHEMA_PATH = Path(__file__).resolve().parents[2] / "protocol" / "events.schema.json"
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "hermes_sse_sample.jsonl"
+REAL_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "hermes_sse_real_sample.jsonl"
 VALIDATOR = Draft202012Validator(
     json.loads(SCHEMA_PATH.read_text(encoding="utf-8")),
     format_checker=FormatChecker(),
@@ -124,14 +125,39 @@ async def test_hermes_backend_http_run_stream_validates_against_schema() -> None
 
 
 def test_hermes_fixture_replay_events_validate_against_schema() -> None:
-    with FIXTURE_PATH.open(encoding="utf-8") as fixture:
+    for fixture_path in (FIXTURE_PATH, REAL_FIXTURE_PATH):
+        with fixture_path.open(encoding="utf-8") as fixture:
+            for line in fixture:
+                if not line.strip():
+                    continue
+                entry = json.loads(line)
+                raw = entry.get("data", {})
+                raw["type"] = entry.get("event", raw.get("type", raw.get("event", "unknown")))
+                assert_valid_event(_normalize_hermes_event(raw))
+
+
+def test_sanitized_real_hermes_fixture_contains_no_secrets() -> None:
+    forbidden = ("api_key=", "apikey=", "secret=", "bearer ", "sk-", "glm_api_key", "minimax_api_key")
+    fixture_text = REAL_FIXTURE_PATH.read_text(encoding="utf-8").lower()
+    health_text = (Path(__file__).parent / "fixtures" / "hermes_api_health.json").read_text(encoding="utf-8").lower()
+    capabilities_text = (Path(__file__).parent / "fixtures" / "hermes_capabilities.json").read_text(encoding="utf-8").lower()
+    for text in (fixture_text, health_text, capabilities_text):
+        assert not any(marker in text for marker in forbidden)
+
+
+def test_real_hermes_fixture_unknown_events_remain_schema_valid() -> None:
+    warnings = []
+    with REAL_FIXTURE_PATH.open(encoding="utf-8") as fixture:
         for line in fixture:
             if not line.strip():
                 continue
             entry = json.loads(line)
             raw = entry.get("data", {})
-            raw["type"] = entry.get("event", raw.get("type", "unknown"))
-            assert_valid_event(_normalize_hermes_event(raw))
+            normalized = _normalize_hermes_event(raw)
+            assert_valid_event(normalized)
+            if normalized["type"] == "adapter.warning":
+                warnings.append(normalized)
+    assert any(event["payload"]["original_type"] == "reasoning.available" for event in warnings)
 
 
 def test_unknown_events_validate_as_adapter_warning() -> None:

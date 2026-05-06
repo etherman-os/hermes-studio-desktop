@@ -270,6 +270,7 @@ paths:
                   status:
                     type: string
                     enum:
+                      - stopping
                       - cancelled
                       - completed
                       - failed
@@ -961,6 +962,8 @@ components:
           enum:
             - started
             - queued
+            - stopping
+            - cancelled
             - failed
       required:
         - run_id

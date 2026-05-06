@@ -6,6 +6,7 @@ import asyncio
 import json
 from typing import Any
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
@@ -21,20 +22,43 @@ def _create_fake_hermes_app(healthy: bool = True) -> FastAPI:
     """Create a fake Hermes API server for testing."""
     app = FastAPI()
     _runs: dict[str, dict[str, Any]] = {}
+    app.state.last_run_body = None
 
     @app.get("/health")
     async def health():
         if healthy:
-            return {"status": "ok", "version": "0.12.0"}
+            return {"status": "ok", "platform": "hermes-agent"}
         from fastapi import HTTPException
         raise HTTPException(status_code=503, detail="unavailable")
 
     @app.get("/v1/capabilities")
     async def capabilities():
-        return {"capabilities": ["chat", "tools", "streaming"]}
+        return {
+            "object": "hermes.api_server.capabilities",
+            "platform": "hermes-agent",
+            "model": "hermes-agent",
+            "auth": {"type": "bearer", "required": False},
+            "features": {
+                "run_submission": True,
+                "run_events_sse": True,
+                "run_stop": True,
+            },
+            "endpoints": {
+                "runs": {"method": "POST", "path": "/v1/runs"},
+                "run_events": {"method": "GET", "path": "/v1/runs/{run_id}/events"},
+            },
+        }
 
     @app.post("/v1/runs")
     async def start_run(body: dict[str, Any]):
+        from fastapi import HTTPException
+
+        app.state.last_run_body = body
+        if "input" not in body:
+            raise HTTPException(
+                status_code=400,
+                detail={"error": {"message": "Missing 'input' field", "type": "invalid_request_error"}},
+            )
         import uuid
         run_id = f"run_{uuid.uuid4().hex[:8]}"
         _runs[run_id] = {"run_id": run_id, "status": "started", "session_id": body.get("session_id", "")}
@@ -43,22 +67,21 @@ def _create_fake_hermes_app(healthy: bool = True) -> FastAPI:
     @app.get("/v1/runs/{run_id}/events")
     async def stream_events(run_id: str):
         async def generate():
-            # Simulate OpenAI-compatible SSE stream
+            # Simulate the verified Hermes API server SSE stream shape.
             chunks = [
-                {"choices": [{"delta": {"role": "assistant"}}]},
-                {"choices": [{"delta": {"content": "Hello "}}]},
-                {"choices": [{"delta": {"content": "world!"}}]},
+                {"event": "message.delta", "run_id": run_id, "timestamp": 1778105767.0, "delta": "Hello "},
+                {"event": "message.delta", "run_id": run_id, "timestamp": 1778105767.1, "delta": "world!"},
+                {"event": "run.completed", "run_id": run_id, "timestamp": 1778105767.2, "output": "Hello world!"},
             ]
             for chunk in chunks:
                 yield f"data: {json.dumps(chunk)}\n\n"
                 await asyncio.sleep(0.05)
-            yield "data: [DONE]\n\n"
 
         return StreamingResponse(generate(), media_type="text/event-stream")
 
     @app.post("/v1/runs/{run_id}/stop")
     async def stop_run(run_id: str):
-        return {"run_id": run_id, "status": "cancelled"}
+        return {"run_id": run_id, "status": "stopping"}
 
     return app
 
@@ -80,6 +103,20 @@ class TestNormalizeHermesEvent:
         result = _normalize_hermes_event(raw)
         assert result["type"] == "run.started"
         assert result["payload"]["run_id"] == "r1"
+
+    def test_real_api_message_delta_event_field(self):
+        raw = {"event": "message.delta", "run_id": "r1", "timestamp": 1778105767.0, "delta": "Hello"}
+        result = _normalize_hermes_event(raw)
+        assert result["type"] == "assistant.delta"
+        assert result["run_id"] == "r1"
+        assert result["payload"]["text"] == "Hello"
+
+    def test_real_api_tool_completed_error_flag(self):
+        raw = {"event": "tool.completed", "run_id": "r1", "tool": "bash", "duration": 0.25, "error": False}
+        result = _normalize_hermes_event(raw)
+        assert result["type"] == "tool.completed"
+        assert result["payload"]["success"] is True
+        assert result["payload"]["duration_ms"] == 250
 
     def test_hermes_tool_started(self):
         raw = {"type": "tool.started", "payload": {"tool": "bash", "tool_call_id": "tc1"}}
@@ -171,6 +208,7 @@ class TestHermesBackend:
         data = await backend.bootstrap()
         assert "adapter_version" in data
         assert "capabilities" in data
+        assert "run_submission" in data["capabilities"]
         await backend.close()
 
     async def test_start_run(self, fake_hermes):
@@ -179,6 +217,24 @@ class TestHermesBackend:
         assert result["status"] == "started"
         assert "run_id" in result
         await backend.close()
+
+    async def test_start_run_uses_verified_input_payload(self):
+        async def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/health":
+                return httpx.Response(200, json={"status": "ok", "platform": "hermes-agent"})
+            assert request.url.path == "/v1/runs"
+            body = json.loads(request.content.decode("utf-8"))
+            assert body == {"session_id": "s-1", "input": "hello"}
+            return httpx.Response(202, json={"run_id": "run-1", "status": "started"})
+
+        backend = HermesBackend("http://hermes.test")
+        await backend._client.aclose()
+        backend._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+        result = await backend.start_run("s-1", "hello", profile="ignored")
+
+        await backend.close()
+        assert result == {"run_id": "run-1", "status": "started"}
 
     async def test_stream_run_events(self, fake_hermes):
         backend = HermesBackend(fake_hermes)
@@ -200,7 +256,7 @@ class TestHermesBackend:
         run_id = result["run_id"]
 
         stop_result = await backend.stop_run(run_id)
-        assert stop_result["status"] == "cancelled"
+        assert stop_result["status"] == "stopping"
         await backend.close()
 
     async def test_start_run_when_unavailable(self, fake_hermes_unavailable):

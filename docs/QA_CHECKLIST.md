@@ -92,6 +92,8 @@ Manual smoke test checklist for verifying the desktop studio works correctly.
 - [ ] `pytest` includes OpenAPI route parity and event schema validation tests
 - [ ] `packages/protocol/openapi.yaml` documents all implemented `/studio/*` routes
 - [ ] `packages/protocol/events.schema.json` matches MockBackend and Hermes fixture replay events
+- [ ] Sanitized real Hermes runtime fixtures replay through the event normalizer and satisfy `events.schema.json`
+- [ ] `docs/HERMES_RUNTIME_COMPATIBILITY.md` reflects the installed Hermes version and API server command used for smoke testing
 
 ## Studio Storage
 

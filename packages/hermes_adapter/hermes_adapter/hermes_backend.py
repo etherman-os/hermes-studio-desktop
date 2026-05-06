@@ -75,11 +75,109 @@ def _source_from(raw: dict[str, Any]) -> StudioEventSource:
     return "hermes"
 
 
+_RAW_EVENT_META_KEYS = {"type", "event", "timestamp", "source"}
+
+
 def _payload_from(raw: dict[str, Any]) -> dict[str, Any]:
-    payload = raw.get("payload", raw.get("data", {}))
+    payload = raw.get("payload", raw.get("data"))
     if isinstance(payload, dict):
-        return payload
-    return {"value": payload}
+        return dict(payload)
+    if payload is not None:
+        return {"value": payload}
+    return {k: v for k, v in raw.items() if k not in _RAW_EVENT_META_KEYS}
+
+
+def _event_type_from(raw: dict[str, Any]) -> str:
+    event_type = raw.get("type") or raw.get("event") or ""
+    return str(event_type)
+
+
+def _duration_ms_from(payload: dict[str, Any]) -> int | None:
+    duration_ms = payload.get("duration_ms")
+    if isinstance(duration_ms, int):
+        return duration_ms
+    duration = payload.get("duration")
+    if isinstance(duration, (int, float)):
+        return int(duration * 1000)
+    return None
+
+
+def _total_tokens_from(payload: dict[str, Any]) -> int | None:
+    total_tokens = payload.get("total_tokens")
+    if isinstance(total_tokens, int):
+        return total_tokens
+    usage = payload.get("usage")
+    if isinstance(usage, dict):
+        usage_total_tokens = usage.get("total_tokens")
+        if isinstance(usage_total_tokens, int):
+            return usage_total_tokens
+    return None
+
+
+def _extract_hermes_error(data: dict[str, Any]) -> str | None:
+    error = data.get("error")
+    if isinstance(error, dict):
+        message = error.get("message")
+        if isinstance(message, str) and message:
+            code = error.get("code")
+            return f"{message} ({code})" if isinstance(code, str) and code else message
+    detail = data.get("detail")
+    if isinstance(detail, str) and detail:
+        return detail
+    if isinstance(detail, dict):
+        nested = _extract_hermes_error(detail)
+        if nested:
+            return nested
+        message = detail.get("message")
+        if isinstance(message, str) and message:
+            return message
+    message = data.get("message")
+    if isinstance(message, str) and message:
+        return message
+    return None
+
+
+def _error_message_from_response(resp: httpx.Response, fallback: str) -> str:
+    try:
+        data = resp.json()
+    except Exception:
+        return fallback
+    if isinstance(data, dict):
+        return _extract_hermes_error(data) or fallback
+    return fallback
+
+
+def _capabilities_from_response(data: dict[str, Any]) -> list[str]:
+    """Extract stable capability names from verified Hermes capability shapes."""
+    capabilities: list[str] = []
+
+    legacy = data.get("capabilities")
+    if isinstance(legacy, list):
+        capabilities.extend(str(item) for item in legacy if isinstance(item, str))
+
+    features = data.get("features")
+    if isinstance(features, dict):
+        capabilities.extend(str(key) for key, enabled in features.items() if enabled is True and isinstance(key, str))
+
+    endpoints = data.get("endpoints")
+    if isinstance(endpoints, dict):
+        capabilities.extend(f"endpoint:{key}" for key in endpoints if isinstance(key, str))
+
+    return sorted(set(capabilities))
+
+
+async def _fetch_json(
+    client: httpx.AsyncClient,
+    url: str,
+    headers: dict[str, str],
+    *,
+    timeout: float = 5.0,
+) -> dict[str, Any] | None:
+    resp = await client.get(url, headers=headers, timeout=timeout)
+    if resp.status_code != 200:
+        return None
+    data = resp.json()
+    return data if isinstance(data, dict) else None
 
 
 def _normalize_hermes_event(raw: dict[str, Any]) -> dict[str, Any]:
@@ -88,7 +186,7 @@ def _normalize_hermes_event(raw: dict[str, Any]) -> dict[str, Any]:
     Hermes events may have different shapes. This function normalizes them
     into the Studio event schema without leaking Hermes-specific details.
     """
-    event_type = raw.get("type", "")
+    event_type = _event_type_from(raw)
     payload = _payload_from(raw)
     source = _source_from(raw)
     run_id = payload.get("run_id", raw.get("run_id", ""))
@@ -129,8 +227,15 @@ def _normalize_hermes_event(raw: dict[str, Any]) -> dict[str, Any]:
             session_id=session_id,
         )
 
-    if event_type in ("assistant.delta", "text_delta", "content_block_delta"):
-        text = payload.get("text", payload.get("delta", {}).get("text", ""))
+    if event_type in ("assistant.delta", "message.delta", "text_delta", "content_block_delta"):
+        delta = payload.get("delta")
+        text = payload.get("text")
+        if text is None:
+            text = payload.get("content")
+        if text is None:
+            text = delta.get("text", "") if isinstance(delta, dict) else delta or ""
+        if not isinstance(text, str):
+            text = str(text)
         return _sse_event("assistant.delta", {"text": text}, source=source, run_id=run_id, session_id=session_id)
 
     if event_type in ("assistant.completed", "text_done", "content_block_stop"):
@@ -138,8 +243,8 @@ def _normalize_hermes_event(raw: dict[str, Any]) -> dict[str, Any]:
             "assistant.completed",
             {
                 "model": payload.get("model"),
-                "total_tokens": payload.get("total_tokens"),
-                "duration_ms": payload.get("duration_ms"),
+                "total_tokens": _total_tokens_from(payload),
+                "duration_ms": _duration_ms_from(payload),
             },
             source=source,
             run_id=run_id,
@@ -172,12 +277,15 @@ def _normalize_hermes_event(raw: dict[str, Any]) -> dict[str, Any]:
         )
 
     if event_type in ("tool.completed", "tool_end", "tool_result"):
+        success = payload.get("success")
+        if not isinstance(success, bool):
+            success = not bool(payload.get("error")) if "error" in payload else True
         return _sse_event(
             "tool.completed",
             {
                 "tool": payload.get("tool", payload.get("name", "unknown")),
-                "success": payload.get("success", True),
-                "duration_ms": payload.get("duration_ms"),
+                "success": success,
+                "duration_ms": _duration_ms_from(payload),
             },
             source=source,
             run_id=run_id,
@@ -227,8 +335,8 @@ def _normalize_hermes_event(raw: dict[str, Any]) -> dict[str, Any]:
             "run.completed",
             {
                 "run_id": run_id,
-                "total_tokens": payload.get("total_tokens"),
-                "duration_ms": payload.get("duration_ms"),
+                "total_tokens": _total_tokens_from(payload),
+                "duration_ms": _duration_ms_from(payload),
             },
             source=source,
             run_id=run_id,
@@ -362,7 +470,7 @@ class HermesBackend(StudioBackend):
                 timeout=5.0,
             )
             self._hermes_healthy = resp.status_code == 200
-            self._last_error = None
+            self._last_error = None if self._hermes_healthy else _error_message_from_response(resp, f"HTTP {resp.status_code}")
         except Exception as e:
             self._hermes_healthy = False
             self._last_error = str(e)
@@ -390,14 +498,14 @@ class HermesBackend(StudioBackend):
         capabilities: list[str] = []
         if self._hermes_healthy:
             try:
-                resp = await self._client.get(
+                data = await _fetch_json(
+                    self._client,
                     f"{self._base_url}/v1/capabilities",
-                    headers=self._headers(),
+                    self._headers(),
                     timeout=5.0,
                 )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    capabilities = data.get("capabilities", [])
+                if data is not None:
+                    capabilities = _capabilities_from_response(data)
             except Exception:
                 pass
 
@@ -423,7 +531,7 @@ class HermesBackend(StudioBackend):
             "adapter_version": "0.1.0",
             "hermes_version": "unknown" if not self._hermes_healthy else "connected",
             "active_profile": active_profile,
-            "capabilities": capabilities or ["chat", "tools", "streaming"],
+            "capabilities": capabilities,
             "recent_sessions": recent_sessions,
             "active_theme": None,
             "available_models": [],
@@ -472,10 +580,8 @@ class HermesBackend(StudioBackend):
         try:
             payload: dict[str, Any] = {
                 "session_id": session_id,
-                "prompt": prompt,
+                "input": prompt,
             }
-            if profile:
-                payload["profile"] = profile
 
             resp = await self._client.post(
                 f"{self._base_url}/v1/runs",
@@ -487,10 +593,11 @@ class HermesBackend(StudioBackend):
             data = resp.json()
             return {
                 "run_id": data.get("run_id", str(uuid.uuid4())),
-                "status": "started",
+                "status": data.get("status", "started"),
             }
         except httpx.HTTPStatusError as e:
-            return {"run_id": "", "status": "failed", "error": f"Hermes API error: {e.response.status_code}"}
+            message = _error_message_from_response(e.response, f"Hermes API error: {e.response.status_code}")
+            return {"run_id": "", "status": "failed", "error": message}
         except Exception as e:
             return {"run_id": "", "status": "failed", "error": str(e)}
 
@@ -514,11 +621,19 @@ class HermesBackend(StudioBackend):
                 timeout=None,
             ) as resp:
                 if resp.status_code != 200:
+                    fallback = f"Hermes SSE returned {resp.status_code}"
+                    try:
+                        body = await resp.aread()
+                        data = json.loads(body.decode("utf-8"))
+                        if isinstance(data, dict):
+                            fallback = _extract_hermes_error(data) or fallback
+                    except Exception:
+                        pass
                     yield _sse_event(
                         "run.failed",
                         {
                             "run_id": run_id,
-                            "message": f"Hermes SSE returned {resp.status_code}",
+                            "message": fallback,
                         },
                         source="adapter",
                         run_id=run_id,
@@ -563,8 +678,9 @@ class HermesBackend(StudioBackend):
                                         _debug_log_normalized("assistant.delta", json.dumps({"text": text})[:100])
                                         yield studio_event
                                         continue
-                                event_type = raw_event.get("type", "unknown")
+                                event_type = raw_event.get("type") or raw_event.get("event") or "unknown"
 
+                            event_type = str(event_type)
                             raw_event["type"] = event_type
                             _debug_log_raw(event_type, data_str)
                             normalized = _normalize_hermes_event(raw_event)
@@ -619,8 +735,11 @@ class HermesBackend(StudioBackend):
                 timeout=5.0,
             )
             if resp.status_code == 200:
-                return {"run_id": run_id, "status": "cancelled"}
-            return {"run_id": run_id, "status": "failed", "error": f"Stop returned {resp.status_code}"}
+                data = resp.json()
+                status = data.get("status", "stopping") if isinstance(data, dict) else "stopping"
+                return {"run_id": run_id, "status": status}
+            message = _error_message_from_response(resp, f"Stop returned {resp.status_code}")
+            return {"run_id": run_id, "status": "failed", "error": message}
         except Exception as e:
             return {"run_id": run_id, "status": "failed", "error": str(e)}
 
@@ -715,17 +834,27 @@ class HermesBackend(StudioBackend):
         # Try to enrich with Hermes API data
         capabilities: list[str] = []
         available_models: list[dict[str, Any]] = []
+        await self._check_hermes()
         if self._hermes_healthy:
             try:
-                resp = await self._client.get(f"{self._base_url}/v1/capabilities", headers=self._headers(), timeout=5.0)
-                if resp.status_code == 200:
-                    capabilities = resp.json().get("capabilities", [])
+                data = await _fetch_json(
+                    self._client,
+                    f"{self._base_url}/v1/capabilities",
+                    self._headers(),
+                    timeout=5.0,
+                )
+                if data is not None:
+                    capabilities = _capabilities_from_response(data)
             except Exception:
                 pass
             try:
-                resp = await self._client.get(f"{self._base_url}/v1/models", headers=self._headers(), timeout=5.0)
-                if resp.status_code == 200:
-                    data = resp.json()
+                data = await _fetch_json(
+                    self._client,
+                    f"{self._base_url}/v1/models",
+                    self._headers(),
+                    timeout=5.0,
+                )
+                if data is not None:
                     models = data.get("data", data.get("models", []))
                     if isinstance(models, list):
                         available_models = [{"id": m.get("id", ""), "name": m.get("name", m.get("id", ""))} for m in models if isinstance(m, dict)]
@@ -733,6 +862,7 @@ class HermesBackend(StudioBackend):
                 pass
 
         base_config["capabilities_available"] = len(capabilities) > 0
+        base_config["capabilities"] = capabilities
         base_config["available_models"] = available_models
         base_config["available_model_count"] = len(available_models)
         return base_config

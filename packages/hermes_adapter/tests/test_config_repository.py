@@ -110,3 +110,23 @@ class TestConfigRepository:
         repo = ConfigRepository(home)
         config = repo.get_model_config()
         assert config["api_key_configured"] is False
+
+    def test_real_nested_model_config_shape(self, tmp_path: Path) -> None:
+        home = tmp_path / ".hermes"
+        home.mkdir()
+        (home / "config.yaml").write_text(
+            "model:\n"
+            "  provider: glm\n"
+            "  default: glm-4.5\n"
+            "  base_url: https://api.example.test/v1\n"
+            "providers:\n"
+            "  glm:\n"
+            "    base_url: https://provider.example.test/v1\n"
+        )
+
+        repo = ConfigRepository(home)
+        config = repo.get_model_config()
+
+        assert config["provider"] == "glm"
+        assert config["model"] == "glm-4.5"
+        assert config["base_url"] == "https://api.example.test/v1"

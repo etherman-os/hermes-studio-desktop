@@ -147,6 +147,14 @@ class ConfigRepository:
         provider = self._config.get("provider", "")
         model = self._config.get("model", "")
         base_url = self._config.get("base_url", self._config.get("base-url", ""))
+        api_key_configured = self._api_key_configured
+        api_key_source = self._api_key_source
+
+        if isinstance(model, dict):
+            model_config = model
+            model = model_config.get("default", model_config.get("name", ""))
+            provider = model_config.get("provider", provider)
+            base_url = model_config.get("base_url", model_config.get("base-url", base_url))
 
         # Also check nested provider config
         if not provider and "providers" in self._config:
@@ -157,6 +165,20 @@ class ConfigRepository:
                     provider = active
                 elif isinstance(active, dict):
                     provider = active.get("name", "")
+
+        providers = self._config.get("providers", {})
+        if isinstance(providers, dict) and isinstance(provider, str) and provider:
+            provider_config = providers.get(provider)
+            if isinstance(provider_config, dict):
+                if not base_url:
+                    base_url = provider_config.get("base_url", provider_config.get("base-url", ""))
+                if not api_key_configured:
+                    api_key_configured = any(
+                        key.lower().replace("-", "_") in _SENSITIVE_KEYS and bool(value)
+                        for key, value in provider_config.items()
+                    )
+                    if api_key_configured:
+                        api_key_source = "config.yaml"
 
         # Redact base_url if it contains secrets
         if isinstance(base_url, str):
@@ -171,8 +193,8 @@ class ConfigRepository:
             "provider": str(provider) if provider else "unknown",
             "model": str(model) if model else "unknown",
             "base_url": str(base_url) if base_url else None,
-            "api_key_configured": self._api_key_configured,
-            "api_key_source": self._api_key_source,
+            "api_key_configured": api_key_configured,
+            "api_key_source": api_key_source,
             "config_source": self._config_source or "unavailable",
             "temperature": temperature,
             "max_tokens": max_tokens,

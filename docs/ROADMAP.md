@@ -210,6 +210,14 @@
 - [ ] Keep theme/concept pack Kanban presentation generic and semantic-slot driven
 - [ ] Wire frontend Kanban store/components to `/studio/*` only
 
+## Phase 6C.5 — Real Local Hermes Discovery and Integration Audit (Done)
+
+- [x] Verified installed Hermes CLI and gateway API server surface against `Hermes Agent v0.12.0`
+- [x] Documented official local API server start path: `API_SERVER_ENABLED=true hermes gateway --accept-hooks run`
+- [x] Fixed HermesBackend run payload, capabilities parsing, SSE event parsing, stop status handling, and Hermes error message extraction
+- [x] Added sanitized runtime compatibility fixtures and schema replay tests
+- [x] Confirmed local Hermes `state.db`, logs, config, and `.env` assumptions read-only without storing secrets
+
 ## Phase 7 — Packaging and Release
 
 - [ ] Tauri native installers (Linux, macOS)

@@ -185,6 +185,8 @@ The adapter supports three backend modes:
 | `HERMES_STUDIO_HOME` | platform user data dir | Studio-owned data directory for `studio.db` |
 | `HERMES_STUDIO_DB_PATH` | *(none)* | Optional direct path to a file named `studio.db`; guarded against Hermes `state.db` |
 
+The local Hermes runtime contract has been validated against Hermes Agent v0.12.0. See [docs/HERMES_RUNTIME_COMPATIBILITY.md](docs/HERMES_RUNTIME_COMPATIBILITY.md) for the discovered API server command, endpoint shapes, SSE event shapes, and read-only local storage audit.
+
 ## Development Status
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the current phase and milestone plan.

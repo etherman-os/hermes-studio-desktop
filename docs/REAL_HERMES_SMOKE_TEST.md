@@ -12,8 +12,7 @@ Manual smoke test guide for validating the Hermes bridge against a real local He
 
 ```bash
 # Terminal 1: Start Hermes Agent API server
-# (follow Hermes docs for your setup)
-hermes serve
+API_SERVER_ENABLED=true hermes gateway --accept-hooks run
 
 # Terminal 2: Start adapter in Hermes mode
 cd hermes-desktop-studio
@@ -128,6 +127,7 @@ HERMES_STUDIO_DEBUG_EVENTS=1 HERMES_STUDIO_BACKEND=hermes pnpm run dev:adapter
 
 ### "Stop button does not work"
 
-- Some Hermes backends may not support the stop endpoint
+- Hermes Agent v0.12.0 exposes the API server through `hermes gateway run`; see `docs/HERMES_RUNTIME_COMPATIBILITY.md`.
+- Some Hermes backends may not support the stop endpoint or may return `stopping` before cancellation completes.
 - Check adapter logs for stop request errors
 - The run may have already completed before stop was sent
