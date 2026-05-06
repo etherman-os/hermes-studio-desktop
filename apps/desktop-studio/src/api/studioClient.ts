@@ -36,7 +36,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export async function checkAdapterHealth(): Promise<boolean> {
   try {
-    const res = await fetch(`${config.baseUrl}/studio/health`, { signal: AbortSignal.timeout(2000) });
+    // Try /studio/health first, fall back to /health
+    let res = await fetch(`${config.baseUrl}/studio/health`, { signal: AbortSignal.timeout(2000) });
+    if (res.ok) return true;
+    res = await fetch(`${config.baseUrl}/health`, { signal: AbortSignal.timeout(2000) });
     return res.ok;
   } catch {
     return false;

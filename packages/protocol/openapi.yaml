@@ -341,8 +341,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConfigView"
-
-  /studio/config:
     patch:
       summary: Safe config mutation
       description: Wraps `hermes config set` CLI. Does not mutate files directly.

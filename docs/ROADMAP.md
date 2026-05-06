@@ -48,6 +48,16 @@
 - [x] Desktop: StatusBar (adapter connection indicator)
 - [x] Root dev scripts (dev:adapter, dev:desktop)
 
+## Phase 3.5 — Stabilization and Contract Alignment (Done)
+
+- [x] Health endpoint alignment: both `/health` and `/studio/health` exist
+- [x] OpenAPI audit: duplicate `/studio/config` fixed, paths aligned with implementation
+- [x] SSE robustness: clean cancellation, unknown event tolerance, disconnect handling
+- [x] Frontend fallback: adapter unavailable shows warning, composer has visual indicator
+- [x] QA checklist: `docs/QA_CHECKLIST.md` with 40+ manual smoke test items
+- [x] Adapter tests: 17 new tests for `/studio/*` endpoints (52 total passing)
+- [x] Dev commands documented: `dev:adapter`, `dev:desktop`, `build`
+
 ## Phase 4 — Real Hermes Integration
 
 - [ ] Hermes API client (`/v1/capabilities`, `/v1/runs`, SSE, `/stop`)

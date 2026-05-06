@@ -58,6 +58,17 @@ app = FastAPI(
 app.include_router(studio_router)
 
 
+@app.get("/health")
+async def health_root() -> dict[str, Any]:
+    """Root-level health check (no auth required)."""
+    return {
+        "status": "healthy",
+        "adapter_version": "0.1.0",
+        "hermes_connected": False,
+        "uptime_seconds": 0,
+    }
+
+
 def _get_client() -> HermesClient:
     """Return the global HermesClient instance, creating lazily if needed."""
     global _client

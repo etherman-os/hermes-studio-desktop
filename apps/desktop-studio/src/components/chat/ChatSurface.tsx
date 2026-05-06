@@ -26,8 +26,9 @@ export function ChatSurface() {
     if (connected) {
       sendPrompt(text, activeSessionId ?? "s-1");
     } else {
-      // fallback: just add user message locally
+      // Fallback: show user message locally with adapter warning
       useRunStore.getState().appendUserMessage(text);
+      useRunStore.getState().appendAssistantChunk("[Adapter disconnected — message saved locally. Start the adapter to send to Hermes.]");
     }
   }
 
@@ -73,11 +74,11 @@ export function ChatSurface() {
       <div className="composer-bar">
         <input
           className="composer-input"
-          placeholder={connected ? `${label("composer")}...` : `${label("composer")} (adapter offline)...`}
+          placeholder={connected ? `${label("composer")}...` : `${label("composer")} (adapter offline — messages saved locally)`}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={false}
+          style={!connected ? { borderColor: "var(--app-warn)" } : undefined}
         />
         {isStreaming ? (
           <button className="composer-send" onClick={stopRun} style={{ background: "var(--app-danger)" }}>

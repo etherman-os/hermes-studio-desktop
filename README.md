@@ -94,15 +94,24 @@ The core app uses **semantic slots** (`profiles`, `sessions`, `chat`, `kanban`, 
 # Install all dependencies
 pnpm install
 
-# Start frontend dev server only (browser)
-pnpm --filter @hermes-desktop-studio/desktop-studio dev
+# Start the Python adapter (FastAPI on 127.0.0.1:39191)
+pnpm run dev:adapter
 
-# Start Tauri desktop app (opens native window)
-pnpm --filter @hermes-desktop-studio/desktop-studio tauri dev
+# Start frontend dev server (browser)
+pnpm run dev:desktop
 
-# Build frontend
+# Build frontend (tsc + vite)
 pnpm --filter @hermes-desktop-studio/desktop-studio build
+
+# Run adapter tests
+source .venv/bin/activate && pytest packages/hermes_adapter/tests/
 ```
+
+### Health Endpoints
+
+The adapter exposes two health endpoints (both return the same shape):
+- `GET /health` — root-level, no auth required
+- `GET /studio/health` — under studio router, no auth required
 
 ## Development Status
 
