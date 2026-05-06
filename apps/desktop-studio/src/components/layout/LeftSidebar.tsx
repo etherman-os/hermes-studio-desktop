@@ -31,19 +31,32 @@ function SessionsList() {
   const sessions = useSessionStore((s) => s.sessions);
   const activeId = useSessionStore((s) => s.activeSessionId);
   const setActive = useSessionStore((s) => s.setActiveSession);
+  const sessionSource = useSessionStore((s) => s.sessionSource);
+  const loaded = useSessionStore((s) => s.loaded);
 
   return (
     <>
+      {loaded && sessions.length === 0 && (
+        <div style={{ padding: "var(--app-spacing-md)", color: "var(--app-text-muted)", fontSize: "var(--app-font-size-sm)", textAlign: "center" }}>
+          No sessions found
+        </div>
+      )}
       {sessions.map((s) => (
         <button
           key={s.id}
           className={`sidebar-item ${activeId === s.id ? "active" : ""}`}
           onClick={() => setActive(s.id)}
+          title={`${s.title}\n${s.messageCount} messages`}
         >
           <span>💬</span>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
             {s.title}
           </span>
+          {s.messageCount > 0 && (
+            <span style={{ fontSize: "10px", color: "var(--app-text-muted)", flexShrink: 0 }}>
+              {s.messageCount}
+            </span>
+          )}
         </button>
       ))}
     </>

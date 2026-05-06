@@ -14,6 +14,7 @@ interface SessionState {
   sessions: Session[];
   activeSessionId: string | null;
   searchQuery: string;
+  sessionSource: string;
   loaded: boolean;
   setActiveSession: (id: string | null) => void;
   setSearchQuery: (q: string) => void;
@@ -24,6 +25,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: [],
   activeSessionId: "s-1",
   searchQuery: "",
+  sessionSource: "unavailable",
   loaded: false,
 
   setActiveSession: (id) => set({ activeSessionId: id }),
@@ -39,9 +41,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         updatedAt: s.updated_at,
         messageCount: s.message_count,
       }));
-      set({ sessions, loaded: true });
+      set({
+        sessions,
+        sessionSource: data.source ?? "mock",
+        loaded: true,
+        activeSessionId: sessions.length > 0 ? sessions[0].id : null,
+      });
     } catch {
-      // keep empty, fallback to local fixtures if needed
+      set({ sessionSource: "unavailable", loaded: true });
     }
   },
 }));

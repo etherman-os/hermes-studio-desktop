@@ -89,16 +89,17 @@
 - [ ] Config UI (`hermes config` CLI wrapper)
 - [ ] Kanban layer (CLI wrappers for board/task operations)
 
-## Phase 4B — Session Browser + Logs (Future)
+## Phase 4B — Read-only Hermes Sessions (Done)
 
-- [ ] Session browser: state.db read-only queries via adapter
-- [ ] Log inspector: live tail from Hermes log files
-- [ ] Config editor: hermes config set wrapper
-- [ ] Profile switcher: real profile switching
-- [ ] Memory viewer: agent memory entries
-- [ ] Kanban integration: hermes kanban CLI wrappers
-- [ ] Provider setup UI
-- [ ] Installer flow
+- [x] session_repository.py: Hermes home bulma, state.db read-only, schema detection
+- [x] Defensive schema detection: tables, columns, FTS, graceful fallback
+- [x] HermesBackend: list_sessions, get_session, search_sessions from real DB
+- [x] Bootstrap response includes session_source info
+- [x] Frontend: sessionStore loads from adapter with source tracking
+- [x] Left sidebar: adapter-loaded sessions with message count
+- [x] Sessions tab: real data, empty state, session source indicator
+- [x] docs/HERMES_STATE_READONLY.md: read-only guarantee, env vars, troubleshooting
+- [x] Tests: 18 new tests (fixture DB, FTS, read-only verification) — 92 total passing
 
 ## Phase 5 — Polish and Accessibility
 

@@ -14,6 +14,7 @@ import httpx
 
 from hermes_adapter.backend_base import StudioBackend
 from hermes_adapter.backend_config import get_debug_events
+from hermes_adapter.session_repository import SessionRepository, find_state_db, get_hermes_home
 
 logger = logging.getLogger("hermes_adapter.hermes_backend")
 _debug = get_debug_events()
@@ -171,6 +172,21 @@ class HermesBackend(StudioBackend):
         self._client = httpx.AsyncClient(timeout=30.0)
         self._hermes_healthy = False
         self._last_error: str | None = None
+        self._session_repo: SessionRepository | None = None
+        self._init_session_repo()
+
+    def _init_session_repo(self) -> None:
+        """Initialize session repository from Hermes state.db."""
+        try:
+            hermes_home = get_hermes_home()
+            db_path = find_state_db(hermes_home)
+            if db_path:
+                self._session_repo = SessionRepository(db_path)
+                logger.info("Session repository initialized: %s", db_path)
+            else:
+                logger.info("No state.db found under %s", hermes_home)
+        except Exception as e:
+            logger.warning("Failed to initialize session repository: %s", e)
 
     def _headers(self) -> dict[str, str]:
         headers: dict[str, str] = {}
@@ -222,24 +238,40 @@ class HermesBackend(StudioBackend):
             except Exception:
                 pass
 
+        # Get recent sessions if available
+        recent_sessions: list[dict[str, Any]] = []
+        session_status: dict[str, Any] = {"source": "unavailable", "available": False}
+        if self._session_repo:
+            session_status = self._session_repo.get_status()
+            if self._session_repo.available:
+                session_data = self._session_repo.list_sessions(limit=5)
+                recent_sessions = session_data.get("sessions", [])
+
         return {
             "adapter_version": "0.1.0",
             "hermes_version": "unknown" if not self._hermes_healthy else "connected",
             "active_profile": None,
             "capabilities": capabilities or ["chat", "tools", "streaming"],
-            "recent_sessions": [],
+            "recent_sessions": recent_sessions,
             "active_theme": None,
             "available_models": [],
+            "session_source": session_status,
         }
 
     async def list_profiles(self) -> list[dict[str, Any]]:
         return []
 
     async def list_sessions(self) -> dict[str, Any]:
-        return {"sessions": [], "total": 0}
+        if self._session_repo and self._session_repo.available:
+            return self._session_repo.list_sessions()
+        return {"sessions": [], "total": 0, "source": "unavailable", "reason": "No Hermes state.db found"}
 
     async def get_session(self, session_id: str) -> dict[str, Any]:
-        raise ValueError(f"Session '{session_id}' not found (Hermes session browser not yet implemented)")
+        if self._session_repo and self._session_repo.available:
+            session = self._session_repo.get_session(session_id)
+            if session:
+                return session
+        raise ValueError(f"Session '{session_id}' not found")
 
     async def start_run(self, session_id: str, prompt: str, profile: str | None = None) -> dict[str, Any]:
         if not await self._check_hermes():

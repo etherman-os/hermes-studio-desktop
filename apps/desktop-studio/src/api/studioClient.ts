@@ -77,7 +77,7 @@ export async function getProfiles() {
 }
 
 export async function getSessions() {
-  return request<{ sessions: SessionSummary[]; total: number }>("/studio/sessions");
+  return request<{ sessions: SessionSummary[]; total: number; source?: string }>("/studio/sessions");
 }
 
 export async function getSession(sessionId: string) {
