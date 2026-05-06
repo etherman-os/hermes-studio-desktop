@@ -3,8 +3,8 @@
   "private": true,
   "description": "Local-first, themeable desktop workbench for Hermes Agent",
   "scripts": {
-    "dev": "pnpm --filter @hermes-studio/desktop-shell dev",
-    "build": "pnpm --filter @hermes-studio/desktop-shell build",
-    "tauri": "pnpm --filter @hermes-studio/desktop-shell tauri"
+    "dev": "pnpm --filter @hermes-studio/desktop-studio dev",
+    "build": "pnpm --filter @hermes-studio/desktop-studio build",
+    "tauri": "pnpm --filter @hermes-studio/desktop-studio tauri"
   }
 }

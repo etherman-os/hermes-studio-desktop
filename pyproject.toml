@@ -34,7 +34,7 @@ hermes-local-adapter = "hermes_adapter.server:main"
 # The Textual prototype has been moved to legacy/textual-prototype/.
 # To run the legacy prototype, install in editable mode and use:
 #   python -m hermes_shell_ui.main
-# The main product is now the Tauri desktop app under apps/desktop-shell/.
+# The main product is now the Tauri desktop app under apps/desktop-studio/.
 
 [build-system]
 requires = ["hatchling"]

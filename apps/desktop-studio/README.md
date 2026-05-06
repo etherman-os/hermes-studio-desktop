@@ -1,4 +1,4 @@
-# Hermes Local Studio — Desktop Shell
+# Hermes Local Studio — Desktop Studio
 
 This is the main desktop application entry point for Hermes Local Studio.
 

@@ -45,7 +45,7 @@ Hermes Local Studio is a local-first, themeable desktop workbench for Hermes Age
 ## Package Layout
 
 - `packages/hermes_adapter/` — Python sidecar adapter. Owns the API contract.
-- `apps/desktop-shell/` — Tauri v2 + React + TypeScript desktop application.
+- `apps/desktop-studio/` — Tauri v2 + React + TypeScript desktop application.
 - `packages/protocol/` — OpenAPI, event schema, theme schema, layout schema (Phase 1).
 - `packages/shared-types/` — TypeScript type definitions (Phase 1).
 - `themes/` — Data-driven concept packs (theme + layout TOML).

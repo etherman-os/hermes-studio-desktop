@@ -1,6 +1,6 @@
 # shared-types
 
-TypeScript type definitions shared between desktop-shell and future packages.
+TypeScript type definitions shared between desktop-studio and future packages.
 
 Contains hand-written or generated types for:
 - Adapter API request/response types

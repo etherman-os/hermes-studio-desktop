@@ -20,4 +20,4 @@ See `docs/ADR-0001-desktop-first.md` for the full decision record.
 
 ## Can I still run this?
 
-The prototype may still work if you install the Python dependencies and run the adapter. However, it is not maintained and will not receive updates. All new development happens under `apps/desktop-shell/`.
+The prototype may still work if you install the Python dependencies and run the adapter. However, it is not maintained and will not receive updates. All new development happens under `apps/desktop-studio/`.

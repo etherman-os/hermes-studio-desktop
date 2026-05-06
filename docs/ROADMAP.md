@@ -3,7 +3,7 @@
 ## Phase 0 — Repo Reorganization (Done)
 
 - [x] Move Textual TUI prototype to `legacy/textual-prototype/`
-- [x] Create `apps/desktop-shell/` placeholder
+- [x] Create `apps/desktop-studio/` placeholder
 - [x] Add `pnpm-workspace.yaml` and root `package.json`
 - [x] Update README, ARCHITECTURE, ROADMAP for desktop-first direction
 - [x] Add `docs/PRODUCT_DIRECTION.md` and `docs/ADR-0001-desktop-first.md`
@@ -17,7 +17,7 @@
 - [ ] `packages/protocol/layout.schema.json` — Layout pack TOML schema
 - [ ] `packages/shared-types/src/index.ts` — TypeScript type definitions
 
-## Phase 2 — Desktop Shell Skeleton
+## Phase 2 — Desktop Studio Skeleton
 
 - [ ] Tauri v2 + React + TypeScript + Vite project initialization
 - [ ] Main layout: left sidebar / center tabs / right sidebar / bottom panel

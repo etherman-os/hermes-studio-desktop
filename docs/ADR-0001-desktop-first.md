@@ -19,7 +19,7 @@ However, the product goal is a **local-first desktop workbench** comparable to V
 
 1. The main product will be a **Tauri v2 + React + TypeScript** desktop application.
 2. The existing Textual/TUI prototype is moved to `legacy/textual-prototype/` as reference.
-3. The main application entry point is `apps/desktop-shell/`.
+3. The main application entry point is `apps/desktop-studio/`.
 4. The Python adapter (`packages/hermes_adapter/`) remains the source of truth for the API contract.
 5. The theme system is generic and semantic-slot-based — no concept (Minecraft, Minions, LOTR, etc.) is hardcoded into the application.
 6. Hermes core code will **not** be modified, vendored, or forked.

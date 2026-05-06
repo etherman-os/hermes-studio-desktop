@@ -57,7 +57,7 @@ Terminal TUIs have inherent ceilings in visual ergonomics, panel docking, drag-a
 ```
 hermes-local-studio/
   apps/
-    desktop-shell/            # Tauri v2 + React + TypeScript desktop app
+    desktop-studio/            # Tauri v2 + React + TypeScript desktop app
   packages/
     hermes_adapter/           # Python sidecar adapter (source of truth for API contract)
     py-adapter/               # Future rename target (placeholder)
