@@ -91,3 +91,21 @@ Manual smoke test checklist for verifying the desktop studio works correctly.
 - [ ] Closing adapter mid-stream shows error in chat
 - [ ] Restarting adapter reconnects on next health check
 - [ ] Empty prompt does not send
+
+## Logs
+
+- [ ] Bottom Logs tab shows log lines from adapter
+- [ ] Log lines are color-coded by level (info/warn/error)
+- [ ] Source selector works (agent.log, errors.log, gateway.log)
+- [ ] Empty state when logs unavailable
+- [ ] Secrets/API keys are redacted from log output
+- [ ] Log stream auto-scrolls (or shows new lines)
+
+## Profiles
+
+- [ ] Left sidebar Profiles section shows profile list
+- [ ] Active profile is highlighted
+- [ ] Profile count is shown
+- [ ] Clicking a profile shows "switching not implemented" notice
+- [ ] Status bar shows active profile name
+- [ ] Empty state when no profiles found

@@ -14,6 +14,8 @@ import httpx
 
 from hermes_adapter.backend_base import StudioBackend
 from hermes_adapter.backend_config import get_debug_events
+from hermes_adapter.log_repository import LogRepository, get_hermes_logs_dir
+from hermes_adapter.profile_repository import ProfileRepository
 from hermes_adapter.session_repository import SessionRepository, find_state_db, get_hermes_home
 
 logger = logging.getLogger("hermes_adapter.hermes_backend")
@@ -173,20 +175,32 @@ class HermesBackend(StudioBackend):
         self._hermes_healthy = False
         self._last_error: str | None = None
         self._session_repo: SessionRepository | None = None
-        self._init_session_repo()
+        self._log_repo: LogRepository | None = None
+        self._profile_repo: ProfileRepository | None = None
+        self._hermes_home = get_hermes_home()
+        self._init_repos()
 
-    def _init_session_repo(self) -> None:
-        """Initialize session repository from Hermes state.db."""
+    def _init_repos(self) -> None:
+        """Initialize session, log, and profile repositories."""
         try:
-            hermes_home = get_hermes_home()
-            db_path = find_state_db(hermes_home)
+            # Session repository
+            db_path = find_state_db(self._hermes_home)
             if db_path:
                 self._session_repo = SessionRepository(db_path)
-                logger.info("Session repository initialized: %s", db_path)
-            else:
-                logger.info("No state.db found under %s", hermes_home)
+                logger.info("Session repository initialized: %s", db_path.name)
+
+            # Log repository
+            logs_dir = get_hermes_logs_dir()
+            if logs_dir:
+                self._log_repo = LogRepository(logs_dir)
+                logger.info("Log repository initialized: %s", logs_dir.name)
+
+            # Profile repository
+            self._profile_repo = ProfileRepository(self._hermes_home)
+            logger.info("Profile repository initialized: %d profiles", self._profile_repo.profile_count)
+
         except Exception as e:
-            logger.warning("Failed to initialize session repository: %s", e)
+            logger.warning("Failed to initialize repositories: %s", e)
 
     def _headers(self) -> dict[str, str]:
         headers: dict[str, str] = {}
@@ -211,6 +225,8 @@ class HermesBackend(StudioBackend):
 
     async def health(self) -> dict[str, Any]:
         await self._check_hermes()
+        log_status = self._log_repo.get_status() if self._log_repo else {"available": False, "reason": "No logs directory found"}
+        profile_status = self._profile_repo.get_status() if self._profile_repo else {"available": False, "reason": "No profiles found"}
         return {
             "status": "healthy" if self._hermes_healthy else "degraded",
             "adapter_version": "0.1.0",
@@ -219,6 +235,8 @@ class HermesBackend(StudioBackend):
             "backend_mode": "hermes",
             "hermes_url": self._base_url,
             "hermes_last_error": self._last_error,
+            "logs": log_status,
+            "profiles": profile_status,
         }
 
     async def bootstrap(self) -> dict[str, Any]:
@@ -247,19 +265,41 @@ class HermesBackend(StudioBackend):
                 session_data = self._session_repo.list_sessions(limit=5)
                 recent_sessions = session_data.get("sessions", [])
 
+        # Get profiles
+        profiles = self._profile_repo.list_profiles() if self._profile_repo else []
+        active_profile = self._profile_repo.active_profile if self._profile_repo else None
+        profile_status = self._profile_repo.get_status() if self._profile_repo else {"available": False}
+
+        # Get logs status
+        log_status = self._log_repo.get_status() if self._log_repo else {"available": False}
+
         return {
             "adapter_version": "0.1.0",
             "hermes_version": "unknown" if not self._hermes_healthy else "connected",
-            "active_profile": None,
+            "active_profile": active_profile,
             "capabilities": capabilities or ["chat", "tools", "streaming"],
             "recent_sessions": recent_sessions,
             "active_theme": None,
             "available_models": [],
             "session_source": session_status,
+            "profiles_available": profile_status.get("available", False),
+            "profile_count": profile_status.get("profile_count", 0),
+            "logs_available": log_status.get("available", False),
+            "log_sources": log_status.get("log_files", []),
         }
 
     async def list_profiles(self) -> list[dict[str, Any]]:
+        if self._profile_repo:
+            return self._profile_repo.list_profiles()
         return []
+
+    async def get_active_profile(self) -> dict[str, Any] | None:
+        if self._profile_repo:
+            return self._profile_repo.get_active_profile()
+        return None
+
+    async def activate_profile(self, profile_id: str) -> dict[str, Any]:
+        return {"status": "not_implemented", "message": "Profile switching not yet implemented"}
 
     async def list_sessions(self) -> dict[str, Any]:
         if self._session_repo and self._session_repo.available:
@@ -403,18 +443,27 @@ class HermesBackend(StudioBackend):
         except Exception as e:
             return {"run_id": run_id, "status": "failed", "error": str(e)}
 
-    async def get_logs(self) -> dict[str, Any]:
-        return {"source": "hermes", "lines": [], "total": 0}
+    async def get_logs(self, source: str | None = None, tail: int = 100) -> dict[str, Any]:
+        if self._log_repo and self._log_repo.available:
+            return self._log_repo.get_recent_logs(source=source, tail=tail)
+        return {"source": source or "unknown", "lines": [], "total": 0, "reason": "No Hermes logs directory found"}
 
-    async def stream_logs(self) -> AsyncIterator[dict[str, Any]]:
-        # Log streaming not yet implemented for Hermes backend
-        yield _sse_event("log.line", {
-            "source": "adapter",
-            "level": "info",
-            "message": "Hermes log streaming not yet implemented",
-            "timestamp": _now_iso(),
-        })
-        await asyncio.sleep(60)
+    async def stream_logs(self, source: str | None = None) -> AsyncIterator[dict[str, Any]]:
+        if not self._log_repo or not self._log_repo.available:
+            yield _sse_event("log.line", {"source": "adapter", "level": "info", "message": "Hermes logs not available", "timestamp": _now_iso()})
+            return
+
+        log_files = self._log_repo.log_files
+        target = source if source and source in log_files else (log_files[0] if log_files else None)
+        if not target:
+            yield _sse_event("log.line", {"source": "adapter", "level": "info", "message": "No log files found", "timestamp": _now_iso()})
+            return
+
+        log_path = self._log_repo._logs_dir / target
+        from hermes_adapter.log_repository import LogStreamer
+        streamer = LogStreamer(log_path)
+        async for line in streamer.stream():
+            yield _sse_event("log.line", {"source": target, "level": "info", "message": line, "timestamp": _now_iso()})
 
     async def list_themes(self) -> dict[str, Any]:
         return {"themes": [], "active": ""}

@@ -80,15 +80,6 @@
 - [x] Error hardening: clear messages for Hermes unreachable, auto fallback, hermes mode failures
 - [x] Tests: 72 total passing (4 new fixture replay tests)
 
-## Phase 4B — Session Browser + Logs (Future)
-
-- [ ] Hermes API client (`/v1/capabilities`, `/v1/runs`, SSE, `/stop`)
-- [ ] Event normalizer (defensive: synthesize `run.failed`, `tool.completed`)
-- [ ] Session browser (`state.db` read-only queries)
-- [ ] Logs panel (live tail)
-- [ ] Config UI (`hermes config` CLI wrapper)
-- [ ] Kanban layer (CLI wrappers for board/task operations)
-
 ## Phase 4B — Read-only Hermes Sessions (Done)
 
 - [x] session_repository.py: Hermes home bulma, state.db read-only, schema detection
@@ -102,6 +93,26 @@
 - [x] assistant.delta payload verified: text field present in all normalization paths
 - [x] docs/HERMES_STATE_READONLY.md: read-only guarantee, env vars, troubleshooting
 - [x] Tests: 18 new tests (fixture DB, FTS, read-only verification) — 92 total passing
+
+## Phase 4B.5 — Session UX Completion (Done)
+
+- [x] SessionsPanel: adapter-loaded sessions, detail view, search, empty state
+- [x] assistant.delta payload verified: text field in all 4 normalization paths
+- [x] Build: tsc + vite pass
+
+## Phase 4C — Real Hermes Logs + Profiles (Done)
+
+- [x] log_repository.py: logs dizini bulma, okuma, redaction, tail
+- [x] profile_repository.py: profil keşfi, metadata, active profil tespiti
+- [x] HermesBackend: list_profiles, get_active_profile, get_logs, stream_logs
+- [x] /studio/profiles, /studio/profiles/active, /studio/profiles/activate (501)
+- [x] /studio/logs: source ve tail query params
+- [x] /studio/logs/stream: source param
+- [x] Bootstrap: profiles_available, profile_count, logs_available, log_sources
+- [x] Health: logs ve profiles status
+- [x] Log redaction: bearer, api_key, hex, key prefixes
+- [x] Tests: 19 new (log repo, profile repo, redaction) — 111 total passing
+- [x] docs/HERMES_LOGS_AND_PROFILES.md
 
 ## Phase 5 — Polish and Accessibility
 

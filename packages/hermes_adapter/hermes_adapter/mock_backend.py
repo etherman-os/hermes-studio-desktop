@@ -166,7 +166,22 @@ class MockBackend(StudioBackend):
         ]
         return {"source": "agent", "lines": lines, "total": len(lines)}
 
-    async def stream_logs(self) -> AsyncIterator[dict[str, Any]]:
+    async def get_logs(self, source: str | None = None, tail: int = 100) -> dict[str, Any]:
+        lines = [
+            "[10:05:32] [INFO] Adapter started on 127.0.0.1:39191",
+            "[10:05:33] [INFO] Studio endpoints registered",
+            "[10:05:33] [INFO] Theme loader initialized: 5 themes found",
+            "[10:05:34] [INFO] Hermes health check: OK (mock v0.12.0)",
+            "[10:06:01] [INFO] Run started: run_abc123",
+            "[10:06:02] [INFO] Tool started: file_tree",
+            "[10:06:03] [INFO] Tool completed: file_tree (1.2s)",
+            "[10:06:15] [INFO] Run completed: run_abc123",
+            "[10:08:00] [WARN] Theme minecraft-overworld: missing accessibility.font_scale",
+            "[10:10:45] [INFO] Session s-2 resumed",
+        ]
+        return {"source": source or "agent.log", "lines": lines[-tail:], "total": len(lines)}
+
+    async def stream_logs(self, source: str | None = None) -> AsyncIterator[dict[str, Any]]:
         messages = [
             ("info", "Heartbeat: adapter alive"),
             ("info", "Memory usage: 42MB"),

@@ -29,6 +29,14 @@ class StudioBackend(ABC):
         """Return available profiles."""
         ...
 
+    async def get_active_profile(self) -> dict[str, Any] | None:
+        """Return the active profile metadata. Override in subclasses."""
+        return None
+
+    async def activate_profile(self, profile_id: str) -> dict[str, Any]:
+        """Activate a profile. Returns {status, message}."""
+        return {"status": "not_implemented", "message": "Profile switching not yet implemented"}
+
     @abstractmethod
     async def list_sessions(self) -> dict[str, Any]:
         """Return session list with total count."""

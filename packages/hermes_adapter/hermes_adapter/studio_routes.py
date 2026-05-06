@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from typing import Any, AsyncIterator
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from hermes_adapter.backend_base import StudioBackend
@@ -75,6 +75,25 @@ async def list_profiles(_token: None = Depends(require_token)) -> list[dict[str,
     return await backend.list_profiles()
 
 
+@router.get("/profiles/active")
+async def get_active_profile(_token: None = Depends(require_token)) -> dict[str, Any]:
+    backend = await _get_backend()
+    profile = await backend.get_active_profile()
+    if profile:
+        return profile
+    return {"id": "unknown", "name": "unknown", "active": True}
+
+
+@router.post("/profiles/activate")
+async def activate_profile(body: dict[str, Any], _token: None = Depends(require_token)) -> dict[str, Any]:
+    backend = await _get_backend()
+    profile_id = body.get("profile_id", "")
+    result = await backend.activate_profile(profile_id)
+    if result.get("status") == "not_implemented":
+        raise HTTPException(status_code=501, detail={"error": {"code": "not_implemented", "message": result.get("message", "Profile switching not implemented")}})
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Sessions
 # ---------------------------------------------------------------------------
@@ -135,17 +154,24 @@ async def stop_run(run_id: str, _token: None = Depends(require_token)) -> dict[s
 
 
 @router.get("/logs")
-async def get_logs(_token: None = Depends(require_token)) -> dict[str, Any]:
+async def get_logs(
+    source: str | None = Query(None, description="Log file name"),
+    tail: int = Query(100, description="Number of recent lines"),
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
     backend = await _get_backend()
-    return await backend.get_logs()
+    return await backend.get_logs(source=source, tail=tail)
 
 
 @router.get("/logs/stream")
-async def stream_logs(_token: None = Depends(require_token)) -> StreamingResponse:
+async def stream_logs(
+    source: str | None = Query(None, description="Log file name to stream"),
+    _token: None = Depends(require_token),
+) -> StreamingResponse:
     backend = await _get_backend()
 
     async def log_generator() -> AsyncIterator[str]:
-        async for event in backend.stream_logs():
+        async for event in backend.stream_logs(source=source):
             yield _sse(event)
 
     return StreamingResponse(log_generator(), media_type="text/event-stream")
