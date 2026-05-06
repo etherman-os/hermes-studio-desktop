@@ -281,6 +281,117 @@ async def reload_themes(_token: None = Depends(require_token)) -> dict[str, Any]
 
 
 # ---------------------------------------------------------------------------
+# Kanban
+# ---------------------------------------------------------------------------
+
+
+def _kanban_http_error(error: ValueError | RuntimeError) -> HTTPException:
+    message = str(error)
+    status_code = 404 if "not found" in message.lower() else 400
+    return HTTPException(
+        status_code=status_code,
+        detail=_error_detail("kanban_error", message, source="studio"),
+    )
+
+
+@router.get("/kanban/boards")
+async def get_kanban_boards(_token: None = Depends(require_token)) -> dict[str, Any]:
+    backend = await _get_backend()
+    try:
+        return await backend.get_kanban_boards()
+    except (RuntimeError, ValueError) as e:
+        raise _kanban_http_error(e) from e
+
+
+@router.get("/kanban/boards/default")
+async def get_default_kanban_board(_token: None = Depends(require_token)) -> dict[str, Any]:
+    backend = await _get_backend()
+    try:
+        return await backend.get_default_kanban_board()
+    except (RuntimeError, ValueError) as e:
+        raise _kanban_http_error(e) from e
+
+
+@router.get("/kanban/boards/{board_id}")
+async def get_kanban_board(board_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
+    backend = await _get_backend()
+    try:
+        return await backend.get_kanban_board(board_id)
+    except (RuntimeError, ValueError) as e:
+        raise _kanban_http_error(e) from e
+
+
+@router.post("/kanban/cards")
+async def create_kanban_card(body: dict[str, Any], _token: None = Depends(require_token)) -> dict[str, Any]:
+    backend = await _get_backend()
+    try:
+        return await backend.create_kanban_card(body)
+    except (RuntimeError, ValueError) as e:
+        raise _kanban_http_error(e) from e
+
+
+@router.patch("/kanban/cards/{card_id}")
+async def update_kanban_card(
+    card_id: str,
+    body: dict[str, Any],
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    backend = await _get_backend()
+    try:
+        return await backend.update_kanban_card(card_id, body)
+    except (RuntimeError, ValueError) as e:
+        raise _kanban_http_error(e) from e
+
+
+@router.post("/kanban/cards/{card_id}/move")
+async def move_kanban_card(
+    card_id: str,
+    body: dict[str, Any],
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    backend = await _get_backend()
+    try:
+        return await backend.move_kanban_card(card_id, body.get("column_id", ""), body.get("position", 0))
+    except (RuntimeError, ValueError) as e:
+        raise _kanban_http_error(e) from e
+
+
+@router.post("/kanban/cards/{card_id}/archive")
+async def archive_kanban_card(card_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
+    backend = await _get_backend()
+    try:
+        return await backend.archive_kanban_card(card_id)
+    except (RuntimeError, ValueError) as e:
+        raise _kanban_http_error(e) from e
+
+
+@router.post("/kanban/cards/{card_id}/link-session")
+async def link_kanban_card_to_session(
+    card_id: str,
+    body: dict[str, Any],
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    backend = await _get_backend()
+    try:
+        return await backend.link_kanban_card_to_session(card_id, body.get("session_id", ""))
+    except (RuntimeError, ValueError) as e:
+        raise _kanban_http_error(e) from e
+
+
+@router.post("/kanban/cards/{card_id}/link-run")
+async def link_kanban_card_to_run(
+    card_id: str,
+    body: dict[str, Any],
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    backend = await _get_backend()
+    try:
+        return await backend.link_kanban_card_to_run(card_id, body.get("run_id", ""))
+    except (RuntimeError, ValueError) as e:
+        raise _kanban_http_error(e) from e
+
+
+# ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 

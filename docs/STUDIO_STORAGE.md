@@ -2,7 +2,7 @@
 
 Hermes Desktop Studio owns a local SQLite database named `studio.db`.
 
-This database is for Studio-only state such as preferences, workflow metadata, and future local-only features. It is not Hermes Agent state, and it must never replace or mutate Hermes `state.db`.
+This database is for Studio-only state such as preferences, Kanban workflow metadata, and local-only features. It is not Hermes Agent state, and it must never replace or mutate Hermes `state.db`.
 
 ## Location
 
@@ -22,12 +22,19 @@ For advanced local testing, `HERMES_STUDIO_DB_PATH` may point directly to a file
 
 ## Schema
 
-Initial tables:
+Migration `1: initial_studio_storage` creates:
 
 - `migrations(version integer primary key, name text not null, applied_at text not null)`
 - `studio_meta(key text primary key, value text not null, updated_at text not null)`
 
-The first migration initializes these tables and writes metadata such as `schema_version`, `initialized_at`, and `storage_owner`.
+Migration `2: persistent_kanban` creates Studio-owned Kanban tables:
+
+- `boards`
+- `columns`
+- `cards`
+- `card_events`
+
+The migrations write metadata such as `schema_version`, `initialized_at`, and `storage_owner`.
 
 Migrations are idempotent. Reopening `studio.db` does not duplicate migration records.
 
@@ -47,7 +54,7 @@ Migrations are idempotent. Reopening `studio.db` does not duplicate migration re
 {
   "storage": {
     "available": true,
-    "schema_version": 1,
+    "schema_version": 2,
     "data_dir": "/home/user/.local/share/hermes-desktop-studio",
     "db_path": "/home/user/.local/share/hermes-desktop-studio/studio.db",
     "last_error": null
@@ -57,9 +64,9 @@ Migrations are idempotent. Reopening `studio.db` does not duplicate migration re
 
 If the database is corrupt or cannot be opened, `storage.available` is `false` and `storage.last_error` contains the diagnostic message. The adapter should continue to serve read-only Hermes data where possible.
 
-## Future Kanban Use
+## Kanban Use
 
-Phase 6 Kanban persistence should build on this storage foundation after the base schema, migration policy, and health reporting remain stable. Kanban tables should be added in their own migration and should remain Studio-owned unless Hermes exposes an official workflow persistence API later.
+Phase 6C Kanban persistence uses this storage foundation. Kanban tables remain Studio-owned unless Hermes exposes an official workflow persistence API later. See [STUDIO_KANBAN.md](STUDIO_KANBAN.md).
 
 ## Troubleshooting
 

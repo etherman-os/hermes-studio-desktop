@@ -35,7 +35,7 @@ Both include `storage` diagnostics for Studio-owned `studio.db`:
 {
   "storage": {
     "available": true,
-    "schema_version": 1,
+    "schema_version": 2,
     "data_dir": "/home/user/.local/share/hermes-desktop-studio",
     "db_path": "/home/user/.local/share/hermes-desktop-studio/studio.db",
     "last_error": null
@@ -62,6 +62,15 @@ Both include `storage` diagnostics for Studio-owned `studio.db`:
 - `GET /studio/themes/{theme_id}`
 - `POST /studio/themes/activate`
 - `POST /studio/themes/reload`
+- `GET /studio/kanban/boards`
+- `GET /studio/kanban/boards/default`
+- `GET /studio/kanban/boards/{board_id}`
+- `POST /studio/kanban/cards`
+- `PATCH /studio/kanban/cards/{card_id}`
+- `POST /studio/kanban/cards/{card_id}/move`
+- `POST /studio/kanban/cards/{card_id}/archive`
+- `POST /studio/kanban/cards/{card_id}/link-session`
+- `POST /studio/kanban/cards/{card_id}/link-run`
 - `GET /studio/config`
 - `PATCH /studio/config`
 
@@ -93,6 +102,8 @@ All Studio SSE events must match `packages/protocol/events.schema.json` and incl
 
 `run_id` and `session_id` are optional top-level fields when applicable. Unknown upstream events are normalized to `adapter.warning` or ignored safely; malformed upstream events must not weaken the Studio schema.
 
+`kanban.updated` events must include structured payloads with at least `board_id` and `action`. Malformed upstream Kanban notifications are normalized to `adapter.warning`; persistent Kanban writes only happen through `/studio/kanban/*`.
+
 ## Error Envelope
 
 All protected endpoint errors use:
@@ -118,3 +129,4 @@ All protected endpoint errors use:
 - Hermes profiles and model/provider config are inspected read-only.
 - The adapter must not mutate Hermes core files unless a safe official Hermes CLI/API write path is explicitly used.
 - Studio-owned persistence uses `studio.db`; it is separate from Hermes `state.db` and must not store secrets.
+- Studio-owned Kanban writes go only to `studio.db`; session/run links store IDs only.

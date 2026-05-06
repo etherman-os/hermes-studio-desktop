@@ -116,6 +116,10 @@ export interface AdapterWarningPayload {
 export interface KanbanUpdatedPayload {
   board_id: string;
   action: string;
+  card_id?: string;
+  column_id?: string;
+  position?: number;
+  /** Legacy alias retained only for compatibility; new Kanban events use card_id. */
   task_id?: string;
 }
 

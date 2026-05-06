@@ -202,11 +202,12 @@
 - [x] Phase 6B foundation: Studio-owned `studio.db` location resolution, migrations, metadata, health/bootstrap status
 - [x] Storage safety: no Hermes `state.db` writes, no secrets, guard against `HERMES_STUDIO_DB_PATH` pointing at Hermes state
 - [x] docs/STUDIO_STORAGE.md
-- [ ] Define Studio-owned Kanban persistence schema outside Hermes core/state.db
-- [ ] Add `/studio/kanban/*` protocol paths and OpenAPI coverage before frontend wiring
-- [ ] Implement adapter persistence with local Studio storage and migration/version metadata
+- [x] Phase 6C backend protocol: persistent Studio-owned Kanban repository, default board, and default columns
+- [x] Define Studio-owned Kanban persistence schema outside Hermes core/state.db
+- [x] Add `/studio/kanban/*` protocol paths and OpenAPI coverage before frontend wiring
+- [x] Implement adapter persistence with local Studio storage and migration/version metadata
+- [x] Add tests for CRUD, ordering, migration, event normalization, and read-only Hermes guarantees
 - [ ] Keep theme/concept pack Kanban presentation generic and semantic-slot driven
-- [ ] Add tests for CRUD, ordering, migration, malformed files, and read-only Hermes guarantees
 - [ ] Wire frontend Kanban store/components to `/studio/*` only
 
 ## Phase 7 — Packaging and Release

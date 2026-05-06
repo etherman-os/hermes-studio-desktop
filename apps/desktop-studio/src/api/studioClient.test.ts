@@ -104,4 +104,38 @@ describe("studioClient protocol surface", () => {
 
     expect(message).toBe("Missing Authorization header");
   });
+
+  it("uses /studio/kanban/* for Kanban protocol calls", async () => {
+    vi.stubEnv("VITE_HERMES_STUDIO_ADAPTER_TOKEN", "dev-token");
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        id: "card_1",
+        board_id: "board_default",
+        column_id: "col_default_inbox",
+        title: "Card",
+        description: "",
+        priority: "normal",
+        status: "inbox",
+        position: 0,
+        session_id: null,
+        run_id: null,
+        created_at: "2026-05-07T00:00:00Z",
+        updated_at: "2026-05-07T00:00:00Z",
+        archived_at: null,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const api = await loadClient();
+    await api.initializeAdapterAuth();
+    await api.createKanbanCard({ title: "Card" });
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:39191/studio/kanban/cards");
+    expect(fetchMock.mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ Authorization: "Bearer dev-token" }),
+      }),
+    );
+  });
 });

@@ -150,7 +150,7 @@ Desktop frontend code must not call `/shell/*`.
 
 ### Studio-owned Storage
 
-Hermes Desktop Studio owns a local SQLite database named `studio.db` for Studio preferences, workflow metadata, and future local-only features. It is separate from Hermes Agent `state.db` and must not store secrets.
+Hermes Desktop Studio owns a local SQLite database named `studio.db` for Studio preferences, Kanban workflow metadata, and local-only features. It is separate from Hermes Agent `state.db` and must not store secrets.
 
 Path priority:
 - `HERMES_STUDIO_HOME`
@@ -158,6 +158,10 @@ Path priority:
 - Linux fallback: `~/.local/share/hermes-desktop-studio/`
 
 `GET /studio/health`, root `GET /health`, and `GET /studio/bootstrap` report storage diagnostics. See [docs/STUDIO_STORAGE.md](docs/STUDIO_STORAGE.md).
+
+### Studio-owned Kanban Backend
+
+Persistent Kanban data uses the same Studio-owned `studio.db`, never Hermes `state.db`. Phase 6C adds `/studio/kanban/*` backend endpoints, default board creation, default columns, and event/schema coverage. Full Kanban UI and drag-and-drop are intentionally later work. See [docs/STUDIO_KANBAN.md](docs/STUDIO_KANBAN.md).
 
 ### Backend Modes
 

@@ -103,6 +103,18 @@ Manual smoke test checklist for verifying the desktop studio works correctly.
 - [ ] Hermes `~/.hermes/state.db` is not modified by Studio startup
 - [ ] Storage metadata contains diagnostics only; no secrets are stored in `studio_meta`
 
+## Studio Kanban Backend
+
+- [ ] `GET /studio/kanban/boards/default` creates one persistent default board
+- [ ] Default columns are Inbox, Ready, Doing, Blocked, Done
+- [ ] `POST /studio/kanban/cards` creates a card in Studio-owned `studio.db`
+- [ ] `PATCH /studio/kanban/cards/{card_id}` updates sanitized card fields
+- [ ] `POST /studio/kanban/cards/{card_id}/move` persists column and position changes
+- [ ] Archive, link-session, and link-run endpoints return standard card shapes
+- [ ] Kanban routes require adapter auth and return the standard error envelope
+- [ ] Malformed `kanban.updated` events become `adapter.warning`
+- [ ] Kanban tests verify no writes to Hermes `state.db`
+
 ## Status Bar
 
 - [ ] Shows active profile name

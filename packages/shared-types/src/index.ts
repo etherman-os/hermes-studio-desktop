@@ -62,6 +62,20 @@ export type {
 } from "./layout";
 
 export type {
+  KanbanBoardSummary,
+  KanbanBoard,
+  KanbanColumn,
+  KanbanCard,
+  KanbanCardEvent,
+  KanbanBoardsResponse,
+  KanbanCreateCardRequest,
+  KanbanUpdateCardRequest,
+  KanbanMoveCardRequest,
+  KanbanLinkSessionRequest,
+  KanbanLinkRunRequest,
+} from "./kanban";
+
+export type {
   PluginType,
   PluginStatus,
   PluginPackageInfo,

@@ -303,6 +303,59 @@ export async function patchConfig(input: { key: string; value: unknown }) {
   });
 }
 
+export async function getKanbanBoards() {
+  return request<KanbanBoardsResponse>("/studio/kanban/boards");
+}
+
+export async function getDefaultKanbanBoard() {
+  return request<KanbanBoard>("/studio/kanban/boards/default");
+}
+
+export async function getKanbanBoard(boardId: string) {
+  return request<KanbanBoard>(`/studio/kanban/boards/${boardId}`);
+}
+
+export async function createKanbanCard(input: KanbanCreateCardRequest) {
+  return request<KanbanCard>("/studio/kanban/cards", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateKanbanCard(cardId: string, input: KanbanUpdateCardRequest) {
+  return request<KanbanCard>(`/studio/kanban/cards/${cardId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function moveKanbanCard(cardId: string, input: KanbanMoveCardRequest) {
+  return request<KanbanCard>(`/studio/kanban/cards/${cardId}/move`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function archiveKanbanCard(cardId: string) {
+  return request<KanbanCard>(`/studio/kanban/cards/${cardId}/archive`, {
+    method: "POST",
+  });
+}
+
+export async function linkKanbanCardToSession(cardId: string, input: KanbanLinkSessionRequest) {
+  return request<KanbanCard>(`/studio/kanban/cards/${cardId}/link-session`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function linkKanbanCardToRun(cardId: string, input: KanbanLinkRunRequest) {
+  return request<KanbanCard>(`/studio/kanban/cards/${cardId}/link-run`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export interface ActivateProfileResponse {
   status: string;
   message?: string;
@@ -375,6 +428,90 @@ export interface ConfigResponse {
   config: Record<string, unknown>;
 }
 
+export interface KanbanBoardSummary {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KanbanBoard extends KanbanBoardSummary {
+  columns: KanbanColumn[];
+  card_count: number;
+}
+
+export interface KanbanColumn {
+  id: string;
+  board_id: string;
+  name: string;
+  semantic_status: string;
+  position: number;
+  created_at: string;
+  updated_at: string;
+  cards: KanbanCard[];
+}
+
+export interface KanbanCard {
+  id: string;
+  board_id: string;
+  column_id: string;
+  title: string;
+  description: string;
+  priority: string;
+  status: string;
+  position: number;
+  session_id: string | null;
+  run_id: string | null;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+}
+
+export interface KanbanBoardsResponse {
+  boards: KanbanBoardSummary[];
+}
+
+export interface KanbanCreateCardRequest {
+  board_id?: string;
+  column_id?: string;
+  title: string;
+  description?: string;
+  priority?: string;
+  status?: string;
+  position?: number;
+  session_id?: string | null;
+  run_id?: string | null;
+}
+
+export interface KanbanUpdateCardRequest {
+  title?: string;
+  description?: string;
+  priority?: string;
+  status?: string;
+}
+
+export interface KanbanMoveCardRequest {
+  column_id: string;
+  position: number;
+}
+
+export interface KanbanLinkSessionRequest {
+  session_id: string;
+}
+
+export interface KanbanLinkRunRequest {
+  run_id: string;
+}
+
+export interface KanbanUpdatedPayload {
+  board_id: string;
+  action: string;
+  card_id?: string;
+  column_id?: string;
+  position?: number;
+  task_id?: string;
+}
+
 export type StudioEventType =
   | "run.started"
   | "assistant.delta"
@@ -413,7 +550,7 @@ export interface RunEventHandlers {
   onRunCompleted?: (payload: { run_id: string; total_tokens?: number; duration_ms?: number }) => void;
   onRunFailed?: (payload: { run_id: string; message: string }) => void;
   onRunCancelled?: (payload: { run_id: string; reason?: string }) => void;
-  onKanbanUpdated?: (payload: { board_id: string; action: string; task_id?: string }) => void;
+  onKanbanUpdated?: (payload: KanbanUpdatedPayload) => void;
   onMemoryUpdated?: (payload: { session_id?: string; action: string }) => void;
   onError?: (error: Error) => void;
   onDone?: () => void;
@@ -501,7 +638,7 @@ export function streamRunEvents(runId: string, handlers: RunEventHandlers): Abor
                 handlers.onDone?.();
                 return;
               case "kanban.updated":
-                handlers.onKanbanUpdated?.(event.payload as { board_id: string; action: string; task_id?: string });
+                handlers.onKanbanUpdated?.(event.payload as unknown as KanbanUpdatedPayload);
                 break;
               case "memory.updated":
                 handlers.onMemoryUpdated?.(event.payload as { session_id?: string; action: string });

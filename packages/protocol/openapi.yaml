@@ -450,6 +450,267 @@ paths:
                   - reloaded
                   - count
 
+  /studio/kanban/boards:
+    get:
+      summary: List Studio-owned Kanban boards
+      description: Persistent Kanban board summaries from Studio-owned studio.db.
+      operationId: getKanbanBoards
+      responses:
+        "200":
+          description: Kanban board summaries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  boards:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/KanbanBoardSummary"
+                required:
+                  - boards
+        "401":
+          description: Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/kanban/boards/default:
+    get:
+      summary: Get the default Studio-owned Kanban board
+      operationId: getDefaultKanbanBoard
+      responses:
+        "200":
+          description: Default Kanban board with columns and cards
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KanbanBoard"
+        "401":
+          description: Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/kanban/boards/{board_id}:
+    get:
+      summary: Get a Studio-owned Kanban board by ID
+      operationId: getKanbanBoard
+      parameters:
+        - name: board_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Kanban board with columns and cards
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KanbanBoard"
+        "404":
+          description: Kanban board not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/kanban/cards:
+    post:
+      summary: Create a Studio-owned Kanban card
+      description: Creates a card in Studio-owned studio.db. Model output must not call this directly without structured user/app intent.
+      operationId: createKanbanCard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KanbanCreateCardRequest"
+      responses:
+        "200":
+          description: Created Kanban card
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KanbanCard"
+        "400":
+          description: Invalid or unsafe card input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/kanban/cards/{card_id}:
+    patch:
+      summary: Update a Studio-owned Kanban card
+      operationId: updateKanbanCard
+      parameters:
+        - name: card_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KanbanUpdateCardRequest"
+      responses:
+        "200":
+          description: Updated Kanban card
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KanbanCard"
+        "400":
+          description: Invalid or unsafe card input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Kanban card not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/kanban/cards/{card_id}/move:
+    post:
+      summary: Move a Studio-owned Kanban card
+      operationId: moveKanbanCard
+      parameters:
+        - name: card_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KanbanMoveCardRequest"
+      responses:
+        "200":
+          description: Moved Kanban card
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KanbanCard"
+        "400":
+          description: Invalid move input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Kanban card or column not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/kanban/cards/{card_id}/archive:
+    post:
+      summary: Archive a Studio-owned Kanban card
+      operationId: archiveKanbanCard
+      parameters:
+        - name: card_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Archived Kanban card
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KanbanCard"
+        "404":
+          description: Kanban card not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/kanban/cards/{card_id}/link-session:
+    post:
+      summary: Link a Kanban card to a Hermes session ID
+      operationId: linkKanbanCardToSession
+      parameters:
+        - name: card_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KanbanLinkSessionRequest"
+      responses:
+        "200":
+          description: Linked Kanban card
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KanbanCard"
+        "400":
+          description: Invalid session link input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Kanban card not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/kanban/cards/{card_id}/link-run:
+    post:
+      summary: Link a Kanban card to a Hermes run ID
+      operationId: linkKanbanCardToRun
+      parameters:
+        - name: card_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KanbanLinkRunRequest"
+      responses:
+        "200":
+          description: Linked Kanban card
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KanbanCard"
+        "400":
+          description: Invalid run link input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Kanban card not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /studio/config:
     get:
       summary: Normalized config view
@@ -816,6 +1077,196 @@ components:
         assets:
           type: object
           additionalProperties: true
+
+    KanbanBoardSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - created_at
+        - updated_at
+
+    KanbanBoard:
+      allOf:
+        - $ref: "#/components/schemas/KanbanBoardSummary"
+        - type: object
+          properties:
+            columns:
+              type: array
+              items:
+                $ref: "#/components/schemas/KanbanColumn"
+            card_count:
+              type: integer
+          required:
+            - columns
+            - card_count
+
+    KanbanColumn:
+      type: object
+      properties:
+        id:
+          type: string
+        board_id:
+          type: string
+        name:
+          type: string
+        semantic_status:
+          type: string
+        position:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        cards:
+          type: array
+          items:
+            $ref: "#/components/schemas/KanbanCard"
+      required:
+        - id
+        - board_id
+        - name
+        - semantic_status
+        - position
+        - created_at
+        - updated_at
+        - cards
+
+    KanbanCard:
+      type: object
+      properties:
+        id:
+          type: string
+        board_id:
+          type: string
+        column_id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+        status:
+          type: string
+        position:
+          type: integer
+        session_id:
+          type: string
+          nullable: true
+        run_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        archived_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - board_id
+        - column_id
+        - title
+        - description
+        - priority
+        - status
+        - position
+        - created_at
+        - updated_at
+
+    KanbanCreateCardRequest:
+      type: object
+      properties:
+        board_id:
+          type: string
+        column_id:
+          type: string
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 5000
+        priority:
+          type: string
+          maxLength: 32
+        status:
+          type: string
+          maxLength: 64
+        position:
+          type: integer
+          minimum: 0
+        session_id:
+          type: string
+          nullable: true
+        run_id:
+          type: string
+          nullable: true
+      required:
+        - title
+
+    KanbanUpdateCardRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 5000
+        priority:
+          type: string
+          maxLength: 32
+        status:
+          type: string
+          maxLength: 64
+      additionalProperties: false
+
+    KanbanMoveCardRequest:
+      type: object
+      properties:
+        column_id:
+          type: string
+        position:
+          type: integer
+          minimum: 0
+      required:
+        - column_id
+        - position
+
+    KanbanLinkSessionRequest:
+      type: object
+      properties:
+        session_id:
+          type: string
+      required:
+        - session_id
+
+    KanbanLinkRunRequest:
+      type: object
+      properties:
+        run_id:
+          type: string
+      required:
+        - run_id
 
     ConfigView:
       type: object

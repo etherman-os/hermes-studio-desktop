@@ -38,7 +38,7 @@ class TestHealthEndpoints:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "healthy"
-        assert data["storage"]["schema_version"] == 1
+        assert data["storage"]["schema_version"] == 2
 
     def test_health_no_auth_required(self, client: TestClient) -> None:
         resp = client.get("/studio/health")

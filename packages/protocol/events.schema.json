@@ -37,6 +37,21 @@
   },
   "required": ["id", "type", "timestamp", "source", "payload"],
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": { "const": "kanban.updated" }
+        },
+        "required": ["type"]
+      },
+      "then": {
+        "properties": {
+          "payload": { "$ref": "#/$defs/KanbanUpdatedPayload" }
+        }
+      }
+    }
+  ],
   "$defs": {
     "EventType": {
       "type": "string",
@@ -202,9 +217,16 @@
       "properties": {
         "board_id": { "type": "string" },
         "action": { "type": "string" },
-        "task_id": { "type": "string" }
+        "card_id": { "type": "string" },
+        "column_id": { "type": "string" },
+        "position": { "type": "integer", "minimum": 0 },
+        "task_id": {
+          "type": "string",
+          "description": "Legacy alias retained only for compatibility; new Kanban events use card_id."
+        }
       },
-      "required": ["board_id", "action"]
+      "required": ["board_id", "action"],
+      "additionalProperties": false
     },
     "MemoryUpdatedPayload": {
       "type": "object",

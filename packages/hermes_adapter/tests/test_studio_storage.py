@@ -20,7 +20,7 @@ def test_creates_data_dir_and_studio_db(tmp_path: Path) -> None:
     status = storage.initialize()
 
     assert status.available is True
-    assert status.schema_version == 1
+    assert status.schema_version == 2
     assert data_dir.is_dir()
     assert (data_dir / "studio.db").is_file()
 
@@ -36,14 +36,14 @@ def test_migrations_are_idempotent(tmp_path: Path) -> None:
     with sqlite3.connect(first.db_path) as conn:
         rows = conn.execute("SELECT version, name FROM migrations").fetchall()
 
-    assert rows == [(1, "initial_studio_storage")]
+    assert rows == [(1, "initial_studio_storage"), (2, "persistent_kanban")]
 
 
 def test_schema_version_is_reported(tmp_path: Path) -> None:
     storage = StudioStorage(data_dir=tmp_path / "studio-data")
 
-    assert storage.initialize().schema_version == 1
-    assert storage.get_schema_version() == 1
+    assert storage.initialize().schema_version == 2
+    assert storage.get_schema_version() == 2
 
 
 def test_studio_meta_can_read_write_non_secret_values(tmp_path: Path) -> None:
@@ -144,7 +144,7 @@ def test_health_and_bootstrap_include_storage_metadata(tmp_path: Path, monkeypat
 
     for payload in (health, root_health, bootstrap):
         assert payload["storage"]["available"] is True
-        assert payload["storage"]["schema_version"] == 1
+        assert payload["storage"]["schema_version"] == 2
         assert payload["storage"]["db_path"].endswith("studio.db")
         assert payload["storage"]["last_error"] is None
 

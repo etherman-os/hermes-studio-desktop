@@ -10,7 +10,7 @@ from hermes_adapter.event_normalizer import (
 
 
 class TestNormalizeHermesEvent:
-    @pytest.mark.parametrize("event_type", list(KNOWN_TYPES))
+    @pytest.mark.parametrize("event_type", [event_type for event_type in KNOWN_TYPES if event_type != "kanban.updated"])
     def test_known_events_passthrough(self, event_type: str) -> None:
         raw = {"type": event_type, "payload": {"x": 1}, "source": "hermes"}
         normalized = normalize_hermes_event(raw)
@@ -18,6 +18,35 @@ class TestNormalizeHermesEvent:
         assert normalized["type"] == event_type
         assert normalized["payload"] == {"x": 1}
         assert normalized["source"] == "hermes"
+
+    def test_valid_kanban_updated_passthrough(self) -> None:
+        raw = {
+            "type": "kanban.updated",
+            "payload": {
+                "board_id": " board_default ",
+                "action": " card_status_changed ",
+                "card_id": "card_1",
+                "debug": "ignored",
+            },
+            "source": "studio",
+        }
+
+        normalized = normalize_hermes_event(raw)
+
+        assert normalized["type"] == "kanban.updated"
+        assert normalized["payload"]["board_id"] == "board_default"
+        assert "debug" not in normalized["payload"]
+        assert normalized["source"] == "studio"
+
+    def test_malformed_kanban_updated_becomes_adapter_warning(self) -> None:
+        raw = {"type": "kanban.updated", "payload": {"task_id": "legacy-task"}, "source": "hermes"}
+
+        normalized = normalize_hermes_event(raw)
+
+        assert normalized["type"] == "adapter.warning"
+        assert normalized["payload"]["code"] == "malformed_kanban_updated"
+        assert normalized["payload"]["original_type"] == "kanban.updated"
+        assert normalized["source"] == "adapter"
 
     def test_run_completed_ok(self, sample_run_completed_ok_event: dict) -> None:
         normalized = normalize_hermes_event(sample_run_completed_ok_event)

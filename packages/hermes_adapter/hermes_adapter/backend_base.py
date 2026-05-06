@@ -114,3 +114,57 @@ class StudioBackend(ABC):
     async def patch_config(self, key: str, value: Any) -> dict[str, Any]:
         """Update a config key. Returns updated config."""
         ...
+
+    async def get_kanban_boards(self) -> dict[str, Any]:
+        """Return persistent Studio-owned Kanban board summaries."""
+        from hermes_adapter.kanban_repository import KanbanRepository
+
+        return {"boards": KanbanRepository().get_boards()}
+
+    async def get_default_kanban_board(self) -> dict[str, Any]:
+        """Return the persistent default Studio-owned Kanban board."""
+        from hermes_adapter.kanban_repository import KanbanRepository
+
+        return KanbanRepository().get_default_board()
+
+    async def get_kanban_board(self, board_id: str) -> dict[str, Any]:
+        """Return a persistent Studio-owned Kanban board by ID."""
+        from hermes_adapter.kanban_repository import KanbanRepository
+
+        return KanbanRepository().get_board(board_id)
+
+    async def create_kanban_card(self, input_data: dict[str, Any]) -> dict[str, Any]:
+        """Create a persistent Studio-owned Kanban card."""
+        from hermes_adapter.kanban_repository import KanbanRepository
+
+        return KanbanRepository().create_card(input_data)
+
+    async def update_kanban_card(self, card_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
+        """Update a persistent Studio-owned Kanban card."""
+        from hermes_adapter.kanban_repository import KanbanRepository
+
+        return KanbanRepository().update_card(card_id, input_data)
+
+    async def move_kanban_card(self, card_id: str, column_id: str, position: int) -> dict[str, Any]:
+        """Move a persistent Studio-owned Kanban card."""
+        from hermes_adapter.kanban_repository import KanbanRepository
+
+        return KanbanRepository().move_card(card_id, column_id, position)
+
+    async def archive_kanban_card(self, card_id: str) -> dict[str, Any]:
+        """Archive a persistent Studio-owned Kanban card."""
+        from hermes_adapter.kanban_repository import KanbanRepository
+
+        return KanbanRepository().archive_card(card_id)
+
+    async def link_kanban_card_to_session(self, card_id: str, session_id: str) -> dict[str, Any]:
+        """Link a persistent Studio-owned Kanban card to a Hermes session ID."""
+        from hermes_adapter.kanban_repository import KanbanRepository
+
+        return KanbanRepository().link_card_to_session(card_id, session_id)
+
+    async def link_kanban_card_to_run(self, card_id: str, run_id: str) -> dict[str, Any]:
+        """Link a persistent Studio-owned Kanban card to a Hermes run ID."""
+        from hermes_adapter.kanban_repository import KanbanRepository
+
+        return KanbanRepository().link_card_to_run(card_id, run_id)

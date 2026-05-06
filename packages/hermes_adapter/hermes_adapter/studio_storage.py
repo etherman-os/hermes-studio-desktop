@@ -80,6 +80,61 @@ _MIGRATIONS: tuple[_Migration, ...] = (
             """,
         ),
     ),
+    _Migration(
+        version=2,
+        name="persistent_kanban",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS boards (
+              id TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS columns (
+              id TEXT PRIMARY KEY,
+              board_id TEXT NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+              name TEXT NOT NULL,
+              semantic_status TEXT NOT NULL,
+              position INTEGER NOT NULL,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS cards (
+              id TEXT PRIMARY KEY,
+              board_id TEXT NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+              column_id TEXT NOT NULL REFERENCES columns(id) ON DELETE CASCADE,
+              title TEXT NOT NULL,
+              description TEXT NOT NULL,
+              priority TEXT NOT NULL,
+              status TEXT NOT NULL,
+              position INTEGER NOT NULL,
+              session_id TEXT,
+              run_id TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              archived_at TEXT
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS card_events (
+              id TEXT PRIMARY KEY,
+              card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+              type TEXT NOT NULL,
+              payload_json TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_columns_board_position ON columns(board_id, position)",
+            "CREATE INDEX IF NOT EXISTS idx_cards_board_column_position ON cards(board_id, column_id, position)",
+            "CREATE INDEX IF NOT EXISTS idx_cards_archived_at ON cards(archived_at)",
+            "CREATE INDEX IF NOT EXISTS idx_card_events_card_created ON card_events(card_id, created_at)",
+        ),
+    ),
 )
 
 

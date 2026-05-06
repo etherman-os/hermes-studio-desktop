@@ -142,3 +142,32 @@ def test_unknown_events_validate_as_adapter_warning() -> None:
     assert adapter_event["type"] == "adapter.warning"
     assert_valid_event(hermes_event)
     assert_valid_event(adapter_event)
+
+
+def test_malformed_kanban_updated_events_validate_as_adapter_warning() -> None:
+    hermes_event = _normalize_hermes_event({"type": "kanban.updated", "payload": {"task_id": "legacy-task"}})
+    adapter_event = normalize_hermes_event({"type": "kanban.updated", "payload": {"task_id": "legacy-task"}})
+
+    assert hermes_event["type"] == "adapter.warning"
+    assert adapter_event["type"] == "adapter.warning"
+    assert hermes_event["payload"]["code"] == "malformed_kanban_updated"
+    assert adapter_event["payload"]["code"] == "malformed_kanban_updated"
+    assert_valid_event(hermes_event)
+    assert_valid_event(adapter_event)
+
+
+def test_valid_kanban_updated_events_validate_against_schema() -> None:
+    payload = {
+        "board_id": "board_default",
+        "action": "card_status_changed",
+        "card_id": "card_123",
+        "column_id": "col_default_doing",
+        "position": 0,
+    }
+    hermes_event = _normalize_hermes_event({"type": "kanban.updated", "payload": payload})
+    adapter_event = normalize_hermes_event({"type": "kanban.updated", "payload": payload})
+
+    assert hermes_event["type"] == "kanban.updated"
+    assert adapter_event["type"] == "kanban.updated"
+    assert_valid_event(hermes_event)
+    assert_valid_event(adapter_event)

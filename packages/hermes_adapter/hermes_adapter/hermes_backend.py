@@ -15,6 +15,7 @@ import httpx
 from hermes_adapter.backend_base import StudioBackend
 from hermes_adapter.backend_config import get_debug_events
 from hermes_adapter.config_repository import ConfigRepository
+from hermes_adapter.event_normalizer import normalize_kanban_updated_payload
 from hermes_adapter.log_repository import LogRepository, get_hermes_logs_dir
 from hermes_adapter.profile_repository import ProfileRepository
 from hermes_adapter.session_repository import SessionRepository, find_state_db, get_hermes_home
@@ -254,6 +255,28 @@ def _normalize_hermes_event(raw: dict[str, Any]) -> dict[str, Any]:
                 "run_id": run_id,
                 "reason": payload.get("reason", "user_cancelled"),
             },
+            source=source,
+            run_id=run_id,
+            session_id=session_id,
+        )
+
+    if event_type == "kanban.updated":
+        kanban_payload = normalize_kanban_updated_payload(payload)
+        if kanban_payload is None:
+            return _sse_event(
+                "adapter.warning",
+                {
+                    "code": "malformed_kanban_updated",
+                    "message": "Ignored malformed kanban.updated event",
+                    "original_type": event_type,
+                },
+                source="adapter",
+                run_id=run_id,
+                session_id=session_id,
+            )
+        return _sse_event(
+            "kanban.updated",
+            kanban_payload,
             source=source,
             run_id=run_id,
             session_id=session_id,

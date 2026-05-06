@@ -139,7 +139,7 @@ class MockBackend(StudioBackend):
         yield _sse_event("assistant.completed", {"model": "claude-sonnet-4-20250514", "total_tokens": 342, "duration_ms": 2100})
         await asyncio.sleep(0.2)
 
-        yield _sse_event("kanban.updated", {"board_id": "main", "action": "card_status_changed", "task_id": "k-2"})
+        yield _sse_event("kanban.updated", {"board_id": "board_default", "action": "card_status_changed", "card_id": "card_mock_2"})
         await asyncio.sleep(0.1)
 
         yield _sse_event("memory.updated", {"session_id": run["session_id"], "action": "created", "artifact_id": "mem_new_001"})
