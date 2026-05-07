@@ -1,10 +1,18 @@
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useThemeStore } from "../../stores/themeStore";
+import { ArtifactShelf } from "../artifacts/ArtifactShelf";
 import { ChatSurface } from "../chat/ChatSurface";
+import { RunLedger } from "../runs/RunLedger";
 import { KanbanBoard } from "../kanban/KanbanBoard";
 import { SessionsPanel } from "../sessions/SessionsPanel";
 
-const TABS = ["chat", "kanban", "artifacts", "sessions"] as const;
+const TABS = [
+  { id: "runs", slot: "run_ledger" },
+  { id: "chat", slot: "chat" },
+  { id: "board", slot: "board" },
+  { id: "sessions", slot: "sessions" },
+  { id: "artifacts", slot: "artifacts" },
+] as const;
 
 export function CenterArea() {
   const activeTab = useLayoutStore((s) => s.activeTab);
@@ -16,31 +24,21 @@ export function CenterArea() {
       <div className="center-tabs">
         {TABS.map((tab) => (
           <button
-            key={tab}
-            className={`center-tab ${activeTab === tab ? "active" : ""}`}
-            onClick={() => setActiveTab(tab)}
+            key={tab.id}
+            className={`center-tab ${activeTab === tab.id ? "active" : ""}`}
+            onClick={() => setActiveTab(tab.id)}
           >
-            {label(tab)}
+            {label(tab.slot)}
           </button>
         ))}
       </div>
       <div className="center-content">
+        {activeTab === "runs" && <RunLedger />}
         {activeTab === "chat" && <ChatSurface />}
-        {activeTab === "kanban" && <KanbanBoard />}
-        {activeTab === "artifacts" && <EmptySlot slot="artifacts" />}
+        {activeTab === "board" && <KanbanBoard />}
         {activeTab === "sessions" && <SessionsPanel />}
+        {activeTab === "artifacts" && <ArtifactShelf />}
       </div>
-    </div>
-  );
-}
-
-function EmptySlot({ slot }: { slot: string }) {
-  const label = useThemeStore((s) => s.label);
-  const icon = useThemeStore((s) => s.icon);
-  return (
-    <div className="empty-state">
-      <div className="empty-state-icon">{icon(slot)}</div>
-      <div className="empty-state-text">{label(slot)} — coming soon</div>
     </div>
   );
 }

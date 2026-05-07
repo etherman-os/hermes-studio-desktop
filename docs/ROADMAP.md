@@ -218,6 +218,29 @@
 - [x] Added sanitized runtime compatibility fixtures and schema replay tests
 - [x] Confirmed local Hermes `state.db`, logs, config, and `.env` assumptions read-only without storing secrets
 
+## Phase UX-1 — Run-Centered Desktop Workbench Foundation (Done)
+
+- [x] Product direction: `docs/RUN_CENTERED_WORKBENCH.md`
+- [x] UI direction: `docs/UI_DIRECTION.md`
+- [x] Activity rail realigned around Runs, Chat, Board, Sessions, Artifacts, Context, Logs, Themes, Settings
+- [x] Center workbench tabs: Run Ledger, Chat, Board, Sessions, Artifacts
+- [x] Run Ledger v0 uses existing run/SSE data for current-session timeline inspection
+- [x] Chat repositioned as a prompt surface connected to the Run Ledger
+- [x] Artifact Shelf, Context Stack Inspector, and Approval Center placeholders established
+- [x] Bottom panel realigned around Activity, Tool Events, Logs, Adapter Diagnostics
+- [x] No Kanban drag-and-drop, animated concept runtime, Hermes core changes, or Hermes state writes
+
+## Next Core Layers
+
+- [ ] Persist Run Ledger history in Studio-owned `studio.db`
+- [ ] Artifact Shelf capture and preview pipeline
+- [ ] Context Stack Inspector backed by safe local reads
+- [ ] Approval Center with real pending approval flows
+- [ ] Checkpoint Timeline
+- [ ] Preview Canvas
+- [ ] Process Cockpit
+- [ ] Richer concept packs after the workbench spine is stable
+
 ## Phase 7 — Packaging and Release
 
 - [ ] Tauri native installers (Linux, macOS)

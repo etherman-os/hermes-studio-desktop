@@ -4,6 +4,52 @@ import { ALL_THEMES as LOCAL_FALLBACK_THEMES } from "../fixtures/themes";
 import { applyThemeToDOM } from "../styles/applyTheme";
 import * as api from "../api/studioClient";
 
+const DEFAULT_LABELS: Record<string, string> = {
+  runs: "Runs",
+  run_ledger: "Run Ledger",
+  chat: "Chat",
+  board: "Board",
+  kanban: "Board",
+  sessions: "Sessions",
+  artifacts: "Artifacts",
+  context: "Context",
+  logs: "Logs",
+  tools: "Tools",
+  memory: "Memory",
+  activity: "Activity",
+  diagnostics: "Diagnostics",
+  adapter_diagnostics: "Adapter Diagnostics",
+  inspector: "Inspector",
+  command_palette: "Command Palette",
+  settings: "Settings",
+  theme_gallery: "Themes",
+  approvals: "Approvals",
+  model: "Model",
+};
+
+const DEFAULT_ICONS: Record<string, string> = {
+  runs: "R",
+  run_ledger: "R",
+  chat: "C",
+  board: "B",
+  kanban: "B",
+  sessions: "S",
+  artifacts: "A",
+  context: "@",
+  logs: "L",
+  tools: "T",
+  memory: "M",
+  activity: "!",
+  diagnostics: "D",
+  adapter_diagnostics: "D",
+  inspector: "I",
+  command_palette: ">",
+  settings: "*",
+  theme_gallery: "#",
+  approvals: "?",
+  model: "M",
+};
+
 interface ThemeState {
   activeThemeId: string;
   themes: Record<string, ThemePack>;
@@ -42,12 +88,12 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
   label: (slot: string) => {
     const theme = get().activeTheme();
-    return theme.labels?.[slot as keyof typeof theme.labels] ?? slot;
+    return theme.labels?.[slot as keyof typeof theme.labels] ?? DEFAULT_LABELS[slot] ?? slot;
   },
 
   icon: (slot: string) => {
     const theme = get().activeTheme();
-    return theme.icons?.[slot as keyof typeof theme.icons] ?? "•";
+    return theme.icons?.[slot as keyof typeof theme.icons] ?? DEFAULT_ICONS[slot] ?? "•";
   },
 
   setTheme: (id: string) => {

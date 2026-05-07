@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import * as api from "../api/studioClient";
+import { useRunLedgerStore } from "./runLedgerStore";
 
 interface ChatMessage {
   role: "user" | "assistant" | "tool" | "system";
@@ -12,6 +13,7 @@ interface ChatMessage {
 interface RunState {
   isStreaming: boolean;
   activeRunId: string | null;
+  lastRunId: string | null;
   messages: ChatMessage[];
   abortController: AbortController | null;
   sendPrompt: (prompt: string, sessionId: string) => Promise<void>;
@@ -26,6 +28,7 @@ interface RunState {
 export const useRunStore = create<RunState>((set, get) => ({
   isStreaming: false,
   activeRunId: null,
+  lastRunId: null,
   messages: [
     { role: "assistant" as const, content: "Welcome to Hermes Desktop Studio. How can I help you today?" },
   ],
@@ -62,24 +65,36 @@ export const useRunStore = create<RunState>((set, get) => ({
     if (state.isStreaming) return;
 
     state.appendUserMessage(prompt);
+    useRunLedgerStore.getState().beginPrompt(prompt, sessionId);
     set({ isStreaming: true });
 
     try {
       const run = await api.startRun({ session_id: sessionId, prompt });
-      set({ activeRunId: run.run_id });
+      useRunLedgerStore.getState().startRun(run.run_id, prompt, sessionId, run.status);
+      set({ activeRunId: run.run_id, lastRunId: run.run_id });
 
       const ac = api.streamRunEvents(run.run_id, {
+        onEvent: (event) => useRunLedgerStore.getState().recordEvent(event),
         onAssistantDelta: (p) => get().appendAssistantChunk(p.text),
         onToolStarted: (p) => get().addToolEvent(p.tool, "running"),
         onToolCompleted: (p) => get().addToolEvent(p.tool, "completed", p.duration_ms),
-        onRunCompleted: () => get().finalizeRun(),
-        onRunFailed: (p) => {
-          get().appendAssistantChunk(`\n[Error: ${p.message}]`);
+        onRunCompleted: () => {
+          useRunLedgerStore.getState().finishRun(run.run_id, "completed");
           get().finalizeRun();
         },
-        onRunCancelled: () => get().finalizeRun(),
+        onRunFailed: (p) => {
+          get().appendAssistantChunk(`\n[Error: ${p.message}]`);
+          useRunLedgerStore.getState().finishRun(run.run_id, "failed", p.message);
+          get().finalizeRun();
+        },
+        onRunCancelled: () => {
+          useRunLedgerStore.getState().finishRun(run.run_id, "cancelled");
+          get().finalizeRun();
+        },
         onError: (err) => {
           get().appendAssistantChunk(`\n[Adapter error: ${err.message}]`);
+          useRunLedgerStore.getState().recordLocalWarning(err.message, run.run_id, sessionId);
+          useRunLedgerStore.getState().finishRun(run.run_id, "failed", err.message);
           get().finalizeRun();
         },
         onDone: () => get().finalizeRun(),
@@ -87,7 +102,12 @@ export const useRunStore = create<RunState>((set, get) => ({
 
       set({ abortController: ac });
     } catch (err) {
-      get().appendAssistantChunk(`\n[Failed to start run: ${err instanceof Error ? err.message : String(err)}]`);
+      const message = err instanceof Error ? err.message : String(err);
+      get().appendAssistantChunk(`\n[Failed to start run: ${message}]`);
+      const ledger = useRunLedgerStore.getState();
+      const pendingRunId = ledger.currentRunId;
+      ledger.recordLocalWarning(message, pendingRunId, sessionId);
+      if (pendingRunId) ledger.finishRun(pendingRunId, "failed", message);
       set({ isStreaming: false });
     }
   },
@@ -97,6 +117,7 @@ export const useRunStore = create<RunState>((set, get) => ({
     if (abortController) abortController.abort();
     if (activeRunId) {
       try { await api.stopRun(activeRunId); } catch { /* ignore */ }
+      useRunLedgerStore.getState().finishRun(activeRunId, "cancelled");
     }
     set({ isStreaming: false, activeRunId: null, abortController: null });
   },

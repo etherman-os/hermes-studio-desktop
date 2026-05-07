@@ -2,11 +2,11 @@
 
 A local-first, themeable desktop workbench for [Hermes Agent](https://github.com/NousResearch/hermes-agent).
 
-Hermes Local Studio is **not** a terminal-only TUI. It is a desktop-class application — closer to Warp, VS Code, or a modern desktop IDE — designed for users who run Hermes primarily on their own machine.
+Hermes Local Studio is **not** a terminal-only TUI and **not** a chat app. It is a desktop-class, run-centered operations workbench for users who run Hermes primarily on their own machine.
 
 ## Why a Desktop Workbench?
 
-Terminal TUIs have inherent ceilings in visual ergonomics, panel docking, drag-and-drop layout, rich theming, and accessibility. Hermes Local Studio uses **Tauri v2 + React** to provide a full desktop experience: dockable panels, streaming chat, Kanban boards, session management, live logs, and user-installable concept packs — all without requiring users to live inside a terminal.
+Terminal TUIs have inherent ceilings in visual ergonomics, panel docking, drag-and-drop layout, rich theming, and accessibility. Hermes Local Studio uses **Tauri v2 + React** to provide a full desktop experience: a Run Ledger, prompt/chat surface, board, sessions, artifact shelf, context inspector, live logs, diagnostics, and user-installable concept packs — all without requiring users to live inside a terminal.
 
 ## Stack
 
@@ -26,7 +26,8 @@ Terminal TUIs have inherent ceilings in visual ergonomics, panel docking, drag-a
 ```
 ┌──────────────────────────────────────────┐
 │ Desktop UI (Tauri v2 + React)            │
-│ Chat / Kanban / Sessions / Logs / Themes │
+│ Run Ledger / Chat / Board / Sessions     │
+│ Artifacts / Context / Logs / Themes      │
 └──────────────────┬───────────────────────┘
                     │ HTTP/SSE (local only)
 ┌──────────────────▼───────────────────────┐
@@ -49,6 +50,7 @@ Terminal TUIs have inherent ceilings in visual ergonomics, panel docking, drag-a
 - **Adapter-first:** UI never talks to Hermes directly; it talks to the local adapter.
 - **Studio protocol only:** Desktop frontend calls `/studio/*`; root `/health` is adapter/dev tooling health only.
 - **Desktop workbench, not terminal TUI.** The main product is a dockable desktop app.
+- **Run-centered, not message-centered.** Chat is one surface; the Run Ledger is the product spine.
 - **Generic theme system:** Colors, icons, labels, layout, and terminology are driven by concept packs. No concept is hardcoded.
 - **Local-only by default:** Bind 127.0.0.1, rotate tokens per launch, never expose without key.
 - **Read-only Hermes observation:** Hermes `state.db`, logs, profiles, and model/provider config are read without mutation unless an official safe write path exists.
@@ -76,6 +78,8 @@ hermes-local-studio/
     ARCHITECTURE.md
     ADAPTER_CONTRACT.md
     THEME_SYSTEM.md
+    RUN_CENTERED_WORKBENCH.md
+    UI_DIRECTION.md
     ROADMAP.md
     PRODUCT_DIRECTION.md
     ADR-0001-desktop-first.md
@@ -162,6 +166,10 @@ Path priority:
 ### Studio-owned Kanban Backend
 
 Persistent Kanban data uses the same Studio-owned `studio.db`, never Hermes `state.db`. Phase 6C adds `/studio/kanban/*` backend endpoints, default board creation, default columns, and event/schema coverage. Full Kanban UI and drag-and-drop are intentionally later work. See [docs/STUDIO_KANBAN.md](docs/STUDIO_KANBAN.md).
+
+### Run-Centered Workbench
+
+Phase UX-1 makes the Run Ledger the default desktop surface. It tracks current-session run events from the existing Studio SSE stream and positions Chat, Board, Sessions, Artifacts, Context, Logs, and Diagnostics around the run lifecycle. Historical run persistence, checkpoints, and artifact capture are future layers. See [docs/RUN_CENTERED_WORKBENCH.md](docs/RUN_CENTERED_WORKBENCH.md).
 
 ### Backend Modes
 

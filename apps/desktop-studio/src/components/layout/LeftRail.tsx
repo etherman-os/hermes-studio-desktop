@@ -2,31 +2,34 @@ import { useLayoutStore } from "../../stores/layoutStore";
 import { useThemeStore } from "../../stores/themeStore";
 
 const RAIL_ITEMS = [
-  { id: "profiles", slot: "profiles" as const },
-  { id: "sessions", slot: "sessions" as const },
-  { id: "chat", slot: "chat" as const },
-  { id: "kanban", slot: "kanban" as const },
-  { id: "search", slot: "search" as const },
-  { id: "theme_gallery", slot: "theme_gallery" as const },
-  { id: "settings", slot: "settings" as const },
+  { id: "runs", slot: "runs" },
+  { id: "chat", slot: "chat" },
+  { id: "board", slot: "board" },
+  { id: "sessions", slot: "sessions" },
+  { id: "artifacts", slot: "artifacts" },
+  { id: "context", slot: "context" },
+  { id: "logs", slot: "logs" },
+  { id: "theme_gallery", slot: "theme_gallery" },
+  { id: "settings", slot: "settings" },
 ];
 
 export function LeftRail() {
   const setSidebar = useLayoutStore((s) => s.setSidebarSection);
   const setActiveTab = useLayoutStore((s) => s.setActiveTab);
+  const setBottomTab = useLayoutStore((s) => s.setBottomTab);
   const sidebarSection = useLayoutStore((s) => s.sidebarSection);
+  const activeTab = useLayoutStore((s) => s.activeTab);
   const icon = useThemeStore((s) => s.icon);
+  const label = useThemeStore((s) => s.label);
 
   function handleClick(id: string) {
-    if (id === "chat") {
-      setActiveTab("chat");
-      setSidebar("sessions");
-    } else if (id === "kanban") {
-      setActiveTab("kanban");
-      setSidebar("sessions");
-    } else {
-      setSidebar(id);
+    if (["runs", "chat", "board", "sessions", "artifacts"].includes(id)) {
+      setActiveTab(id);
     }
+    if (id === "logs") {
+      setBottomTab("logs");
+    }
+    setSidebar(id);
   }
 
   return (
@@ -34,9 +37,9 @@ export function LeftRail() {
       {RAIL_ITEMS.map((item) => (
         <button
           key={item.id}
-          className={`rail-icon ${sidebarSection === item.id ? "active" : ""}`}
+          className={`rail-icon ${sidebarSection === item.id || activeTab === item.id ? "active" : ""}`}
           onClick={() => handleClick(item.id)}
-          title={item.id}
+          title={label(item.slot)}
         >
           {icon(item.slot)}
         </button>

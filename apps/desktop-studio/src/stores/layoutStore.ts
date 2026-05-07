@@ -14,10 +14,10 @@ interface LayoutState {
 }
 
 export const useLayoutStore = create<LayoutState>((set) => ({
-  activeTab: "chat",
+  activeTab: "runs",
   showRightPanel: true,
   showBottomPanel: true,
-  sidebarSection: "sessions",
+  sidebarSection: "runs",
   bottomTab: "activity",
 
   setActiveTab: (tab) => set({ activeTab: tab }),

@@ -2,7 +2,8 @@ import React from "react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useThemeStore } from "../../stores/themeStore";
 import { useLogStore } from "../../stores/logStore";
-import { mockActivity } from "../../fixtures/mockData";
+import { useRunLedgerStore } from "../../stores/runLedgerStore";
+import { useAdapterStore } from "../../stores/adapterStore";
 
 export function BottomPanel() {
   const bottomTab = useLayoutStore((s) => s.bottomTab);
@@ -12,32 +13,41 @@ export function BottomPanel() {
   return (
     <div className="bottom-panel">
       <div className="bottom-tabs">
-        {(["activity", "logs", "tools"] as const).map((tab) => (
+        {(["activity", "tools", "logs", "adapter_diagnostics"] as const).map((tab) => (
           <button
             key={tab}
             className={`bottom-tab ${bottomTab === tab ? "active" : ""}`}
             onClick={() => setBottomTab(tab)}
           >
-            {label(tab === "tools" ? "tools" : tab)}
+            {label(tab)}
           </button>
         ))}
       </div>
       <div className="bottom-content selectable">
         {bottomTab === "activity" && <ActivityContent />}
-        {bottomTab === "logs" && <LogsContent />}
         {bottomTab === "tools" && <ToolEventsContent />}
+        {bottomTab === "logs" && <LogsContent />}
+        {bottomTab === "adapter_diagnostics" && <AdapterDiagnosticsContent />}
       </div>
     </div>
   );
 }
 
 function ActivityContent() {
+  const runs = useRunLedgerStore((s) => s.runs);
+  const events = runs.flatMap((run) => run.events.map((event) => ({ run, event }))).slice(-80).reverse();
+
+  if (events.length === 0) {
+    return <div className="panel-note">Run activity will appear when a prompt starts.</div>;
+  }
+
   return (
     <>
-      {mockActivity.map((a) => (
-        <div key={a.id} className="log-line">
-          <span className="timestamp">{a.time}</span>
-          <span style={{ color: "var(--app-text-secondary)" }}>{a.message}</span>
+      {events.map(({ run, event }) => (
+        <div key={event.id} className="log-line">
+          <span className="timestamp">{formatTime(event.timestamp)}</span>
+          <span style={{ color: "var(--app-text-muted)" }}>{run.runId}</span>{" "}
+          <span style={{ color: "var(--app-text-secondary)" }}>{event.type}</span>
         </div>
       ))}
     </>
@@ -133,9 +143,55 @@ function LogsContent() {
 }
 
 function ToolEventsContent() {
+  const runs = useRunLedgerStore((s) => s.runs);
+  const tools = runs
+    .flatMap((run) => run.events.map((event) => ({ run, event })))
+    .filter(({ event }) => event.type.startsWith("tool."))
+    .slice(-80)
+    .reverse();
+
+  if (tools.length === 0) {
+    return <div className="panel-note">Tool start, progress, and completion events will appear here.</div>;
+  }
+
   return (
-    <div style={{ padding: "var(--app-spacing-md)", color: "var(--app-text-muted)" }}>
-      Tool events stream — placeholder
+    <>
+      {tools.map(({ run, event }) => (
+        <div key={event.id} className="log-line">
+          <span className="timestamp">{formatTime(event.timestamp)}</span>
+          <span>{run.runId}</span>{" "}
+          <span className={event.type === "tool.completed" ? "level-info" : "level-warn"}>{event.type}</span>{" "}
+          <span>{String(event.payload.tool ?? "tool")}</span>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function AdapterDiagnosticsContent() {
+  const connected = useAdapterStore((s) => s.connected);
+  const checking = useAdapterStore((s) => s.checking);
+  const backendMode = useAdapterStore((s) => s.backendMode);
+  const activeBackend = useAdapterStore((s) => s.activeBackend);
+  const hermesConnected = useAdapterStore((s) => s.hermesConnected);
+  const authError = useAdapterStore((s) => s.authError);
+  const fallbackReason = useAdapterStore((s) => s.fallbackReason);
+
+  return (
+    <div className="diagnostics-grid">
+      <div><span>Adapter</span><strong>{checking ? "checking" : connected ? "connected" : "disconnected"}</strong></div>
+      <div><span>Backend mode</span><strong>{backendMode}</strong></div>
+      <div><span>Active backend</span><strong>{activeBackend}</strong></div>
+      <div><span>Hermes</span><strong>{hermesConnected ? "reachable" : "not reachable"}</strong></div>
+      {(authError || fallbackReason) && <div className="diagnostics-wide"><span>Notice</span><strong>{authError ?? fallbackReason}</strong></div>}
     </div>
   );
+}
+
+function formatTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch {
+    return iso;
+  }
 }

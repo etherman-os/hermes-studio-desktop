@@ -1,7 +1,9 @@
 import { useThemeStore } from "../../stores/themeStore";
 import { useRunStore } from "../../stores/runStore";
+import { useRunLedgerStore } from "../../stores/runLedgerStore";
 import { useSessionStore } from "../../stores/sessionStore";
 import { useAdapterStore } from "../../stores/adapterStore";
+import { useLayoutStore } from "../../stores/layoutStore";
 import React from "react";
 
 export function ChatSurface() {
@@ -10,6 +12,10 @@ export function ChatSurface() {
   const messages = useRunStore((s) => s.messages);
   const sendPrompt = useRunStore((s) => s.sendPrompt);
   const stopRun = useRunStore((s) => s.stopRun);
+  const activeRunId = useRunStore((s) => s.activeRunId);
+  const lastRunId = useRunStore((s) => s.lastRunId);
+  const runs = useRunLedgerStore((s) => s.runs);
+  const setActiveTab = useLayoutStore((s) => s.setActiveTab);
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
   const connected = useAdapterStore((s) => s.connected);
   const [input, setInput] = React.useState("");
@@ -29,6 +35,7 @@ export function ChatSurface() {
       // Fallback: show user message locally with adapter warning
       useRunStore.getState().appendUserMessage(text);
       useRunStore.getState().appendAssistantChunk("[Adapter disconnected — message saved locally. Start the adapter to send to Hermes.]");
+      useRunLedgerStore.getState().recordLocalWarning("Adapter disconnected; prompt was not sent to Hermes", null, activeSessionId);
     }
   }
 
@@ -39,8 +46,36 @@ export function ChatSurface() {
     }
   }
 
+  const ledgerRun = runs.find((run) => run.runId === activeRunId) ?? runs.find((run) => run.runId === lastRunId) ?? runs[0];
+  const toolEvents = ledgerRun?.events.filter((event) => event.type === "tool.started" || event.type === "tool.completed").slice(-4) ?? [];
+
   return (
     <div className="chat-container">
+      <div className="chat-run-strip">
+        <div>
+          <div className="workbench-eyebrow">Chat Surface</div>
+          <div className="chat-run-meta">
+            <span>Run {ledgerRun?.runId ?? "none"}</span>
+            <span>Status {ledgerRun?.status ?? (isStreaming ? "running" : "idle")}</span>
+            <span>Session {activeSessionId ?? "none"}</span>
+          </div>
+        </div>
+        <div className="chat-run-actions">
+          <button className="tool-button" onClick={() => setActiveTab("runs")}>Open in Run Ledger</button>
+          <button className="tool-button" disabled title="Backend link action is intentionally later">
+            Create Card from Run
+          </button>
+        </div>
+      </div>
+      {toolEvents.length > 0 && (
+        <div className="chat-tool-strip">
+          {toolEvents.map((event) => (
+            <span key={event.id} className={`tool-chip ${event.type === "tool.completed" ? "completed" : "running"}`}>
+              {String(event.payload.tool ?? "tool")}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="chat-messages selectable">
         {messages.map((msg, i) => {
           if (msg.role === "tool") {

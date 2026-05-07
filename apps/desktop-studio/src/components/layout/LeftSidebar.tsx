@@ -3,6 +3,8 @@ import { useThemeStore } from "../../stores/themeStore";
 import { useSessionStore } from "../../stores/sessionStore";
 import { useProfileStore } from "../../stores/profileStore";
 import { useAdapterStore } from "../../stores/adapterStore";
+import { useRunLedgerStore } from "../../stores/runLedgerStore";
+import { ContextInspector } from "../context/ContextInspector";
 
 export function LeftSidebar() {
   const section = useLayoutStore((s) => s.sidebarSection);
@@ -13,18 +15,108 @@ export function LeftSidebar() {
     <div className="sidebar">
       <div className="sidebar-header">{label(section)}</div>
       <div className="sidebar-content">
+        {section === "runs" && <RunsList />}
+        {section === "chat" && <ChatSection />}
+        {section === "board" && <BoardSection />}
         {section === "sessions" && <SessionsList />}
+        {section === "artifacts" && <ArtifactsSection />}
+        {section === "context" && <ContextSection />}
+        {section === "logs" && <LogsSection />}
         {section === "profiles" && <ProfilesList />}
         {section === "search" && <SearchSection />}
         {section === "theme_gallery" && <ThemeGallerySection />}
         {section === "settings" && <SettingsSection />}
-        {!["sessions", "profiles", "search", "theme_gallery", "settings"].includes(section) && (
+        {!["runs", "chat", "board", "sessions", "artifacts", "context", "logs", "profiles", "search", "theme_gallery", "settings"].includes(section) && (
           <div className="empty-state">
             <div className="empty-state-icon">{icon(section)}</div>
             <div className="empty-state-text">{label(section)}</div>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function RunsList() {
+  const runs = useRunLedgerStore((s) => s.runs);
+  const currentRunId = useRunLedgerStore((s) => s.currentRunId);
+  const setActiveTab = useLayoutStore((s) => s.setActiveTab);
+
+  if (runs.length === 0) {
+    return <div className="sidebar-note">No runs captured in this Studio session.</div>;
+  }
+
+  return (
+    <>
+      <div className="sidebar-note">{runs.length} recent run{runs.length !== 1 ? "s" : ""}</div>
+      {runs.map((run) => (
+        <button
+          key={run.runId}
+          className={`sidebar-item ${currentRunId === run.runId ? "active" : ""}`}
+          onClick={() => setActiveTab("runs")}
+          title={run.prompt}
+        >
+          <span className={`mini-status status-${run.status}`} />
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+            {run.prompt || run.runId}
+          </span>
+          <span style={{ fontSize: "10px", color: "var(--app-text-muted)", flexShrink: 0 }}>{run.events.length}</span>
+        </button>
+      ))}
+    </>
+  );
+}
+
+function ChatSection() {
+  const setActiveTab = useLayoutStore((s) => s.setActiveTab);
+  return (
+    <div className="sidebar-stack">
+      <button className="sidebar-item active" onClick={() => setActiveTab("chat")}>Composer</button>
+      <button className="sidebar-item" onClick={() => setActiveTab("runs")}>Run Ledger</button>
+      <div className="sidebar-note">Chat is a prompt surface. Run state, tools, warnings, and outcomes are tracked in the ledger.</div>
+    </div>
+  );
+}
+
+function BoardSection() {
+  const setActiveTab = useLayoutStore((s) => s.setActiveTab);
+  return (
+    <div className="sidebar-stack">
+      <button className="sidebar-item active" onClick={() => setActiveTab("board")}>Run Board</button>
+      <div className="sidebar-note">Board persistence exists in Studio-owned storage. Full Kanban wiring is intentionally paused.</div>
+    </div>
+  );
+}
+
+function ArtifactsSection() {
+  const setActiveTab = useLayoutStore((s) => s.setActiveTab);
+  return (
+    <div className="sidebar-stack">
+      <button className="sidebar-item active" onClick={() => setActiveTab("artifacts")}>Artifact Shelf</button>
+      {["Files", "Markdown", "Screenshots", "Test Results", "Reports"].map((item) => (
+        <button key={item} className="sidebar-item" onClick={() => setActiveTab("artifacts")}>{item}</button>
+      ))}
+    </div>
+  );
+}
+
+function ContextSection() {
+  return (
+    <div className="sidebar-embedded">
+      <ContextInspector />
+    </div>
+  );
+}
+
+function LogsSection() {
+  const setBottomTab = useLayoutStore((s) => s.setBottomTab);
+  return (
+    <div className="sidebar-stack">
+      {["activity", "tools", "logs", "adapter_diagnostics"].map((tab) => (
+        <button key={tab} className="sidebar-item" onClick={() => setBottomTab(tab)}>
+          {tab.replaceAll("_", " ")}
+        </button>
+      ))}
     </div>
   );
 }

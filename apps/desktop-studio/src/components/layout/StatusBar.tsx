@@ -1,6 +1,7 @@
 import { useThemeStore } from "../../stores/themeStore";
 import { useAdapterStore } from "../../stores/adapterStore";
 import { useProfileStore } from "../../stores/profileStore";
+import { useRunLedgerStore } from "../../stores/runLedgerStore";
 
 export function StatusBar() {
   const activeTheme = useThemeStore((s) => s.activeTheme);
@@ -11,6 +12,8 @@ export function StatusBar() {
   const authError = useAdapterStore((s) => s.authError);
   const fallbackReason = useAdapterStore((s) => s.fallbackReason);
   const activeProfile = useProfileStore((s) => s.activeProfile);
+  const runs = useRunLedgerStore((s) => s.runs);
+  const currentRunId = useRunLedgerStore((s) => s.currentRunId);
 
   const statusColor = connected ? "var(--app-ok)" : checking ? "var(--app-warn)" : "var(--app-danger)";
   const statusText = connected ? "Connected" : checking ? "Checking..." : authError ? "Auth token missing" : "Disconnected";
@@ -26,6 +29,7 @@ export function StatusBar() {
 
   const profileName = activeProfile?.name ?? "unknown";
   const adapterTitle = authError ?? fallbackReason ?? statusText;
+  const run = runs.find((item) => item.runId === currentRunId) ?? runs[0];
 
   return (
     <div className="status-bar">
@@ -34,10 +38,7 @@ export function StatusBar() {
         <span>{profileName}</span>
       </div>
       <div className="status-item">
-        <span>~/Projects/hermes-desktop-studio</span>
-      </div>
-      <div className="status-item">
-        <span>claude-sonnet-4</span>
+        <span>{run ? `Run: ${run.status}` : "Run: idle"}</span>
       </div>
       <div style={{ flex: 1 }} />
       <div className="status-item">

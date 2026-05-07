@@ -540,6 +540,7 @@ export interface StudioEvent<T = Record<string, unknown>> {
 }
 
 export interface RunEventHandlers {
+  onEvent?: (event: StudioEvent) => void;
   onRunStarted?: (payload: { run_id: string; session_id: string }) => void;
   onAssistantDelta?: (payload: { text: string }) => void;
   onAssistantCompleted?: (payload: { model?: string; total_tokens?: number; duration_ms?: number }) => void;
@@ -602,6 +603,7 @@ export function streamRunEvents(runId: string, handlers: RunEventHandlers): Abor
 
           try {
             const event = JSON.parse(data) as StudioEvent;
+            handlers.onEvent?.(event);
 
             switch (event.type) {
               case "run.started":

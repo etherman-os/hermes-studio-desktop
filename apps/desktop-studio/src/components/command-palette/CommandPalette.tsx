@@ -3,6 +3,14 @@ import { useUiStore } from "../../stores/uiStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useThemeStore } from "../../stores/themeStore";
 
+interface PaletteCommand {
+  id: string;
+  label: string;
+  icon: string;
+  shortcut?: string;
+  action: () => void;
+}
+
 export function CommandPalette() {
   const open = useUiStore((s) => s.commandPaletteOpen);
   const close = useUiStore((s) => s.closeCommandPalette);
@@ -15,24 +23,37 @@ export function CommandPalette() {
   const toggleBottom = useLayoutStore((s) => s.toggleBottomPanel);
   const setActiveTab = useLayoutStore((s) => s.setActiveTab);
   const setSidebar = useLayoutStore((s) => s.setSidebarSection);
+  const setBottomTab = useLayoutStore((s) => s.setBottomTab);
   const setTheme = useThemeStore((s) => s.setTheme);
+  const installedThemes = useThemeStore((s) => s.installedThemes);
+  const themes = useThemeStore((s) => s.themes);
 
-  const commands = [
-    { id: "switch-theme", label: "Switch Theme", icon: "🎨", action: () => { setSidebar("theme_gallery"); close(); } },
-    { id: "new-session", label: "New Session", icon: "➕", action: () => close() },
-    { id: "open-kanban", label: "Open Kanban", icon: "📋", shortcut: "Ctrl+2", action: () => { setActiveTab("kanban"); close(); } },
-    { id: "open-chat", label: "Open Chat", icon: "💬", shortcut: "Ctrl+1", action: () => { setActiveTab("chat"); close(); } },
-    { id: "show-logs", label: "Show Logs", icon: "📜", shortcut: "Ctrl+4", action: () => { useLayoutStore.getState().setBottomTab("logs"); close(); } },
-    { id: "open-settings", label: "Open Settings", icon: "⚙️", action: () => { setSidebar("settings"); close(); } },
-    { id: "refresh-model", label: "Refresh Model Config", icon: "🔄", action: () => { close(); } },
-    { id: "show-provider", label: "Show Provider Status", icon: "🤖", action: () => { close(); } },
-    { id: "toggle-right", label: "Toggle Right Panel", icon: "📐", action: () => { toggleRight(); close(); } },
-    { id: "toggle-bottom", label: "Toggle Bottom Panel", icon: "📏", action: () => { toggleBottom(); close(); } },
-    { id: "theme-default", label: "Theme: Default Dark", icon: "🌙", action: () => { setTheme("default-dark"); close(); } },
-    { id: "theme-minecraft", label: "Theme: Minecraft Overworld", icon: "🌍", action: () => { setTheme("minecraft-overworld"); close(); } },
-    { id: "theme-minions", label: "Theme: Minions", icon: "😈", action: () => { setTheme("example-minions"); close(); } },
-    { id: "theme-lotr", label: "Theme: Lord of the Rings", icon: "🏔️", action: () => { setTheme("example-lotr"); close(); } },
-    { id: "theme-light", label: "Theme: Minimal Light", icon: "☀️", action: () => { setTheme("minimal-light"); close(); } },
+  const themeCommands = (installedThemes().length > 0 ? installedThemes() : Object.values(themes).map((theme) => ({
+    id: theme.meta.id,
+    name: theme.meta.name,
+    description: theme.meta.description ?? "",
+    author: theme.meta.author ?? "",
+    version: theme.meta.version,
+  }))).slice(0, 8).map((theme) => ({
+    id: `theme-${theme.id}`,
+    label: `Theme: ${theme.name}`,
+    icon: "#",
+    action: () => { setTheme(theme.id); close(); },
+  }));
+
+  const commands: PaletteCommand[] = [
+    { id: "open-runs", label: "Open Run Ledger", icon: "R", shortcut: "Ctrl+1", action: () => { setActiveTab("runs"); setSidebar("runs"); close(); } },
+    { id: "open-chat", label: "Open Chat", icon: "C", shortcut: "Ctrl+2", action: () => { setActiveTab("chat"); setSidebar("chat"); close(); } },
+    { id: "open-board", label: "Open Board", icon: "B", shortcut: "Ctrl+3", action: () => { setActiveTab("board"); setSidebar("board"); close(); } },
+    { id: "open-sessions", label: "Open Sessions", icon: "S", action: () => { setActiveTab("sessions"); setSidebar("sessions"); close(); } },
+    { id: "open-artifacts", label: "Open Artifacts", icon: "A", action: () => { setActiveTab("artifacts"); setSidebar("artifacts"); close(); } },
+    { id: "show-logs", label: "Show Logs", icon: "L", action: () => { setBottomTab("logs"); setSidebar("logs"); close(); } },
+    { id: "show-diagnostics", label: "Show Adapter Diagnostics", icon: "D", action: () => { setBottomTab("adapter_diagnostics"); close(); } },
+    { id: "switch-theme", label: "Switch Theme", icon: "#", action: () => { setSidebar("theme_gallery"); close(); } },
+    { id: "open-settings", label: "Open Settings", icon: "*", action: () => { setSidebar("settings"); close(); } },
+    { id: "toggle-right", label: "Toggle Right Panel", icon: "I", action: () => { toggleRight(); close(); } },
+    { id: "toggle-bottom", label: "Toggle Bottom Panel", icon: "_", action: () => { toggleBottom(); close(); } },
+    ...themeCommands,
   ];
 
   const filtered = query

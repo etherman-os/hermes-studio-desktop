@@ -760,3 +760,531 @@ body {
   color: var(--app-text-muted);
   margin-top: 2px;
 }
+
+/* UX-1 run-centered workbench foundation */
+.app-frame {
+  grid-template-columns: var(--rail-width) 280px 1fr 340px;
+}
+
+.center-content {
+  padding: var(--app-spacing-sm);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 120px),
+    var(--app-bg);
+}
+
+.rail {
+  padding-top: 6px;
+}
+
+.rail-icon {
+  border-radius: var(--app-radius-sm);
+  font-family: var(--app-font-mono);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.center-tabs,
+.bottom-tabs {
+  min-height: 34px;
+}
+
+.center-tab,
+.bottom-tab,
+.tool-button {
+  font-family: var(--app-font-family);
+}
+
+.center-tab {
+  padding: 7px 14px;
+  font-size: 12px;
+}
+
+.right-panel {
+  overflow-y: auto;
+}
+
+.workbench-eyebrow {
+  color: var(--app-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.surface-header,
+.run-ledger-header,
+.event-detail-header,
+.chat-run-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-spacing-md);
+}
+
+.surface-header {
+  padding: var(--app-spacing-md);
+  border-bottom: 1px solid var(--app-border-subtle);
+}
+
+.surface-header h2 {
+  margin-top: 2px;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.surface-badge,
+.status-pill {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  padding: 2px 7px;
+  color: var(--app-text-secondary);
+  font-size: 11px;
+  background: var(--app-bg);
+}
+
+.status-pill {
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.status-running,
+.status-starting {
+  border-color: var(--app-accent);
+  color: var(--app-accent);
+}
+
+.status-completed {
+  border-color: var(--app-ok);
+  color: var(--app-ok);
+}
+
+.status-failed {
+  border-color: var(--app-danger);
+  color: var(--app-danger);
+}
+
+.status-cancelled {
+  border-color: var(--app-warn);
+  color: var(--app-warn);
+}
+
+.run-ledger,
+.artifact-shelf,
+.context-inspector,
+.board-surface {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--app-border-subtle);
+  background: rgba(22, 27, 34, 0.76);
+}
+
+.run-ledger-header {
+  padding: var(--app-spacing-md);
+  border-bottom: 1px solid var(--app-border-subtle);
+}
+
+.run-ledger-title {
+  margin-top: 3px;
+  color: var(--app-text);
+  font-size: 15px;
+  font-weight: 650;
+  max-width: 720px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-ledger-stats,
+.run-ledger-meta,
+.chat-run-meta,
+.chat-run-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--app-spacing-sm);
+}
+
+.run-ledger-stats,
+.run-ledger-meta,
+.chat-run-meta {
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.run-ledger-meta {
+  padding: 6px var(--app-spacing-md);
+  border-bottom: 1px solid var(--app-border-subtle);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.run-ledger-body {
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) 360px;
+  min-height: 0;
+  flex: 1;
+}
+
+.timeline-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--app-spacing-sm);
+  border-right: 1px solid var(--app-border-subtle);
+}
+
+.timeline-entry {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) 110px;
+  gap: var(--app-spacing-sm);
+  align-items: start;
+  padding: 7px 8px;
+  color: var(--app-text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--app-radius-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.timeline-entry:hover,
+.timeline-entry.active {
+  border-color: var(--app-border);
+  background: var(--app-surface-alt);
+}
+
+.timeline-marker {
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--app-accent);
+}
+
+.timeline-main,
+.timeline-side {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.timeline-type {
+  color: var(--app-text);
+  font-family: var(--app-font-mono);
+  font-size: 11px;
+}
+
+.timeline-summary {
+  overflow: hidden;
+  color: var(--app-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.timeline-side {
+  align-items: flex-end;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  gap: 2px;
+}
+
+.event-detail {
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: var(--app-spacing-md);
+}
+
+.event-detail-title {
+  color: var(--app-text);
+  font-family: var(--app-font-mono);
+  font-size: 13px;
+  margin-top: 3px;
+}
+
+.event-detail-meta {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 4px 10px;
+  margin: var(--app-spacing-md) 0;
+  font-size: 12px;
+}
+
+.event-detail-meta dt {
+  color: var(--app-text-muted);
+}
+
+.event-detail-meta dd {
+  color: var(--app-text-secondary);
+  margin: 0;
+}
+
+.event-payload {
+  flex: 1;
+  overflow: auto;
+  padding: var(--app-spacing-sm);
+  border: 1px solid var(--app-border-subtle);
+  background: var(--app-bg);
+  color: var(--app-text-secondary);
+  font-family: var(--app-font-mono);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.workbench-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: var(--app-spacing-sm);
+  padding: var(--app-spacing-xl);
+  border: 1px solid var(--app-border-subtle);
+  color: var(--app-text-muted);
+  background: rgba(22, 27, 34, 0.55);
+  text-align: center;
+}
+
+.workbench-empty.compact {
+  height: auto;
+  border: 0;
+  background: transparent;
+}
+
+.workbench-empty-title {
+  color: var(--app-text);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.workbench-empty-copy {
+  max-width: 520px;
+  line-height: 1.5;
+}
+
+.chat-container {
+  border: 1px solid var(--app-border-subtle);
+  background: rgba(22, 27, 34, 0.68);
+}
+
+.chat-run-strip {
+  min-height: 58px;
+  padding: var(--app-spacing-sm) var(--app-spacing-md);
+  border-bottom: 1px solid var(--app-border-subtle);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.chat-tool-strip {
+  display: flex;
+  gap: var(--app-spacing-xs);
+  padding: 6px var(--app-spacing-md);
+  border-bottom: 1px solid var(--app-border-subtle);
+}
+
+.chat-message {
+  max-width: min(860px, 92%);
+  border-radius: var(--app-radius-md);
+  border: 1px solid var(--app-border-subtle);
+}
+
+.chat-message.user {
+  background: rgba(88, 166, 255, 0.1);
+}
+
+.chat-message.assistant {
+  background: rgba(28, 35, 51, 0.78);
+}
+
+.tool-button {
+  padding: 5px 9px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-bg);
+  color: var(--app-text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.tool-button:hover:not(:disabled) {
+  color: var(--app-text);
+  border-color: var(--app-accent);
+}
+
+.tool-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.artifact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--app-spacing-sm);
+  padding: var(--app-spacing-md);
+  overflow: auto;
+}
+
+.artifact-tile {
+  min-height: 112px;
+  padding: var(--app-spacing-md);
+  border: 1px solid var(--app-border-subtle);
+  background: var(--app-bg);
+}
+
+.artifact-tile-title {
+  color: var(--app-text);
+  font-weight: 650;
+}
+
+.artifact-tile-detail {
+  margin-top: var(--app-spacing-sm);
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.artifact-tile-count {
+  margin-top: var(--app-spacing-md);
+  color: var(--app-text-muted);
+  font-family: var(--app-font-mono);
+  font-size: 11px;
+}
+
+.context-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--app-spacing-md);
+}
+
+.context-row,
+.approval-row,
+.inspector-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--app-spacing-md);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--app-border-subtle);
+  color: var(--app-text-secondary);
+  font-size: 12px;
+}
+
+.context-row span:last-child,
+.approval-row span:last-child,
+.inspector-row span:last-child {
+  color: var(--app-text-muted);
+  text-align: right;
+}
+
+.panel-note,
+.sidebar-note,
+.kanban-empty-column {
+  padding: var(--app-spacing-sm);
+  color: var(--app-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.inspector-list,
+.approval-center,
+.sidebar-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: var(--app-spacing-sm);
+  padding: var(--app-spacing-sm);
+}
+
+.diagnostics-grid div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--app-spacing-sm);
+  border: 1px solid var(--app-border-subtle);
+  background: var(--app-bg);
+}
+
+.diagnostics-grid span {
+  color: var(--app-text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.diagnostics-grid strong {
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.diagnostics-grid .diagnostics-wide {
+  grid-column: 1 / -1;
+}
+
+.mini-status {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: var(--app-text-muted);
+}
+
+.mini-status.status-running,
+.mini-status.status-starting {
+  background: var(--app-accent);
+}
+
+.mini-status.status-completed {
+  background: var(--app-ok);
+}
+
+.mini-status.status-failed {
+  background: var(--app-danger);
+}
+
+.sidebar-static-row {
+  padding: 6px var(--app-spacing-sm);
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.sidebar-embedded .context-inspector {
+  height: auto;
+  border: 0;
+  background: transparent;
+}
+
+.sidebar-embedded .surface-header {
+  padding: var(--app-spacing-sm);
+}
+
+.sidebar-embedded .surface-header h2 {
+  font-size: 13px;
+}
+
+.sidebar-embedded .context-grid {
+  padding: var(--app-spacing-sm);
+}
+
+.board-surface .kanban-board {
+  flex: 1;
+  min-height: 0;
+  padding: var(--app-spacing-md);
+}
+
+.board-note {
+  padding: 8px var(--app-spacing-md);
+  border-bottom: 1px solid var(--app-border-subtle);
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.kanban-column {
+  border-radius: var(--app-radius-sm);
+}

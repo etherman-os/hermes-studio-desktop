@@ -22,6 +22,19 @@ Manual smoke test checklist for verifying the desktop studio works correctly.
 - [ ] Default route list does not include `/shell/*`
 - [ ] `HERMES_STUDIO_ENABLE_LEGACY_SHELL_ROUTES=1` mounts `/shell/*` for prototype/reference use only
 
+## Run-Centered Workbench
+
+- [ ] App opens with Run Ledger as the primary center tab
+- [ ] Activity rail includes Runs, Chat, Board, Sessions, Artifacts, Context, Logs, Themes, and Settings
+- [ ] Starting a prompt creates a current run in the Run Ledger
+- [ ] Run Ledger timeline shows `run.started`, assistant stream, tool events, warnings, and terminal events when present
+- [ ] Selecting a timeline entry shows event payload detail
+- [ ] Right inspector shows selected run, model, tools, memory, context, approvals, and diagnostics
+- [ ] Bottom panel Activity and Tool Events reflect current run events
+- [ ] Artifact Shelf placeholder renders categories for files, markdown, screenshots, tests, log snapshots, HTML previews, and reports
+- [ ] Context Inspector placeholder renders guidance files, memory, skills, references, active profile, and model/provider status
+- [ ] Approval Center shows no pending approvals and recent approval events when present
+
 ## Chat
 
 - [ ] Typing in composer and pressing Enter sends prompt
@@ -37,13 +50,17 @@ Manual smoke test checklist for verifying the desktop studio works correctly.
 - [ ] No duplicate messages after `run.completed`
 - [ ] Composer shows warning border when adapter is disconnected
 - [ ] Sending message when adapter offline shows local fallback message
+- [ ] Chat header shows current/last run id and status
+- [ ] "Open in Run Ledger" switches to the Run Ledger tab
+- [ ] Create-card-from-run action is visibly deferred until board wiring resumes
 
 ## Tabs
 
-- [ ] Chat tab renders chat surface
-- [ ] Kanban tab renders 5-column board with mock cards
-- [ ] Artifacts tab shows placeholder
-- [ ] Sessions tab shows placeholder
+- [ ] Run Ledger tab renders the run timeline surface
+- [ ] Chat tab renders prompt/chat surface
+- [ ] Board tab renders the paused board control surface
+- [ ] Artifacts tab renders Artifact Shelf placeholder
+- [ ] Sessions tab renders sessions surface
 - [ ] Switching tabs during streaming does not break the stream
 
 ## Sidebar
@@ -51,22 +68,27 @@ Manual smoke test checklist for verifying the desktop studio works correctly.
 - [ ] Sessions section lists sessions from adapter
 - [ ] Clicking a session sets it as active
 - [ ] Profiles section shows profile list
-- [ ] Search section shows search input
+- [ ] Context section shows the Context Stack Inspector placeholder
+- [ ] Logs section can switch bottom panel tabs
 - [ ] Theme Gallery shows 5 theme cards
 - [ ] Clicking a theme card switches theme
 - [ ] Theme switch changes colors, labels, and icons
 
 ## Right Panel
 
-- [ ] Tools section shows tool list
-- [ ] Memory section shows mock memory entries
-- [ ] Inspector section shows model info
+- [ ] Selected Run section updates after a run starts
+- [ ] Model section shows model/provider info
+- [ ] Tools section shows tool events for the selected run
+- [ ] Memory section shows current placeholder memory entries
+- [ ] Context section shows current placeholder context entries
+- [ ] Diagnostics section shows adapter/backend/Hermes status
 
 ## Bottom Panel
 
-- [ ] Activity tab shows recent activity
+- [ ] Activity tab shows recent run events
+- [ ] Tool Events tab shows current run tool events
 - [ ] Logs tab shows log lines
-- [ ] Tool Events tab shows placeholder
+- [ ] Adapter Diagnostics tab shows adapter/backend/Hermes status
 
 ## Command Palette
 
@@ -75,6 +97,7 @@ Manual smoke test checklist for verifying the desktop studio works correctly.
 - [ ] Arrow keys navigate command list
 - [ ] Enter executes selected command
 - [ ] Escape closes palette
+- [ ] "Open Run Ledger" command switches to Run Ledger
 - [ ] "Switch Theme" command opens theme gallery
 - [ ] "Toggle Right Panel" hides/shows right panel
 - [ ] "Toggle Bottom Panel" hides/shows bottom panel
