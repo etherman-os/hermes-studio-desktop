@@ -682,6 +682,10 @@ body {
   cursor: default;
 }
 
+.kanban-card-main {
+  min-width: 0;
+}
+
 .kanban-card-title {
   font-size: var(--app-font-size-base);
   font-weight: 500;
@@ -698,8 +702,43 @@ body {
 .kanban-card-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--app-spacing-sm);
   font-size: 11px;
+}
+
+.kanban-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--app-spacing-sm);
+  margin-top: var(--app-spacing-sm);
+}
+
+.kanban-move-select {
+  width: min(140px, 100%);
+  height: 28px;
+  font-size: 11px;
+}
+
+.kanban-link-chip {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--app-text-secondary);
+}
+
+.priority-edge-low {
+  border-left: 3px solid var(--app-ok);
+}
+
+.priority-edge-medium {
+  border-left: 3px solid var(--app-warn);
+}
+
+.priority-edge-high,
+.priority-edge-urgent {
+  border-left: 3px solid var(--app-danger);
 }
 
 .priority-badge {
@@ -713,6 +752,7 @@ body {
 .priority-high { background: rgba(248, 81, 73, 0.2); color: var(--app-danger); }
 .priority-medium { background: rgba(210, 153, 34, 0.2); color: var(--app-warn); }
 .priority-low { background: rgba(63, 185, 80, 0.2); color: var(--app-ok); }
+.priority-urgent { background: rgba(248, 81, 73, 0.28); color: var(--app-danger); }
 
 .command-palette-overlay {
   position: fixed;
@@ -1831,8 +1871,47 @@ body {
   border-bottom: 1px solid var(--app-border-subtle);
 }
 
+.kanban-card-modal {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.kanban-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: var(--app-spacing-md);
+}
+
+.kanban-editor-description {
+  min-height: 180px;
+}
+
 .kanban-column {
   border-radius: var(--app-radius-sm);
+}
+
+.kanban-column-inbox {
+  border-top: 2px solid var(--kanban-todo);
+}
+
+.kanban-column-ready {
+  border-top: 2px solid var(--app-accent);
+}
+
+.kanban-column-doing {
+  border-top: 2px solid var(--kanban-doing);
+}
+
+.kanban-column-blocked {
+  border-top: 2px solid var(--kanban-blocked);
+}
+
+.kanban-column-done {
+  border-top: 2px solid var(--kanban-done);
+}
+
+.tool-button.danger:hover:not(:disabled) {
+  border-color: var(--app-danger);
+  color: var(--app-danger);
 }
 
 @media (max-width: 1050px) {
@@ -1845,6 +1924,10 @@ body {
   }
 
   .new-run-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .kanban-editor-grid {
     grid-template-columns: 1fr;
   }
 

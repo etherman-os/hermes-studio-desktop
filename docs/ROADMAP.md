@@ -207,8 +207,8 @@
 - [x] Add `/studio/kanban/*` protocol paths and OpenAPI coverage before frontend wiring
 - [x] Implement adapter persistence with local Studio storage and migration/version metadata
 - [x] Add tests for CRUD, ordering, migration, event normalization, and read-only Hermes guarantees
-- [ ] Keep theme/concept pack Kanban presentation generic and semantic-slot driven
-- [ ] Wire frontend Kanban store/components to `/studio/*` only
+- [x] Keep theme/concept pack Kanban presentation generic and semantic-slot driven
+- [x] Wire frontend Kanban store/components to `/studio/*` only
 
 ## Phase 6C.5 — Real Local Hermes Discovery and Integration Audit (Done)
 
@@ -253,6 +253,17 @@
 - [x] Collapsible left sidebar, right inspector, and bottom panel with responsive workbench layout
 - [x] Command palette commands for New Run, New Chat, Select Workspace, Runtime Status, Run Ledger, Board, Sessions, Refresh Adapter Status, Theme, and Settings
 - [x] Board placeholder now uses Studio-owned Kanban backend data instead of pretending mock cards are real
+
+## Phase Product-2 — Kanban Frontend Integration as Run/Session Control Surface (Done)
+
+- [x] Dedicated frontend Kanban store for loading, refreshing, creating, updating, moving, archiving, and linking cards through `/studio/kanban/*`
+- [x] Board tab renders persistent backend columns/cards with loading, error, empty, refresh, and adapter-unavailable states
+- [x] Create/edit card modal with title, description, priority, column/status, linked session id, and linked run id
+- [x] Explicit move controls replace drag-and-drop for now
+- [x] Cards show priority, updated time, linked run, and linked session indicators
+- [x] Run Ledger "Create Card from Run" refreshes the board after creating a linked card
+- [x] Sessions can create linked Studio-owned Kanban cards
+- [x] No Hermes core changes, no Hermes `state.db` writes, no cloud sync, and no animated concept-pack work
 
 ## Next Core Layers
 

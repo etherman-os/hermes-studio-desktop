@@ -34,7 +34,7 @@ Health and bootstrap responses include Studio-owned storage status for `studio.d
 
 ## Kanban Protocol
 
-Persistent Kanban backend calls live under `/studio/kanban/*` and use Studio-owned `studio.db`. The backend creates a default board and default columns lazily. Full UI wiring and drag-and-drop are later phases.
+Persistent Kanban backend calls live under `/studio/kanban/*` and use Studio-owned `studio.db`. The backend creates a default board and default columns lazily. The desktop Board surface uses these routes for create/edit/move/archive/link actions; drag-and-drop remains a later UI layer over the same protocol.
 
 ## Plugin Types
 

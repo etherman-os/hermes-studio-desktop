@@ -188,7 +188,7 @@ Path priority:
 
 ### Studio-owned Kanban Backend
 
-Persistent Kanban data uses the same Studio-owned `studio.db`, never Hermes `state.db`. Phase 6C adds `/studio/kanban/*` backend endpoints, default board creation, default columns, and event/schema coverage. Full Kanban UI and drag-and-drop are intentionally later work. See [docs/STUDIO_KANBAN.md](docs/STUDIO_KANBAN.md).
+Persistent Kanban data uses the same Studio-owned `studio.db`, never Hermes `state.db`. The Board surface now uses `/studio/kanban/*` to load the default board, create/edit/move/archive cards, and show linked run/session indicators. Drag-and-drop, cloud sync, artifact links, and review/release workflows remain future layers. See [docs/STUDIO_KANBAN.md](docs/STUDIO_KANBAN.md).
 
 ### Run-Centered Workbench
 

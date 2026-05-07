@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import * as api from "../api/studioClient";
+import { useKanbanStore } from "./kanbanStore";
 import { useRunLedgerStore } from "./runLedgerStore";
 
 interface ChatMessage {
@@ -89,6 +90,7 @@ export const useRunStore = create<RunState>((set, get) => ({
         onAssistantDelta: (p) => get().appendAssistantChunk(p.text),
         onToolStarted: (p) => get().addToolEvent(p.tool, "running"),
         onToolCompleted: (p) => get().addToolEvent(p.tool, "completed", p.duration_ms),
+        onKanbanUpdated: () => void useKanbanStore.getState().refreshBoard(),
         onRunCompleted: () => {
           useRunLedgerStore.getState().finishRun(run.run_id, "completed");
           get().finalizeRun();

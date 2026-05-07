@@ -129,6 +129,8 @@ describe("studioClient protocol surface", () => {
     const api = await loadClient();
     await api.initializeAdapterAuth();
     await api.createKanbanCard({ title: "Card" });
+    await api.linkKanbanCardToSession("card_1", "session_1");
+    await api.linkKanbanCardToRun("card_1", "run_1");
 
     expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:39191/studio/kanban/cards");
     expect(fetchMock.mock.calls[0][1]).toEqual(
@@ -137,6 +139,10 @@ describe("studioClient protocol surface", () => {
         headers: expect.objectContaining({ Authorization: "Bearer dev-token" }),
       }),
     );
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:39191/studio/kanban/cards/card_1/link-session");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toEqual({ session_id: "session_1" });
+    expect(fetchMock.mock.calls[2][0]).toBe("http://127.0.0.1:39191/studio/kanban/cards/card_1/link-run");
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body as string)).toEqual({ run_id: "run_1" });
   });
 
   it("uses /studio/runs/* for persisted run ledger calls", async () => {

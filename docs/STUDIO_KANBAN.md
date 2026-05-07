@@ -5,16 +5,18 @@ This is local Studio state, not Hermes Agent state.
 
 ## Scope
 
-Phase 6C adds backend protocol and persistence only:
+Phase 6C adds backend protocol and persistence:
 
 - `/studio/kanban/*` endpoints
 - SQLite tables in `studio.db`
 - default board and default columns
 - repository tests and OpenAPI parity
 
-It does not add full Kanban UI, drag-and-drop, custom provider runtime, or Hermes Agent core changes.
+It does not add drag-and-drop, custom provider runtime, cloud sync, or Hermes Agent core changes.
 
 Phase Product-1 adds one narrow workflow action from the Run Ledger: "Create Card from Run" creates a card in the default Inbox and sets `run_id` plus `session_id` when available. This still goes through `/studio/kanban/cards` and writes only to Studio-owned `studio.db`.
+
+Phase Product-2 connects the desktop Board surface to the persistent backend. The Board can load the default board, create cards, edit title/description/priority/status, move cards through explicit controls, archive cards, and show linked run/session indicators. It remains a Studio workflow surface, not a generic toy todo board.
 
 ## Storage
 
@@ -67,13 +69,24 @@ Kanban event payloads use `card_id`, `column_id`, and `position` for card-specif
 
 The backend does not mutate Kanban from arbitrary SSE payloads. SSE events are notifications; persistent changes go through `/studio/kanban/*`.
 
+## Frontend Control Surface
+
+The desktop Board uses a Zustand Kanban store backed only by `/studio/kanban/*`. Current supported actions:
+
+- Load the Studio-owned default board.
+- Create follow-up cards in a selected column.
+- Edit card title, description, priority, and status.
+- Move cards using explicit "Move to" controls.
+- Archive cards out of the active board.
+- Create linked cards from Run Ledger runs.
+- Create linked cards from Hermes sessions.
+
 ## Future Work
 
 Future phases can add:
 
-- Kanban Zustand store
-- read UI backed by `/studio/kanban/*`
-- drag-and-drop movement through `POST /studio/kanban/cards/{card_id}/move`
+- drag-and-drop movement using the existing `POST /studio/kanban/cards/{card_id}/move`
 - concept-pack styling for semantic column states
+- artifact links and review/release workflow metadata
 
 Those phases should keep the same storage and protocol boundaries.

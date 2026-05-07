@@ -31,6 +31,8 @@ Phase UX-1 does not implement full Kanban UI or drag-and-drop. The backend is re
 
 Phase Product-1 adds a small workflow bridge: a run can create a Kanban card in the default Inbox and link it with `run_id` and `session_id`. The write goes only to Studio-owned `studio.db`.
 
+Phase Product-2 makes Board a real control surface. It loads persistent Studio cards, supports create/edit/move/archive actions, and keeps run/session links visible. Drag-and-drop stays out of scope until the workflow proves it needs that interaction.
+
 ## Run Ledger Persistence
 
 Run Ledger history is Studio-owned. Recent run metadata and normalized Studio event envelopes are persisted in `studio.db` through:

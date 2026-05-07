@@ -192,6 +192,20 @@ Manual smoke test checklist for verifying the desktop studio works correctly.
 - [ ] Malformed `kanban.updated` events become `adapter.warning`
 - [ ] Kanban tests verify no writes to Hermes `state.db`
 
+## Studio Kanban Frontend
+
+- [ ] Board tab loads the persistent default board from `/studio/kanban/boards/default`
+- [ ] Adapter unavailable or missing auth shows a clear Board error state, not mock cards
+- [ ] Create Card opens the editor and persists a card in Studio-owned `studio.db`
+- [ ] Edit Card updates title, description, priority, and status
+- [ ] Move controls can move a card to Inbox, Ready, Doing, Blocked, and Done
+- [ ] Archive removes the card from the active board
+- [ ] Cards show priority, updated time, linked run id, and linked session id when present
+- [ ] Run Ledger "Create Card from Run" creates a linked card and Board refreshes
+- [ ] Sessions "Create Card from Session" creates a linked card and Board refreshes
+- [ ] Theme switching preserves readable columns/cards and uses semantic CSS variables
+- [ ] No drag-and-drop is required for this phase
+
 ## Status Bar
 
 - [ ] Shows active profile name

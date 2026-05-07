@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import * as api from "../api/studioClient";
 import type { RunLedgerRun, StudioEvent, StudioEventType } from "../api/studioClient";
+import { useKanbanStore } from "./kanbanStore";
 
 export type RunLedgerStatus = "idle" | "queued" | "starting" | "running" | "completed" | "failed" | "cancelled" | "stopping";
 
@@ -333,6 +334,7 @@ export const useRunLedgerStore = create<RunLedgerState>((set, get) => ({
         run_id: run.runId,
         session_id: run.sessionId,
       });
+      await useKanbanStore.getState().refreshBoard();
       set({ savingRunCard: false, actionMessage: "Kanban card created in Inbox" });
     } catch (err) {
       set({

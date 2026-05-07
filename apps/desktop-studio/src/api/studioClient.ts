@@ -358,17 +358,17 @@ export async function archiveKanbanCard(cardId: string) {
   });
 }
 
-export async function linkKanbanCardToSession(cardId: string, input: KanbanLinkSessionRequest) {
+export async function linkKanbanCardToSession(cardId: string, sessionId: string) {
   return request<KanbanCard>(`/studio/kanban/cards/${cardId}/link-session`, {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify({ session_id: sessionId } satisfies KanbanLinkSessionRequest),
   });
 }
 
-export async function linkKanbanCardToRun(cardId: string, input: KanbanLinkRunRequest) {
+export async function linkKanbanCardToRun(cardId: string, runId: string) {
   return request<KanbanCard>(`/studio/kanban/cards/${cardId}/link-run`, {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify({ run_id: runId } satisfies KanbanLinkRunRequest),
   });
 }
 

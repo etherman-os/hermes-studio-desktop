@@ -3,6 +3,7 @@ import { useSessionStore } from "../../stores/sessionStore";
 import { useThemeStore } from "../../stores/themeStore";
 import { useRunLedgerStore } from "../../stores/runLedgerStore";
 import { useLayoutStore } from "../../stores/layoutStore";
+import { useKanbanStore } from "../../stores/kanbanStore";
 import * as api from "../../api/studioClient";
 
 interface SessionDetailData {
@@ -55,10 +56,14 @@ export function SessionsPanel() {
     ? sessions.filter((s) => s.title.toLowerCase().includes(search.toLowerCase()))
     : sessions;
   const relatedRun = detail ? runs.find((run) => run.sessionId === detail.id) : null;
+  const createKanbanCard = useKanbanStore((s) => s.createCard);
+  const kanbanSaving = useKanbanStore((s) => s.saving);
+  const kanbanMessage = useKanbanStore((s) => s.actionMessage);
+  const kanbanError = useKanbanStore((s) => s.error);
 
   async function createCardFromSession() {
     if (!detail) return;
-    await api.createKanbanCard({
+    await createKanbanCard({
       title: detail.title,
       description: `Created from Hermes session ${detail.id}`,
       priority: "medium",
@@ -164,7 +169,9 @@ export function SessionsPanel() {
                 {detail.title}
               </h3>
               <div className="session-actions">
-                <button className="tool-button" onClick={() => void createCardFromSession()}>Create Card from Session</button>
+                <button className="tool-button" disabled={kanbanSaving} onClick={() => void createCardFromSession()}>
+                  {kanbanSaving ? "Creating Card" : "Create Card from Session"}
+                </button>
                 <button
                   className="tool-button"
                   disabled={!relatedRun}
@@ -177,6 +184,11 @@ export function SessionsPanel() {
                   Open Related Run
                 </button>
               </div>
+              {(kanbanMessage || kanbanError) && (
+                <div className={`run-ledger-notice ${kanbanError ? "warning" : ""}`}>
+                  {kanbanError ? `Kanban unavailable: ${kanbanError}` : kanbanMessage}
+                </div>
+              )}
               <dl className="right-panel-info" style={{ display: "flex", flexWrap: "wrap", gap: "var(--app-spacing-md)" }}>
                 <div>
                   <dt>ID</dt>

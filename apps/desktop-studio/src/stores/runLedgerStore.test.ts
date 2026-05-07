@@ -10,6 +10,7 @@ vi.mock("../api/studioClient", async () => {
     getRecentRuns: vi.fn(),
     getRunLedger: vi.fn(),
     createKanbanCard: vi.fn(),
+    getDefaultKanbanBoard: vi.fn(),
   };
 });
 
@@ -138,6 +139,14 @@ describe("runLedgerStore", () => {
       created_at: "2026-05-07T00:00:00Z",
       updated_at: "2026-05-07T00:00:00Z",
       archived_at: null,
+    });
+    vi.mocked(api.getDefaultKanbanBoard).mockResolvedValue({
+      id: "board_default",
+      name: "Default Board",
+      created_at: "2026-05-07T00:00:00Z",
+      updated_at: "2026-05-07T00:00:00Z",
+      card_count: 1,
+      columns: [],
     });
 
     await useRunLedgerStore.getState().createCardFromRun("run-1");
