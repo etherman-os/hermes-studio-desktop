@@ -15,6 +15,15 @@ export function WorkspacePicker() {
     if (open) setPath(selectedWorkspace ?? "");
   }, [open, selectedWorkspace]);
 
+  React.useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") close();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, close]);
+
   if (!open) return null;
 
   function submit() {
@@ -23,14 +32,14 @@ export function WorkspacePicker() {
   }
 
   return (
-    <div className="modal-backdrop" onClick={close}>
+    <div className="modal-backdrop" onClick={close} role="dialog" aria-modal="true" aria-label="Select workspace">
       <div className="studio-modal workspace-modal" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>
             <div className="workbench-eyebrow">Workspace</div>
-            <h2>Select project folder</h2>
+            <h2 id="workspace-title">Select project folder</h2>
           </div>
-          <button className="icon-button" onClick={close} title="Close">x</button>
+          <button className="icon-button" onClick={close} title="Close" aria-label="Close dialog">x</button>
         </div>
         <div className="modal-body">
           <label className="field-label" htmlFor="workspace-path">Workspace path</label>

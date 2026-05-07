@@ -293,6 +293,86 @@ Manual smoke test checklist for verifying the desktop studio works correctly.
 - [ ] Shows active theme name
 - [ ] Shows version number
 
+## Process Management
+
+- [ ] `GET /studio/processes` lists running processes
+- [ ] `POST /studio/processes/start` starts a process from template
+- [ ] `POST /studio/processes/{process_id}/stop` stops a running process
+- [ ] `GET /studio/processes/{process_id}/logs` returns process output
+- [ ] `DELETE /studio/processes/{process_id}` removes a process record
+- [ ] Process cockpit shows template grid (dev-server, adapter, test-runner, build)
+- [ ] Process cards show status, uptime, and log preview
+- [ ] Process logs stream in real-time
+- [ ] Process routes require adapter auth
+
+## Tool Packs / Extensions
+
+- [ ] `GET /studio/tool-packs` lists discovered tool packs
+- [ ] `GET /studio/tool-packs/{pack_id}` returns pack detail with tools
+- [ ] `POST /studio/tool-packs/{pack_id}/enable` enables a tool pack
+- [ ] `POST /studio/tool-packs/{pack_id}/disable` disables a tool pack
+- [ ] `POST /studio/tool-packs/validate` validates a tool pack definition
+- [ ] Extensions panel shows available and enabled packs
+- [ ] Tool pack schema validation rejects invalid definitions
+- [ ] Example tool pack is discoverable and functional
+
+## Checkpoints
+
+- [ ] `GET /studio/checkpoints` lists git commit timeline
+- [ ] `GET /studio/checkpoints/{checkpoint_id}` returns checkpoint detail
+- [ ] `POST /studio/checkpoints` creates a new checkpoint
+- [ ] Checkpoint timeline shows commit history with metadata
+- [ ] Checkpoint detail shows diff preview and related run
+
+## Worktrees
+
+- [ ] `GET /studio/worktrees` lists git worktrees
+- [ ] `GET /studio/worktrees/{worktree_id}` returns worktree detail
+- [ ] `POST /studio/worktrees` creates a new worktree
+- [ ] `DELETE /studio/worktrees/{worktree_id}` removes a worktree
+- [ ] Worktree launcher can open worktree in external editor
+
+## Delegations
+
+- [ ] `GET /studio/delegations` lists sub-agent delegations
+- [ ] `GET /studio/delegations/{delegation_id}` returns delegation detail
+- [ ] Delegation panel shows parent run, delegated task, and status
+- [ ] Delegation events are captured from run stream
+
+## Cron Jobs
+
+- [ ] `GET /studio/cron-jobs` lists cron jobs from ~/.hermes/cron/
+- [ ] `GET /studio/cron-jobs/{job_id}` returns job detail
+- [ ] Cron panel shows schedule, command, last run, and next run
+- [ ] Cron jobs are read-only (no create/edit/delete from Studio)
+
+## Security
+
+- [ ] Secret guard detects API keys, tokens, passwords, bearer strings
+- [ ] Input validator rejects malformed path params, query params, and request bodies
+- [ ] Audit log records security-relevant operations in studio.db
+- [ ] DB uses WAL mode for concurrent access
+- [ ] Token rotation works on adapter restart
+- [ ] Rate limiting prevents token brute-force attempts
+
+## Native Desktop Features
+
+- [ ] System tray icon appears with Show/Hide, New Run, Quit menu
+- [ ] Ctrl+Shift+N opens New Run modal
+- [ ] Ctrl+Shift+H shows/hides the main window
+- [ ] Native notification appears on run completion
+- [ ] Native notification appears on approval request
+- [ ] Preview Canvas opens as a second window for URL preview
+
+## Connection Resilience
+
+- [ ] Circuit breaker opens after consecutive Hermes API failures
+- [ ] Circuit breaker recovers after cooldown period
+- [ ] Retry with exponential backoff on transient failures
+- [ ] SSE buffer respects 1MB size limit
+- [ ] Log rotation detection triggers reconnection
+- [ ] Connection caching reduces repeated health checks
+
 ## Edge Cases
 
 - [ ] Rapid prompt sending does not break state

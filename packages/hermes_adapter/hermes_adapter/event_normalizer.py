@@ -28,6 +28,7 @@ KNOWN_TYPES = {
     "adapter.warning",
     "kanban.updated",
     "memory.updated",
+    "lint.result",
 }
 
 
@@ -110,6 +111,19 @@ def normalize_hermes_event(raw_event: dict[str, Any]) -> dict[str, Any]:
 
     if event_type in KNOWN_TYPES:
         return make_studio_event(event_type, payload, source=source)
+
+    # Lint results from post-write delta
+    if event_type in ("lint.result", "post_write_lint"):
+        return make_studio_event(
+            "lint.result",
+            {
+                "file": payload.get("file", ""),
+                "linter": payload.get("linter", ""),
+                "issues": payload.get("issues", []),
+                "severity": payload.get("severity", "info"),
+            },
+            source=source,
+        )
 
     return make_studio_event(
         "adapter.warning",

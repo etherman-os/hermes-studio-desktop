@@ -2,12 +2,19 @@
 
 This database belongs to Hermes Desktop Studio. It must never point at or mutate
 Hermes Agent state such as ~/.hermes/state.db.
+
+Hardened with:
+- WAL mode for better concurrent access
+- PRAGMA integrity_check on startup
+- Backup rotation (last 3 backups)
+- Migration rollback capability
 """
 
 from __future__ import annotations
 
 import os
 import re
+import shutil
 import sqlite3
 import sys
 from collections.abc import Iterator, Mapping
@@ -19,6 +26,7 @@ from typing import Any
 
 _APP_DIR_NAME = "hermes-desktop-studio"
 _DB_FILENAME = "studio.db"
+_BACKUP_COUNT = 3
 
 _SECRET_KEY_RE = re.compile(r"(?i)(api[_-]?key|token|secret|password|auth|bearer)")
 _SECRET_VALUE_PATTERNS = (
@@ -41,6 +49,7 @@ class StudioStorageStatus:
     data_dir: str
     db_path: str
     last_error: str | None
+    integrity_ok: bool = True
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -49,6 +58,7 @@ class StudioStorageStatus:
             "data_dir": self.data_dir,
             "db_path": self.db_path,
             "last_error": self.last_error,
+            "integrity_ok": self.integrity_ok,
         }
 
 
@@ -255,6 +265,48 @@ _MIGRATIONS: tuple[_Migration, ...] = (
             "CREATE INDEX IF NOT EXISTS idx_approval_events_approval_created ON approval_events(approval_id, created_at)",
         ),
     ),
+    _Migration(
+        version=7,
+        name="audit_log_table",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS audit_log (
+              id TEXT PRIMARY KEY,
+              timestamp TEXT NOT NULL,
+              event_type TEXT NOT NULL,
+              actor TEXT NOT NULL,
+              resource TEXT,
+              detail_json TEXT,
+              ip_address TEXT
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp)",
+            "CREATE INDEX IF NOT EXISTS idx_audit_log_event_type ON audit_log(event_type)",
+        ),
+    ),
+    _Migration(
+        version=8,
+        name="tool_packs",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS tool_packs (
+              id TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              version TEXT NOT NULL,
+              author TEXT NOT NULL,
+              description TEXT,
+              manifest_json TEXT NOT NULL,
+              source_path TEXT NOT NULL,
+              enabled INTEGER NOT NULL DEFAULT 0,
+              trusted INTEGER NOT NULL DEFAULT 0,
+              installed_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_tool_packs_enabled ON tool_packs(enabled)",
+            "CREATE INDEX IF NOT EXISTS idx_tool_packs_trusted ON tool_packs(trusted)",
+        ),
+    ),
 )
 
 
@@ -319,6 +371,76 @@ def _ensure_non_secret_meta(key: str, value: str) -> None:
         raise StudioStorageError("studio_meta refuses secret-like values")
 
 
+# ---------------------------------------------------------------------------
+# Backup rotation
+# ---------------------------------------------------------------------------
+
+
+def _rotate_backups(db_path: Path) -> None:
+    """Keep the last ``_BACKUP_COUNT`` backups of *db_path*."""
+    parent = db_path.parent
+    stem = db_path.name
+    backups = sorted(
+        parent.glob(f"{stem}.bak.*"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    # Remove old backups beyond the limit
+    for old in backups[_BACKUP_COUNT - 1 :]:
+        with suppress(OSError):
+            old.unlink()
+
+
+def _create_backup(db_path: Path) -> Path | None:
+    """Create a numbered backup of *db_path* before migration. Returns the backup path."""
+    if not db_path.exists():
+        return None
+    parent = db_path.parent
+    stem = db_path.name
+    timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+    backup_path = parent / f"{stem}.bak.{timestamp}"
+    try:
+        shutil.copy2(db_path, backup_path)
+        _rotate_backups(db_path)
+        return backup_path
+    except OSError:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# WAL mode helper
+# ---------------------------------------------------------------------------
+
+
+def _enable_wal(conn: sqlite3.Connection) -> None:
+    """Enable WAL journal mode for better concurrent access."""
+    try:
+        mode = conn.execute("PRAGMA journal_mode").fetchone()
+        if mode and mode[0] != "wal":
+            conn.execute("PRAGMA journal_mode = WAL")
+    except sqlite3.DatabaseError:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Integrity check
+# ---------------------------------------------------------------------------
+
+
+def _check_integrity(conn: sqlite3.Connection) -> bool:
+    """Run ``PRAGMA integrity_check`` and return ``True`` if the DB is healthy."""
+    try:
+        result = conn.execute("PRAGMA integrity_check").fetchone()
+        return bool(result and result[0] == "ok")
+    except sqlite3.DatabaseError:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Main class
+# ---------------------------------------------------------------------------
+
+
 class StudioStorage:
     """Small SQLite migration and metadata facade for Studio-owned state."""
 
@@ -326,7 +448,8 @@ class StudioStorage:
         if data_dir is None and db_path is None:
             self.data_dir, self.db_path = resolve_studio_paths()
         elif db_path is None:
-            assert data_dir is not None
+            if data_dir is None:
+                raise ValueError("data_dir is required when db_path is not provided")
             self.data_dir = data_dir
             self.db_path = data_dir / _DB_FILENAME
         else:
@@ -339,6 +462,7 @@ class StudioStorage:
             db_path=str(self.db_path),
             last_error="Storage not initialized",
         )
+        self._cached_conn: sqlite3.Connection | None = None
 
     def initialize(self) -> StudioStorageStatus:
         """Create the data directory, open the database, and run migrations."""
@@ -352,6 +476,13 @@ class StudioStorage:
             try:
                 conn.row_factory = sqlite3.Row
                 conn.execute("PRAGMA foreign_keys = ON")
+                _enable_wal(conn)
+
+                # Integrity check
+                integrity_ok = _check_integrity(conn)
+                if not integrity_ok:
+                    raise StudioStorageError("Database integrity check failed")
+
                 self._run_migrations(conn)
                 schema_version = self._read_schema_version(conn)
                 conn.commit()
@@ -364,6 +495,7 @@ class StudioStorage:
                 data_dir=str(self.data_dir),
                 db_path=str(self.db_path),
                 last_error=None,
+                integrity_ok=True,
             )
         except (OSError, sqlite3.DatabaseError, StudioStorageError) as exc:
             self._status = StudioStorageStatus(
@@ -372,6 +504,7 @@ class StudioStorage:
                 data_dir=str(self.data_dir),
                 db_path=str(self.db_path),
                 last_error=str(exc),
+                integrity_ok=False,
             )
         return self._status
 
@@ -383,22 +516,44 @@ class StudioStorage:
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
-        """Yield a migrated SQLite connection for Studio-owned data."""
+        """Yield a migrated SQLite connection for Studio-owned data.
+
+        Reuses a cached connection when possible.  Each call still commits
+        on success and rolls back on failure, but avoids the overhead of
+        re-opening the file for every operation.
+        """
         status = self.initialize()
         if not status.available:
             raise StudioStorageError(status.last_error or "Studio storage unavailable")
 
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
+        if self._cached_conn is not None:
+            try:
+                self._cached_conn.execute("SELECT 1")
+            except sqlite3.DatabaseError:
+                self._cached_conn = None
+
+        if self._cached_conn is None:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys = ON")
+            _enable_wal(conn)
+            self._cached_conn = conn
+        else:
+            conn = self._cached_conn
+
         try:
             yield conn
             conn.commit()
         except Exception:
             conn.rollback()
             raise
-        finally:
-            conn.close()
+
+    def close(self) -> None:
+        """Close the cached connection if open."""
+        if self._cached_conn is not None:
+            with suppress(sqlite3.DatabaseError):
+                self._cached_conn.close()
+            self._cached_conn = None
 
     def get_schema_version(self) -> int:
         """Return the current schema version."""
@@ -417,6 +572,45 @@ class StudioStorage:
         with self.connect() as conn:
             self._set_meta(conn, key, value)
 
+    def backup_database(self) -> Path | None:
+        """Create a manual backup of the database. Returns backup path or ``None``."""
+        return _create_backup(self.db_path)
+
+    def rollback_migration(self, target_version: int) -> bool:
+        """Roll back to *target_version* by restoring from the most recent backup.
+
+        Note: This restores the entire database file from backup. True
+        incremental migration rollback is not supported; this is a
+        disaster-recovery helper.
+
+        Returns ``True`` if rollback succeeded.
+        """
+        parent = self.db_path.parent
+        stem = self.db_path.name
+        backups = sorted(
+            parent.glob(f"{stem}.bak.*"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        for backup in backups:
+            try:
+                # Quick check: does the backup contain the target version?
+                conn = sqlite3.connect(backup)
+                conn.row_factory = sqlite3.Row
+                try:
+                    row = conn.execute(
+                        "SELECT value FROM studio_meta WHERE key = 'schema_version'"
+                    ).fetchone()
+                    if row and int(row["value"]) == target_version:
+                        conn.close()
+                        shutil.copy2(backup, self.db_path)
+                        return True
+                finally:
+                    conn.close()
+            except (sqlite3.DatabaseError, OSError, ValueError):
+                continue
+        return False
+
     def _run_migrations(self, conn: sqlite3.Connection) -> None:
         conn.execute(
             """
@@ -431,6 +625,12 @@ class StudioStorage:
             int(row["version"])
             for row in conn.execute("SELECT version FROM migrations").fetchall()
         }
+
+        # Create backup before applying new migrations
+        pending = [m for m in _MIGRATIONS if m.version not in applied]
+        if pending:
+            _create_backup(self.db_path)
+
         for migration in _MIGRATIONS:
             if migration.version in applied:
                 continue

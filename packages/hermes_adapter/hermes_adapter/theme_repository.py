@@ -182,7 +182,7 @@ class ThemeRepository:
         for theme_id in self._raw_themes:
             self._themes[theme_id] = self._resolve_theme(theme_id)
 
-    def _resolve_theme(self, theme_id: str) -> dict[str, Any]:
+    def _resolve_theme(self, theme_id: str, _resolving: set[str] | None = None) -> dict[str, Any]:
         """Resolve a theme with full inheritance chain."""
         if theme_id in self._themes:
             return self._themes[theme_id]
@@ -191,6 +191,9 @@ class ThemeRepository:
         if not raw:
             return {}
 
+        if _resolving is None:
+            _resolving = set()
+
         extends = raw.get("meta", {}).get("extends")
         if extends:
             if extends not in self._raw_themes:
@@ -198,16 +201,19 @@ class ThemeRepository:
                 self._warnings.setdefault(theme_id, []).append(f"extends '{extends}' not found")
                 # Fall back to default-dark if available
                 if extends != _DEFAULT_THEME_ID and _DEFAULT_THEME_ID in self._raw_themes:
-                    base = self._resolve_theme(_DEFAULT_THEME_ID)
+                    base = self._resolve_theme(_DEFAULT_THEME_ID, _resolving)
                 else:
                     base = {}
             else:
                 # Prevent circular inheritance
-                if extends == theme_id:
-                    logger.warning("Theme '%s' extends itself", theme_id)
+                if extends == theme_id or extends in _resolving:
+                    logger.warning("Theme '%s' has circular extends chain involving '%s'", theme_id, extends)
+                    self._warnings.setdefault(theme_id, []).append(f"circular extends: '{extends}'")
                     base = {}
                 else:
-                    base = self._resolve_theme(extends)
+                    _resolving.add(theme_id)
+                    base = self._resolve_theme(extends, _resolving)
+                    _resolving.discard(theme_id)
 
             # Deep merge: child overrides base
             resolved = _deep_merge(base, dict(raw))

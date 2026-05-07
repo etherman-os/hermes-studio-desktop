@@ -22,7 +22,8 @@ class HermesClient:
     def __init__(self, base_url: str = "http://127.0.0.1:39190") -> None:
         """Initialize the client with the Hermes base URL."""
         self._base_url = base_url
-        self._client = httpx.AsyncClient(base_url=base_url, timeout=30.0)
+        timeout = httpx.Timeout(connect=10.0, read=60.0, write=30.0, pool=10.0)
+        self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout)
 
     async def health_check(self) -> dict[str, Any]:
         """Check Hermes health. Returns mock data for MVP."""

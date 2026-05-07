@@ -7,6 +7,7 @@ import { useLayoutStore } from "../../stores/layoutStore";
 import { useLogStore } from "../../stores/logStore";
 import { useRunLedgerStore, type RunRecord } from "../../stores/runLedgerStore";
 import { useSessionStore } from "../../stores/sessionStore";
+import { PreviewLauncher } from "../preview/PreviewLauncher";
 
 interface TimelineEntry {
   id: string;
@@ -160,6 +161,19 @@ function formatTime(iso: string) {
 
 function runTitle(run: RunRecord) {
   return run.prompt || run.runId;
+}
+
+function extractRunUrl(run: RunRecord): string | null {
+  for (const event of run.events) {
+    const payload = event.payload;
+    if (typeof payload === "object" && payload !== null) {
+      for (const key of ["url", "href", "link", "output_url", "result_url"]) {
+        const val = (payload as Record<string, unknown>)[key];
+        if (typeof val === "string" && val.startsWith("http")) return val;
+      }
+    }
+  }
+  return null;
 }
 
 function copySummary(run: RunRecord) {
@@ -339,13 +353,16 @@ export function RunLedger() {
 
   if (!run && !loading) {
     return (
-      <div className="workbench-empty">
+      <div className="workbench-empty" role="status">
+        <div className="workbench-empty-icon" aria-hidden="true">R</div>
         <div className="workbench-empty-title">No runs captured yet</div>
         <div className="workbench-empty-copy">
           Start a prompt from Chat and the run ledger will track stream, tool, approval, warning, memory, and board events here.
         </div>
-        {error && <div className="inline-warning">Run history unavailable: {error}</div>}
-        <button className="tool-button" onClick={() => void loadRecentRuns()}>Refresh Run History</button>
+        {error && <div className="inline-warning" role="alert">Run history unavailable: {error}</div>}
+        <div className="error-actions">
+          <button className="tool-button" onClick={() => void loadRecentRuns()} aria-label="Refresh run history">Refresh Run History</button>
+        </div>
       </div>
     );
   }
@@ -362,6 +379,13 @@ export function RunLedger() {
           {run && <button className="tool-button" onClick={() => void createRunSummaryArtifact("summary")} disabled={artifactSaving}>Create Artifact from Run</button>}
           {run && <button className="tool-button" onClick={() => void createRunSummaryArtifact("report")} disabled={artifactSaving}>Create Markdown Report</button>}
           {run && <button className="tool-button" onClick={() => void createLogSnapshotArtifact()} disabled={artifactSaving}>Create Log Snapshot</button>}
+          {run && extractRunUrl(run) && (
+            <PreviewLauncher
+              url={extractRunUrl(run)!}
+              title={runTitle(run)}
+              label="Preview URL"
+            />
+          )}
           {run && <button className="tool-button" onClick={() => void openRunApprovals()}>Open Approvals</button>}
           {run && <button className="tool-button" onClick={() => void inspectRunContext()}>Inspect Context</button>}
           {run && <button className="tool-button" onClick={() => void handleCopySummary()}>Copy Run Summary</button>}
@@ -401,11 +425,13 @@ export function RunLedger() {
       )}
 
       <div className="run-ledger-body">
-        <div className="recent-runs-list selectable">
+        <div className="recent-runs-list selectable" role="listbox" aria-label="Recent runs">
           <div className="pane-label">Recent Runs</div>
           {runs.map((item) => (
             <button
               key={item.runId}
+              role="option"
+              aria-selected={run?.runId === item.runId}
               className={`recent-run-item ${run?.runId === item.runId ? "active" : ""}`}
               onClick={() => {
                 selectRun(item.runId);
@@ -414,7 +440,7 @@ export function RunLedger() {
             >
               <span className="recent-run-title">{runTitle(item)}</span>
               <span className="recent-run-meta">
-                <span className={`status-dot status-${item.status}`} />
+                <span className={`status-dot status-${item.status}`} aria-hidden="true" />
                 {item.status}
                 {item.sessionId ? ` - ${item.sessionId}` : ""}
               </span>
@@ -422,17 +448,19 @@ export function RunLedger() {
           ))}
         </div>
 
-        <div className="timeline-list selectable">
+        <div className="timeline-list selectable" role="listbox" aria-label="Run timeline">
           {timeline.length === 0 && (
-            <div className="workbench-empty compact">No events persisted for this run yet. Live events will appear as the stream arrives.</div>
+            <div className="workbench-empty compact" role="status">No events persisted for this run yet. Live events will appear as the stream arrives.</div>
           )}
           {timeline.map((entry) => (
             <button
               key={entry.id}
+              role="option"
+              aria-selected={selected?.id === entry.id}
               className={`timeline-entry ${entry.tone} ${selected?.id === entry.id ? "active" : ""}`}
               onClick={() => selectEvent(entry.id)}
             >
-              <span className="timeline-marker" />
+              <span className="timeline-marker" aria-hidden="true" />
               <span className="timeline-main">
                 <span className="timeline-type">{entry.type}</span>
                 <span className="timeline-summary">{entry.summary}</span>

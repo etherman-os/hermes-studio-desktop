@@ -25,6 +25,12 @@ const DEFAULT_LABELS: Record<string, string> = {
   theme_gallery: "Themes",
   approvals: "Approvals",
   model: "Model",
+  processes: "Processes",
+  extensions: "Extensions",
+  checkpoints: "Checkpoints",
+  worktrees: "Worktrees",
+  delegations: "Delegations",
+  cron: "Scheduled",
 };
 
 const DEFAULT_ICONS: Record<string, string> = {
@@ -48,6 +54,12 @@ const DEFAULT_ICONS: Record<string, string> = {
   theme_gallery: "#",
   approvals: "!",
   model: "M",
+  processes: "P",
+  extensions: "X",
+  checkpoints: "K",
+  worktrees: "W",
+  delegations: "D",
+  cron: "T",
 };
 
 interface ThemeState {
@@ -212,16 +224,27 @@ function adapterThemeToPack(data: api.ThemeData): ThemePack {
       description: data.meta?.description,
       extends: data.meta?.extends,
     },
-    palette: data.palette as ThemePack["palette"],
-    typography: data.typography as ThemePack["typography"],
-    borders: data.borders as ThemePack["borders"],
-    icons: data.icons as ThemePack["icons"],
-    labels: data.labels as ThemePack["labels"],
-    empty_states: data.empty_states as ThemePack["empty_states"],
-    onboarding: data.onboarding as ThemePack["onboarding"],
+    palette: validateStringRecord(data.palette) as ThemePack["palette"],
+    typography: validateStringRecord(data.typography) as ThemePack["typography"],
+    borders: validateStringRecord(data.borders) as ThemePack["borders"],
+    icons: validateStringRecord(data.icons) as ThemePack["icons"],
+    labels: validateStringRecord(data.labels) as ThemePack["labels"],
+    empty_states: validateStringRecord(data.empty_states) as ThemePack["empty_states"],
+    onboarding: validateStringRecord(data.onboarding) as ThemePack["onboarding"],
     kanban: data.kanban as ThemePack["kanban"],
-    message_styles: data.message_styles as ThemePack["message_styles"],
+    message_styles: validateStringRecord(data.message_styles) as ThemePack["message_styles"],
     accessibility: data.accessibility as ThemePack["accessibility"],
-    assets: data.assets as ThemePack["assets"],
+    assets: validateStringRecord(data.assets) as ThemePack["assets"],
   };
+}
+
+function validateStringRecord(obj: Record<string, unknown> | undefined): Record<string, string> | undefined {
+  if (!obj) return undefined;
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === "string") {
+      result[key] = value;
+    }
+  }
+  return result;
 }

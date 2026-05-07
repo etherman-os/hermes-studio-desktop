@@ -1,12 +1,12 @@
-# Hermes Local Studio
+# Hermes Desktop Studio
 
 A local-first, themeable desktop workbench for [Hermes Agent](https://github.com/NousResearch/hermes-agent).
 
-Hermes Local Studio is **not** a terminal-only TUI and **not** a chat app. It is a desktop-class, run-centered operations workbench for users who run Hermes primarily on their own machine.
+Hermes Desktop Studio is **not** a terminal-only TUI and **not** a chat app. It is a desktop-class, run-centered operations workbench for users who run Hermes primarily on their own machine.
 
 ## Why a Desktop Workbench?
 
-Terminal TUIs have inherent ceilings in visual ergonomics, panel docking, drag-and-drop layout, rich theming, and accessibility. Hermes Local Studio uses **Tauri v2 + React** to provide a full desktop experience: a Run Ledger, prompt/chat surface, board, sessions, artifact shelf, context inspector, live logs, diagnostics, and user-installable concept packs — all without requiring users to live inside a terminal.
+Terminal TUIs have inherent ceilings in visual ergonomics, panel docking, drag-and-drop layout, rich theming, and accessibility. Hermes Desktop Studio uses **Tauri v2 + React** to provide a full desktop experience: a Run Ledger, prompt/chat surface, board, sessions, artifact shelf, context inspector, live logs, diagnostics, and user-installable concept packs — all without requiring users to live inside a terminal.
 
 ## Stack
 
@@ -67,6 +67,8 @@ hermes-local-studio/
     py-adapter/               # Future rename target (placeholder)
     protocol/                 # OpenAPI / event schema / theme schema (Phase 1)
     shared-types/             # TypeScript types (Phase 1)
+  tool-packs/
+    example-tools/            # Example tool pack
   themes/
     default-dark/             # Base theme pack
     minecraft-overworld/      # Example concept pack (extends default-dark)
@@ -91,7 +93,7 @@ hermes-local-studio/
 
 ## Theme / Concept Pack System
 
-Hermes Local Studio supports arbitrary **concept packs** — not just color themes, but complete visual and linguistic re-skins:
+Hermes Desktop Studio supports arbitrary **concept packs** — not just color themes, but complete visual and linguistic re-skins:
 
 - Minecraft, Minions, Lord of the Rings, Cyberpunk, Minimal, Anime, anything users create
 - Each concept pack can override: colors, icons, labels, panel names, terminology, layout defaults, density, card styles, kanban column styling, command palette labels, empty states, onboarding copy, and optional decorative assets
@@ -247,7 +249,24 @@ Studio workspaces are local project paths used as run metadata and read-only Con
 
 ## Development Status
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for the current phase and milestone plan.
+Hermes Desktop Studio is actively developed through Phase Product-13 (Hermes v0.13.0 Integration). Key implemented features include:
+
+- Run Ledger with persistent history and event timeline
+- Chat surface with real-time SSE streaming
+- Kanban board with Studio-owned persistence
+- Artifact Shelf with safe text/reference viewer
+- Context Inspector with read-only local aggregation
+- Approval Center with pending/history visibility
+- Process Management with template-based process cockpit
+- Extensions and Tool Packs with discovery and enable/disable
+- Checkpoints and Worktrees for git-based timeline and branching
+- Delegations and Cron for sub-agent tracking and scheduling
+- Security hardening (secret guard, input validation, audit logging)
+- Native desktop features (system tray, global shortcuts, notifications, Preview Canvas)
+- Connection resilience (circuit breaker, retry, buffer limits)
+- 50+ adapter endpoints with OpenAPI parity coverage
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for the full phase history and milestone plan.
 
 ## License
 

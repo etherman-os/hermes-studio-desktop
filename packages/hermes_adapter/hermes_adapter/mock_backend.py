@@ -51,6 +51,7 @@ class MockBackend(StudioBackend):
                 {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "provider": "Anthropic"},
                 {"id": "gpt-4o", "name": "GPT-4o", "provider": "OpenAI"},
             ],
+            "display": {"language": "en", "timezone": None, "theme": None},
         }
 
     async def list_profiles(self) -> list[dict[str, Any]]:
@@ -62,6 +63,21 @@ class MockBackend(StudioBackend):
 
     async def get_active_profile(self) -> dict[str, Any] | None:
         return {"name": "coder", "path": "~/.hermes-profiles/coder", "active": True}
+
+    async def respond_to_approval(self, approval_id: str, decision: str) -> dict[str, Any]:
+        """Mock approval response."""
+        from hermes_adapter.approval_repository import ApprovalRepository
+        if decision not in ("approved", "denied"):
+            raise ValueError("decision must be 'approved' or 'denied'")
+        repo = ApprovalRepository()
+        approval = repo.update_local_decision(approval_id, decision)
+        return {
+            "status": "responded",
+            "approval_id": approval_id,
+            "decision": decision,
+            "hermes_notified": True,
+            "approval": approval,
+        }
 
     async def list_sessions(self) -> dict[str, Any]:
         sessions = self._sessions()
@@ -190,7 +206,10 @@ class MockBackend(StudioBackend):
             level, msg = messages[idx % len(messages)]
             yield _sse_event("log.line", {"source": "agent", "level": level, "message": msg, "timestamp": _now_iso()})
             idx += 1
-            await asyncio.sleep(1.5)
+            try:
+                await asyncio.sleep(1.5)
+            except asyncio.CancelledError:
+                return
 
     async def list_themes(self) -> dict[str, Any]:
         return {

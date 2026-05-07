@@ -3,8 +3,15 @@ import * as api from "../api/studioClient";
 import { useApprovalStore } from "./approvalStore";
 import { useKanbanStore } from "./kanbanStore";
 import { useRunLedgerStore } from "./runLedgerStore";
+import { useNativeStore } from "./nativeStore";
+
+let messageIdCounter = 0;
+function nextMessageId(): string {
+  return `msg-${++messageIdCounter}-${Date.now()}`;
+}
 
 interface ChatMessage {
+  id: string;
   role: "user" | "assistant" | "tool" | "system";
   content: string;
   toolName?: string;
@@ -33,12 +40,12 @@ export const useRunStore = create<RunState>((set, get) => ({
   activeRunId: null,
   lastRunId: null,
   messages: [
-    { role: "assistant" as const, content: "Welcome to Hermes Desktop Studio. How can I help you today?" },
+    { id: nextMessageId(), role: "assistant" as const, content: "Welcome to Hermes Desktop Studio. How can I help you today?" },
   ],
   abortController: null,
 
   appendUserMessage: (content) => {
-    set((s) => ({ messages: [...s.messages, { role: "user" as const, content }] }));
+    set((s) => ({ messages: [...s.messages, { id: nextMessageId(), role: "user" as const, content }] }));
   },
 
   appendAssistantChunk: (text) => {
@@ -48,7 +55,7 @@ export const useRunStore = create<RunState>((set, get) => ({
       if (last && last.role === "assistant" && last.toolName === undefined) {
         last.content += text;
       } else {
-        msgs.push({ role: "assistant" as const, content: text });
+        msgs.push({ id: nextMessageId(), role: "assistant" as const, content: text });
       }
       return { messages: msgs };
     });
@@ -58,7 +65,7 @@ export const useRunStore = create<RunState>((set, get) => ({
     set((s) => ({
       messages: [
         ...s.messages,
-        { role: "tool" as const, content: tool, toolName: tool, toolStatus: status, toolDuration: duration },
+        { id: nextMessageId(), role: "tool" as const, content: tool, toolName: tool, toolStatus: status, toolDuration: duration },
       ],
     }));
   },
@@ -86,6 +93,8 @@ export const useRunStore = create<RunState>((set, get) => ({
       });
       set({ activeRunId: run.run_id, lastRunId: run.run_id });
 
+      // NOTE: Callbacks must call get() to access latest state, never capture `state` via closure.
+      // `run` and `sessionId` are safe to close over as they are constants for this execution.
       const ac = api.streamRunEvents(run.run_id, {
         onEvent: (event) => {
           useRunLedgerStore.getState().recordEvent(event);
@@ -97,11 +106,13 @@ export const useRunStore = create<RunState>((set, get) => ({
         onKanbanUpdated: () => void useKanbanStore.getState().refreshBoard(),
         onRunCompleted: () => {
           useRunLedgerStore.getState().finishRun(run.run_id, "completed");
+          void useNativeStore.getState().sendNotification("Run Completed", `Run ${run.run_id.slice(0, 8)} finished successfully`);
           get().finalizeRun();
         },
         onRunFailed: (p) => {
           get().appendAssistantChunk(`\n[Error: ${p.message}]`);
           useRunLedgerStore.getState().finishRun(run.run_id, "failed", p.message);
+          void useNativeStore.getState().sendNotification("Run Failed", `Run ${run.run_id.slice(0, 8)} failed: ${p.message}`);
           get().finalizeRun();
         },
         onRunCancelled: () => {
@@ -146,7 +157,7 @@ export const useRunStore = create<RunState>((set, get) => ({
   newChat: () => {
     set({
       messages: [
-        { role: "assistant" as const, content: "New chat ready. Start a run to send work to Hermes through the Studio adapter." },
+        { id: nextMessageId(), role: "assistant" as const, content: "New chat ready. Start a run to send work to Hermes through the Studio adapter." },
       ],
       activeRunId: null,
       lastRunId: null,

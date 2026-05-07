@@ -2,6 +2,12 @@
 
 Provides safe, read-only access to Hermes model/provider configuration.
 Never writes to config.yaml or .env. Redacts all secrets.
+
+Hardened with:
+- File permission checks (warn if world-readable)
+- Config validation before writes
+- Config backup before modifications
+- Rollback capability
 """
 
 from __future__ import annotations
@@ -9,6 +15,10 @@ from __future__ import annotations
 import logging
 import os
 import re
+import shutil
+import stat
+from contextlib import suppress
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +38,9 @@ _SENSITIVE_KEYS = {
     "auth", "bearer", "openai_api_key", "anthropic_api_key",
     "google_api_key", "xai_api_key", "nous_api_key",
 }
+
+_BACKUP_SUFFIX = ".bak"
+_MAX_BACKUPS = 3
 
 
 def get_hermes_home() -> Path:
@@ -77,6 +90,115 @@ def _is_api_key_configured(env_path: Path, key_patterns: list[str]) -> bool:
     return False
 
 
+# ---------------------------------------------------------------------------
+# File permission checking
+# ---------------------------------------------------------------------------
+
+
+def check_file_permissions(path: Path) -> list[str]:
+    """Check file permissions and return a list of warnings.
+
+    Warns if the file is world-readable or group-readable.
+    """
+    warnings: list[str] = []
+    if not path.exists():
+        return warnings
+
+    try:
+        mode = path.stat().st_mode
+        if mode & stat.S_IROTH:
+            warnings.append(f"{path} is world-readable (mode {oct(mode)})")
+        if mode & stat.S_IWOTH:
+            warnings.append(f"{path} is world-writable (mode {oct(mode)})")
+        if mode & stat.S_IRGRP:
+            warnings.append(f"{path} is group-readable (mode {oct(mode)})")
+    except OSError:
+        pass
+
+    return warnings
+
+
+# ---------------------------------------------------------------------------
+# Config backup and rollback
+# ---------------------------------------------------------------------------
+
+
+def _create_config_backup(path: Path) -> Path | None:
+    """Create a timestamped backup of *path*. Returns backup path or ``None``."""
+    if not path.exists():
+        return None
+    timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+    backup_path = path.with_name(f"{path.name}{_BACKUP_SUFFIX}.{timestamp}")
+    try:
+        shutil.copy2(path, backup_path)
+        _rotate_backups(path)
+        return backup_path
+    except OSError:
+        logger.warning("Failed to create backup of %s", path)
+        return None
+
+
+def _rotate_backups(path: Path) -> None:
+    """Keep the last ``_MAX_BACKUPS`` backups."""
+    parent = path.parent
+    stem = path.name
+    backups = sorted(
+        parent.glob(f"{stem}{_BACKUP_SUFFIX}.*"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    for old in backups[_MAX_BACKUPS:]:
+        with suppress(OSError):
+            old.unlink()
+
+
+def rollback_config(path: Path) -> bool:
+    """Restore *path* from the most recent backup.
+
+    Returns ``True`` if rollback succeeded.
+    """
+    parent = path.parent
+    stem = path.name
+    backups = sorted(
+        parent.glob(f"{stem}{_BACKUP_SUFFIX}.*"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if not backups:
+        return False
+    try:
+        shutil.copy2(backups[0], path)
+        return True
+    except OSError:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Config validation
+# ---------------------------------------------------------------------------
+
+
+def validate_config(data: dict[str, Any]) -> list[str]:
+    """Validate config data before writing. Returns a list of error strings (empty if valid)."""
+    errors: list[str] = []
+    if not isinstance(data, dict):
+        errors.append("Config must be a mapping")
+        return errors
+
+    # Check for obviously invalid types
+    for key in ("provider", "model", "base_url", "base-url"):
+        val = data.get(key)
+        if val is not None and not isinstance(val, (str, dict)):
+            errors.append(f"Config key '{key}' has unexpected type {type(val).__name__}")
+
+    for key in ("temperature", "max_tokens", "max-tokens", "context_window", "context-window"):
+        val = data.get(key)
+        if val is not None and not isinstance(val, (int, float)):
+            errors.append(f"Config key '{key}' must be numeric, got {type(val).__name__}")
+
+    return errors
+
+
 class ConfigRepository:
     """Read-only access to Hermes model/provider configuration."""
 
@@ -98,6 +220,13 @@ class ConfigRepository:
             config_path = self._hermes_home / "config.yml"
 
         if config_path.is_file():
+            # Permission check
+            perm_warnings = check_file_permissions(config_path)
+            self._warnings.extend(perm_warnings)
+            if perm_warnings:
+                for w in perm_warnings:
+                    logger.warning(w)
+
             try:
                 with open(config_path, encoding="utf-8") as f:
                     raw = yaml.safe_load(f)
@@ -114,6 +243,7 @@ class ConfigRepository:
                 logger.warning("Failed to parse config.yaml: %s", e)
             except Exception as e:
                 self._unavailable_reason = f"Error reading config.yaml: {e}"
+                self._warnings.append("config.yaml has syntax errors")
                 logger.warning("Failed to read config.yaml: %s", e)
         else:
             self._unavailable_reason = "config.yaml not found"
@@ -211,4 +341,16 @@ class ConfigRepository:
             "api_key_configured": config["api_key_configured"],
             "config_source": config["config_source"],
             "warnings": config["warnings"],
+        }
+
+    def get_display_config(self) -> dict[str, Any]:
+        """Return display/i18n configuration."""
+        display = self._config.get("display", {})
+        if not isinstance(display, dict):
+            display = {}
+        language = display.get("language", os.environ.get("HERMES_LANGUAGE", "en"))
+        return {
+            "language": str(language) if language else "en",
+            "timezone": display.get("timezone"),
+            "theme": display.get("theme"),
         }

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import os
 import re
+import subprocess
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -24,6 +27,69 @@ from hermes_adapter.theme_repository import ThemeRepository
 
 logger = logging.getLogger("hermes_adapter.hermes_backend")
 _debug = get_debug_events()
+
+
+# ---------------------------------------------------------------------------
+# Circuit breaker
+# ---------------------------------------------------------------------------
+
+
+class _CircuitBreaker:
+    """Simple circuit breaker for API calls."""
+
+    def __init__(self, failure_threshold: int = 5, recovery_timeout: float = 30.0) -> None:
+        self._failure_count = 0
+        self._failure_threshold = failure_threshold
+        self._recovery_timeout = recovery_timeout
+        self._last_failure_time: float = 0.0
+        self._state = "closed"  # closed = healthy, open = failing, half-open = retrying
+
+    @property
+    def state(self) -> str:
+        if self._state == "open" and asyncio.get_event_loop().time() - self._last_failure_time > self._recovery_timeout:
+            self._state = "half-open"
+        return self._state
+
+    def record_success(self) -> None:
+        self._failure_count = 0
+        self._state = "closed"
+
+    def record_failure(self) -> None:
+        self._failure_count += 1
+        self._last_failure_time = asyncio.get_event_loop().time()
+        if self._failure_count >= self._failure_threshold:
+            self._state = "open"
+            logger.warning("Circuit breaker opened after %d failures", self._failure_count)
+
+    def allow_request(self) -> bool:
+        state = self.state
+        if state == "closed":
+            return True
+        return state == "half-open"
+
+
+_circuit = _CircuitBreaker()
+
+
+async def _retry_with_backoff(
+    func,
+    *args,
+    max_retries: int = 3,
+    base_delay: float = 0.5,
+    **kwargs,
+) -> Any:
+    """Retry an async function with exponential backoff."""
+    last_exc: Exception | None = None
+    for attempt in range(max_retries + 1):
+        try:
+            return await func(*args, **kwargs)
+        except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
+            last_exc = exc
+            if attempt < max_retries:
+                delay = base_delay * (2 ** attempt)
+                logger.warning("Retry %d/%d after %.1fs: %s", attempt + 1, max_retries, delay, exc)
+                await asyncio.sleep(delay)
+    raise last_exc  # type: ignore[misc]
 
 
 def _redact(s: str) -> str:
@@ -390,6 +456,22 @@ def _normalize_hermes_event(raw: dict[str, Any]) -> dict[str, Any]:
             session_id=session_id,
         )
 
+    # Post-write delta lint results (v0.13.0)
+    if event_type in ("lint.result", "post_write_lint"):
+        return _sse_event(
+            "lint.result",
+            {
+                "file": payload.get("file", ""),
+                "linter": payload.get("linter", ""),
+                "issues": payload.get("issues", []),
+                "severity": payload.get("severity", "info"),
+                "fixable": payload.get("fixable", False),
+            },
+            source=source,
+            run_id=run_id,
+            session_id=session_id,
+        )
+
     # Unknown event — return as adapter.warning
     return _sse_event(
         "adapter.warning",
@@ -490,6 +572,10 @@ class HermesBackend(StudioBackend):
             "hermes_last_error": self._last_error,
             "logs": log_status,
             "profiles": profile_status,
+            "circuit_breaker": {
+                "state": _circuit.state,
+                "failure_count": _circuit._failure_count,
+            },
         }
 
     async def bootstrap(self) -> dict[str, Any]:
@@ -527,6 +613,9 @@ class HermesBackend(StudioBackend):
         # Get model config
         model_config = self._config_repo.get_model_config() if self._config_repo else {"provider": "unknown", "model": "unknown"}
 
+        # Get display/i18n config
+        display_config = self._config_repo.get_display_config() if self._config_repo else {"language": "en"}
+
         return {
             "adapter_version": "0.1.0",
             "hermes_version": "unknown" if not self._hermes_healthy else "connected",
@@ -546,6 +635,7 @@ class HermesBackend(StudioBackend):
                 "api_key_configured": model_config.get("api_key_configured", False),
                 "config_source": model_config.get("config_source", "unavailable"),
             },
+            "display": display_config,
         }
 
     async def list_profiles(self) -> list[dict[str, Any]]:
@@ -559,7 +649,90 @@ class HermesBackend(StudioBackend):
         return None
 
     async def activate_profile(self, profile_id: str) -> dict[str, Any]:
-        return {"status": "not_implemented", "message": "Profile switching not yet implemented"}
+        """Activate a profile via Hermes CLI or API."""
+        if not profile_id or not profile_id.strip():
+            raise ValueError("profile_id is required")
+        clean_id = profile_id.strip()
+
+        # Try API first
+        if self._hermes_healthy:
+            try:
+                resp = await self._client.post(
+                    f"{self._base_url}/v1/profiles/{clean_id}/activate",
+                    headers=self._headers(),
+                    timeout=10.0,
+                )
+                if resp.status_code == 200:
+                    data = resp.json() if isinstance(resp.json(), dict) else {}
+                    return {"status": "activated", "profile": clean_id, **data}
+                if resp.status_code != 404:
+                    message = _error_message_from_response(resp, f"Activation failed: {resp.status_code}")
+                    raise ValueError(message)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 404:
+                    message = _error_message_from_response(exc.response, str(exc))
+                    raise ValueError(message) from exc
+            except httpx.ConnectError:
+                pass  # Fall through to CLI
+
+        # Fallback: CLI
+        try:
+            result = subprocess.run(
+                ["hermes", "profile", "activate", clean_id],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if result.returncode == 0:
+                return {"status": "activated", "profile": clean_id, "source": "cli"}
+            raise ValueError(result.stderr.strip() or f"CLI exit code {result.returncode}")
+        except FileNotFoundError as exc:
+            raise ValueError("Hermes CLI not found on PATH; profile activation unavailable") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise ValueError("Hermes CLI timed out") from exc
+
+    async def respond_to_approval(self, approval_id: str, decision: str) -> dict[str, Any]:
+        """Respond to an approval request via Hermes API and update local state."""
+        from hermes_adapter.approval_repository import ApprovalRepository
+
+        if decision not in ("approved", "denied"):
+            raise ValueError("decision must be 'approved' or 'denied'")
+
+        if not approval_id or not approval_id.strip():
+            raise ValueError("approval_id is required")
+
+        # Try calling Hermes API
+        hermes_success = False
+        if self._hermes_healthy:
+            try:
+                resp = await self._client.post(
+                    f"{self._base_url}/v1/approvals/{approval_id}/respond",
+                    headers={**self._headers(), "Content-Type": "application/json"},
+                    json={"decision": decision},
+                    timeout=10.0,
+                )
+                if resp.status_code == 200:
+                    hermes_success = True
+                elif resp.status_code != 404:
+                    message = _error_message_from_response(resp, f"Hermes responded {resp.status_code}")
+                    raise ValueError(message)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 404:
+                    raise ValueError(_error_message_from_response(exc.response, str(exc))) from exc
+            except httpx.ConnectError:
+                logger.warning("Hermes unreachable for approval response; recording locally")
+
+        # Record decision locally
+        repo = ApprovalRepository()
+        approval = repo.update_local_decision(approval_id, decision)
+
+        return {
+            "status": "responded",
+            "approval_id": approval_id,
+            "decision": decision,
+            "hermes_notified": hermes_success,
+            "approval": approval,
+        }
 
     async def list_sessions(self) -> dict[str, Any]:
         if self._session_repo and self._session_repo.available:
@@ -573,19 +746,29 @@ class HermesBackend(StudioBackend):
                 return session
         raise ValueError(f"Session '{session_id}' not found")
 
+    def _session_key_header(self) -> dict[str, str]:
+        """Return X-Hermes-Session-Key header if configured."""
+        key = os.environ.get("HERMES_SESSION_KEY", "").strip()
+        if key:
+            return {"X-Hermes-Session-Key": key}
+        return {}
+
     async def start_run(self, session_id: str, prompt: str, profile: str | None = None) -> dict[str, Any]:
         if not await self._check_hermes():
             return {"run_id": "", "status": "failed", "error": f"Hermes not reachable: {self._last_error}"}
 
-        try:
+        async def _do_start() -> dict[str, Any]:
             payload: dict[str, Any] = {
                 "session_id": session_id,
                 "input": prompt,
             }
-
             resp = await self._client.post(
                 f"{self._base_url}/v1/runs",
-                headers={**self._headers(), "Content-Type": "application/json"},
+                headers={
+                    **self._headers(),
+                    **self._session_key_header(),
+                    "Content-Type": "application/json",
+                },
                 json=payload,
                 timeout=10.0,
             )
@@ -595,10 +778,17 @@ class HermesBackend(StudioBackend):
                 "run_id": data.get("run_id", str(uuid.uuid4())),
                 "status": data.get("status", "started"),
             }
+
+        try:
+            result = await _retry_with_backoff(_do_start)
+            _circuit.record_success()
+            return result
         except httpx.HTTPStatusError as e:
+            _circuit.record_failure()
             message = _error_message_from_response(e.response, f"Hermes API error: {e.response.status_code}")
             return {"run_id": "", "status": "failed", "error": message}
         except Exception as e:
+            _circuit.record_failure()
             return {"run_id": "", "status": "failed", "error": str(e)}
 
     async def stream_run_events(self, run_id: str) -> AsyncIterator[dict[str, Any]]:
@@ -646,12 +836,13 @@ class HermesBackend(StudioBackend):
                     while "\n\n" in buffer:
                         block, buffer = buffer.split("\n\n", 1)
                         event_type = ""
-                        data_str = ""
+                        data_lines = []
                         for line in block.split("\n"):
                             if line.startswith("event: "):
                                 event_type = line[7:].strip()
                             elif line.startswith("data: "):
-                                data_str = line[6:]
+                                data_lines.append(line[6:])
+                        data_str = "\n".join(data_lines)
 
                         if not data_str:
                             continue

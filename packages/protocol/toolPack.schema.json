@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermes.studio/schemas/toolPack.schema.json",
+  "title": "Hermes Studio Tool Pack Manifest",
+  "description": "Schema for a local tool pack manifest. Tool packs define shell commands that can be executed within the Studio environment.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+      "description": "Unique tool pack identifier"
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable name"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semver version"
+    },
+    "author": {
+      "type": "string",
+      "description": "Pack author"
+    },
+    "description": {
+      "type": "string",
+      "description": "Short description of the tool pack"
+    },
+    "commands": {
+      "type": "array",
+      "description": "List of commands provided by this pack",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+            "description": "Unique command identifier within this pack"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable command name"
+          },
+          "description": {
+            "type": "string",
+            "description": "What this command does"
+          },
+          "command": {
+            "type": "string",
+            "description": "The shell command to execute"
+          },
+          "args": {
+            "type": "array",
+            "description": "Optional argument definitions",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Argument name"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "default": {
+                  "description": "Default value if not provided"
+                }
+              },
+              "required": ["name"]
+            }
+          },
+          "env": {
+            "type": "object",
+            "description": "Environment variables required or used by this command",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["id", "name", "command"]
+      },
+      "minItems": 1
+    },
+    "trusted": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this pack has been verified as safe. Untrusted packs require explicit user approval before execution."
+    },
+    "permissions": {
+      "type": "array",
+      "description": "Capabilities this pack requires",
+      "items": {
+        "type": "string",
+        "enum": [
+          "filesystem:read",
+          "filesystem:write",
+          "network:http",
+          "network:https",
+          "process:spawn",
+          "env:read"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "compat": {
+      "type": "object",
+      "description": "Compatibility constraints",
+      "properties": {
+        "min_shell_version": {
+          "type": "string",
+          "description": "Minimum Hermes Shell version required (semver)"
+        },
+        "platform": {
+          "type": "array",
+          "description": "Supported platforms. If omitted, all platforms are supported.",
+          "items": {
+            "type": "string",
+            "enum": ["linux", "macos", "windows"]
+          },
+          "uniqueItems": true
+        }
+      }
+    }
+  },
+  "required": ["id", "name", "version", "author", "commands"]
+}

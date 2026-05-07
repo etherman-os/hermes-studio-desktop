@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The first prototype of Hermes Local Studio (then called Hermes Local Shell) was implemented as a terminal-based Textual TUI. This prototype validated the adapter contract, event normalization, theme TOML loading, and basic chat/session interaction patterns.
+The first prototype of Hermes Desktop Studio (then called Hermes Local Shell) was implemented as a terminal-based Textual TUI. This prototype validated the adapter contract, event normalization, theme TOML loading, and basic chat/session interaction patterns.
 
 However, the product goal is a **local-first desktop workbench** comparable to VS Code or Warp — not a terminal-only interface. Terminal TUIs have inherent limitations:
 

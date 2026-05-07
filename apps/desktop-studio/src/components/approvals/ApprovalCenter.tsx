@@ -102,7 +102,7 @@ export function ApprovalCenter({ compact = false }: ApprovalCenterProps) {
   }
 
   return (
-    <div className={`approval-center ${compact ? "compact" : ""}`}>
+    <div className={`approval-center ${compact ? "compact" : ""}`} role="region" aria-label="Approval center">
       {!compact && (
         <div className="approval-header">
           <div>
@@ -112,21 +112,23 @@ export function ApprovalCenter({ compact = false }: ApprovalCenterProps) {
           <button className="tool-button" onClick={() => {
             void loadPendingApprovals();
             void loadApprovals();
-          }}>
+          }} aria-label="Refresh approvals">
             {loading ? "Refreshing" : "Refresh"}
           </button>
         </div>
       )}
 
-      <div className="approval-readonly-note">
+      <div className="approval-readonly-note" role="note">
         Approval response is not wired yet. This view is read-only and does not bypass Hermes approval mechanisms.
       </div>
 
       {!compact && (
-        <div className="approval-filter-row">
+        <div className="approval-filter-row" role="group" aria-label="Filter approvals">
           {FILTERS.map((item) => (
             <button
               key={item.id}
+              role="radio"
+              aria-checked={filter === item.id}
               className={`segmented-button ${filter === item.id ? "active" : ""}`}
               onClick={() => setFilter(item.id)}
             >
@@ -136,9 +138,9 @@ export function ApprovalCenter({ compact = false }: ApprovalCenterProps) {
         </div>
       )}
 
-      {error && <div className="run-ledger-notice warning">Approvals unavailable: {error}</div>}
+      {error && <div className="run-ledger-notice warning" role="alert">Approvals unavailable: {error}</div>}
       {actionMessage && !compact && (
-        <div className="run-ledger-notice">
+        <div className="run-ledger-notice" role="status">
           <span>{actionMessage}</span>
           <button className="link-button" onClick={clearActionMessage}>Dismiss</button>
         </div>
@@ -147,7 +149,7 @@ export function ApprovalCenter({ compact = false }: ApprovalCenterProps) {
       {pending.length > 0 && !compact && (
         <section className="approval-section">
           <div className="context-section-title">Pending</div>
-          <div className="approval-list">
+          <div className="approval-list" role="listbox" aria-label="Pending approvals">
             {pending.map((approval) => (
               <ApprovalCard
                 key={approval.id}
@@ -161,8 +163,8 @@ export function ApprovalCenter({ compact = false }: ApprovalCenterProps) {
       )}
 
       <div className="approval-body">
-        <div className="approval-list">
-          {loading && list.length === 0 && <div className="workbench-empty compact">Loading approvals...</div>}
+        <div className="approval-list" role="listbox" aria-label="All approvals">
+          {loading && list.length === 0 && <div className="workbench-empty compact" role="status">Loading approvals...</div>}
           {!loading && list.length === 0 && (
             <div className="workbench-empty compact">
               No approvals captured yet. Tool approval requests from run streams will appear here for audit.
@@ -229,7 +231,13 @@ export function ApprovalCenter({ compact = false }: ApprovalCenterProps) {
 
 function ApprovalCard({ approval, active, onClick }: { approval: Approval; active: boolean; onClick: () => void }) {
   return (
-    <button className={`approval-card ${active ? "active" : ""} ${approval.status}`} onClick={onClick}>
+    <button
+      className={`approval-card ${active ? "active" : ""} ${approval.status}`}
+      onClick={onClick}
+      role="option"
+      aria-selected={active}
+      aria-label={`${approvalTitle(approval)} - ${approval.status} - risk ${approval.risk_level}`}
+    >
       <span className={`approval-risk ${riskTone(approval)}`}>{approval.risk_level}</span>
       <span className="approval-card-main">
         <span className="approval-card-title">{approvalTitle(approval)}</span>

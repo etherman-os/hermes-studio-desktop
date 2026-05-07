@@ -34,6 +34,15 @@ export function NewRunModal() {
     api.getModelConfig().then(setModel).catch(() => setModel(null));
   }, [open, selectedWorkspace, activeSessionId]);
 
+  React.useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") close();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, close]);
+
   if (!open) return null;
 
   async function submit() {
@@ -49,14 +58,14 @@ export function NewRunModal() {
   }
 
   return (
-    <div className="modal-backdrop" onClick={close}>
+    <div className="modal-backdrop" onClick={close} role="dialog" aria-modal="true" aria-label="New run">
       <div className="studio-modal new-run-modal" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>
             <div className="workbench-eyebrow">New Run</div>
-            <h2>Start Hermes work in a local workspace</h2>
+            <h2 id="new-run-title">Start Hermes work in a local workspace</h2>
           </div>
-          <button className="icon-button" onClick={close} title="Close">x</button>
+          <button className="icon-button" onClick={close} title="Close" aria-label="Close dialog">x</button>
         </div>
 
         <div className="modal-body new-run-grid">

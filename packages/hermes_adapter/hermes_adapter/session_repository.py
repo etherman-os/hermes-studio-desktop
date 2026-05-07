@@ -8,11 +8,21 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger("hermes_adapter.session_repository")
+
+_SQL_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+
+def _validate_sql_identifier(name: str, kind: str = "identifier") -> str:
+    """Validate that *name* is a safe SQL identifier (table or column)."""
+    if not _SQL_IDENTIFIER_RE.match(name):
+        raise ValueError(f"Invalid SQL {kind}: {name!r}")
+    return name
 
 
 def get_hermes_home() -> Path:
@@ -166,7 +176,8 @@ class SessionRepository:
 
             # Build a safe SELECT based on available columns
             select_cols = self._build_session_select(columns)
-            cursor.execute(f"SELECT {select_cols} FROM {self._sessions_table} ORDER BY rowid DESC LIMIT ? OFFSET ?", (limit, offset))
+            safe_table = _validate_sql_identifier(self._sessions_table, "table")
+            cursor.execute(f"SELECT {select_cols} FROM {safe_table} ORDER BY rowid DESC LIMIT ? OFFSET ?", (limit, offset))
             rows = cursor.fetchall()
 
             total = self.session_count
@@ -202,7 +213,9 @@ class SessionRepository:
                 return None
 
             select_cols = self._build_session_select(columns)
-            cursor.execute(f"SELECT {select_cols} FROM {self._sessions_table} WHERE {id_col} = ?", (session_id,))
+            safe_table = _validate_sql_identifier(self._sessions_table, "table")
+            safe_id_col = _validate_sql_identifier(id_col, "column")
+            cursor.execute(f"SELECT {select_cols} FROM {safe_table} WHERE {safe_id_col} = ?", (session_id,))
             row = cursor.fetchone()
 
             if not row:
@@ -246,8 +259,10 @@ class SessionRepository:
                 try:
                     title_col = self._find_column(columns, ["title", "name", "subject"])
                     if title_col:
+                        safe_table = _validate_sql_identifier(self._sessions_table, "table")
+                        safe_title_col = _validate_sql_identifier(title_col, "column")
                         cursor.execute(
-                            f"SELECT {select_cols} FROM {self._sessions_table} WHERE {title_col} MATCH ? LIMIT ?",
+                            f"SELECT {select_cols} FROM {safe_table} WHERE {safe_title_col} MATCH ? LIMIT ?",
                             (query, limit),
                         )
                         rows = cursor.fetchall()
@@ -259,8 +274,10 @@ class SessionRepository:
             # LIKE fallback
             title_col = self._find_column(columns, ["title", "name", "subject"])
             if title_col:
+                safe_table = _validate_sql_identifier(self._sessions_table, "table")
+                safe_title_col = _validate_sql_identifier(title_col, "column")
                 cursor.execute(
-                    f"SELECT {select_cols} FROM {self._sessions_table} WHERE {title_col} LIKE ? LIMIT ?",
+                    f"SELECT {select_cols} FROM {safe_table} WHERE {safe_title_col} LIKE ? LIMIT ?",
                     (f"%{query}%", limit),
                 )
                 rows = cursor.fetchall()
@@ -330,10 +347,14 @@ class SessionRepository:
             if not session_col or not role_col or not content_col:
                 return []
 
+            safe_msg_table = _validate_sql_identifier(self._messages_table, "table")
+            safe_session_col = _validate_sql_identifier(session_col, "column")
+            safe_role_col = _validate_sql_identifier(role_col, "column")
+            safe_content_col = _validate_sql_identifier(content_col, "column")
             cursor.execute(
-                f"SELECT {role_col} AS role, {content_col} AS content "
-                f"FROM {self._messages_table} "
-                f"WHERE {session_col} = ? "
+                f"SELECT {safe_role_col} AS role, {safe_content_col} AS content "
+                f"FROM {safe_msg_table} "
+                f"WHERE {safe_session_col} = ? "
                 f"ORDER BY rowid DESC LIMIT 5",
                 (session_id,),
             )

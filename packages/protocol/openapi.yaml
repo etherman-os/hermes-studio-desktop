@@ -1333,6 +1333,149 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /studio/processes:
+    get:
+      summary: List managed processes and available templates
+      operationId: listProcesses
+      responses:
+        "200":
+          description: Process list and templates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processes:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProcessInfo"
+                  templates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProcessTemplate"
+
+  /studio/processes/start:
+    post:
+      summary: Start a predefined process
+      operationId: startProcess
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                template_id:
+                  type: string
+                cwd:
+                  type: string
+                env:
+                  type: object
+              required:
+                - template_id
+      responses:
+        "200":
+          description: Process started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcessInfo"
+        "400":
+          description: Invalid template or start error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/processes/{process_id}/stop:
+    post:
+      summary: Stop a running process
+      operationId: stopProcess
+      parameters:
+        - name: process_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Process stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcessInfo"
+        "400":
+          description: Process not found or not running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/processes/{process_id}/logs:
+    get:
+      summary: Get process logs
+      operationId: getProcessLogs
+      parameters:
+        - name: process_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tail
+          in: query
+          schema:
+            type: integer
+            default: 200
+      responses:
+        "200":
+          description: Process log lines
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  process_id:
+                    type: string
+                  lines:
+                    type: array
+                    items:
+                      type: string
+                  total:
+                    type: integer
+        "400":
+          description: Process not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/processes/{process_id}:
+    delete:
+      summary: Remove a stopped process
+      operationId: removeProcess
+      parameters:
+        - name: process_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Process removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  removed:
+                    type: boolean
+        "400":
+          description: Process not found or still running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /studio/config:
     get:
       summary: Normalized config view
@@ -1371,6 +1514,515 @@ paths:
                 $ref: "#/components/schemas/ConfigView"
         "400":
           description: Invalid config key or value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/tool-packs:
+    get:
+      summary: List all discovered tool packs
+      description: Returns all tool packs found in the packs directory, with their enabled/disabled state from the database.
+      operationId: listToolPacks
+      responses:
+        "200":
+          description: List of tool packs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  packs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ToolPackInfo"
+        "401":
+          description: Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/tool-packs/{pack_id}:
+    get:
+      summary: Get tool pack details
+      description: Returns full details for a specific tool pack.
+      operationId: getToolPack
+      parameters:
+        - name: pack_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tool pack details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolPackInfo"
+        "404":
+          description: Pack not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/tool-packs/{pack_id}/enable:
+    post:
+      summary: Enable a tool pack
+      description: Enables a discovered tool pack. The pack must be valid and compatible with the current platform.
+      operationId: enableToolPack
+      parameters:
+        - name: pack_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pack enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolPackInfo"
+        "400":
+          description: Pack is invalid or incompatible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Pack not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/tool-packs/{pack_id}/disable:
+    post:
+      summary: Disable a tool pack
+      description: Disables a tool pack. Commands from disabled packs are not available.
+      operationId: disableToolPack
+      parameters:
+        - name: pack_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pack disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolPackInfo"
+        "404":
+          description: Pack not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/tool-packs/install:
+    post:
+      summary: Install a tool pack from local path
+      description: Installs a tool pack by copying its manifest into the packs directory.
+      operationId: installToolPack
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+                  description: Path to the manifest.json file or pack directory
+              required:
+                - path
+      responses:
+        "200":
+          description: Pack installed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolPackInfo"
+        "400":
+          description: Invalid path or manifest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/checkpoints:
+    get:
+      summary: List checkpoints for a workspace
+      description: Returns git checkpoint commits for a workspace path.
+      operationId: listCheckpoints
+      parameters:
+        - name: workspace_path
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Workspace path to scan for checkpoints
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        "200":
+          description: Checkpoint list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checkpoints:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  total:
+                    type: integer
+        "400":
+          description: Invalid workspace path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/checkpoints/{commit_hash}:
+    get:
+      summary: Get checkpoint details
+      description: Returns a single checkpoint commit detail.
+      operationId: getCheckpoint
+      parameters:
+        - name: commit_hash
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workspace_path
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Checkpoint detail
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: Checkpoint not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/checkpoints/{commit_hash}/diff:
+    get:
+      summary: Get checkpoint diff
+      description: Returns the diff for a checkpoint commit.
+      operationId: getCheckpointDiff
+      parameters:
+        - name: commit_hash
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workspace_path
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Checkpoint diff
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: Checkpoint not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/worktrees:
+    get:
+      summary: List worktrees
+      description: Returns git worktrees for a workspace path.
+      operationId: listWorktrees
+      parameters:
+        - name: workspace_path
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Worktree list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  worktrees:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  total:
+                    type: integer
+        "400":
+          description: Invalid workspace path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Create a worktree
+      description: Creates a new git worktree for the given branch.
+      operationId: createWorktree
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                workspace_path:
+                  type: string
+                branch:
+                  type: string
+                new_branch:
+                  type: boolean
+                  default: true
+              required:
+                - workspace_path
+                - branch
+      responses:
+        "200":
+          description: Worktree created
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/worktrees/{worktree_id}:
+    delete:
+      summary: Remove a worktree
+      description: Removes a git worktree by ID.
+      operationId: removeWorktree
+      parameters:
+        - name: worktree_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Worktree removed
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: Worktree not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/worktrees/{worktree_id}/run:
+    post:
+      summary: Start a run in a worktree
+      description: Starts a new Hermes run within the context of a worktree.
+      operationId: startRunInWorktree
+      parameters:
+        - name: worktree_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt:
+                  type: string
+                session_id:
+                  type: string
+                  default: default
+                profile:
+                  type: string
+                  nullable: true
+              required:
+                - prompt
+      responses:
+        "200":
+          description: Run started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Worktree not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/delegations:
+    get:
+      summary: List delegation/sub-agent tasks
+      description: Returns delegations inferred from run events (tool events with delegation-related tool names).
+      operationId: listDelegations
+      parameters:
+        - name: parent_run_id
+          in: query
+          schema:
+            type: string
+          description: Filter by parent run ID
+        - name: status
+          in: query
+          schema:
+            type: string
+          description: Filter by delegation status
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 250
+            default: 100
+      responses:
+        "200":
+          description: Delegation list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DelegationListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/delegations/{delegation_id}:
+    get:
+      summary: Get delegation details
+      description: Returns a single delegation with parent and child run details.
+      operationId: getDelegation
+      parameters:
+        - name: delegation_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: "Delegation ID (format: parent_run_id:child_run_id)"
+      responses:
+        "200":
+          description: Delegation detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DelegationDetail"
+        "404":
+          description: Delegation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/cron-jobs:
+    get:
+      summary: List scheduled cron jobs
+      description: Returns cron jobs from ~/.hermes/cron/ directory.
+      operationId: listCronJobs
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 250
+            default: 100
+      responses:
+        "200":
+          description: Cron job list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CronJobListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/cron-jobs/{job_id}:
+    get:
+      summary: Get cron job details
+      description: Returns a single cron job definition.
+      operationId: getCronJob
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cron job ID
+      responses:
+        "200":
+          description: Cron job detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CronJob"
+        "404":
+          description: Cron job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
@@ -2512,6 +3164,70 @@ components:
       required:
         - config
 
+    ProcessInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        template_id:
+          type: string
+        name:
+          type: string
+        command:
+          type: string
+        status:
+          type: string
+          enum:
+            - running
+            - stopped
+            - error
+            - starting
+        pid:
+          type: integer
+          nullable: true
+        started_at:
+          type: string
+        stopped_at:
+          type: string
+          nullable: true
+        exit_code:
+          type: integer
+          nullable: true
+        log_count:
+          type: integer
+        error:
+          type: string
+          nullable: true
+      required:
+        - id
+        - template_id
+        - name
+        - command
+        - status
+        - pid
+        - started_at
+        - stopped_at
+        - exit_code
+        - log_count
+        - error
+
+    ProcessTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        command:
+          type: string
+        description:
+          type: string
+      required:
+        - id
+        - name
+        - command
+        - description
+
     ErrorDetail:
       type: object
       properties:
@@ -2545,3 +3261,250 @@ components:
           $ref: "#/components/schemas/ErrorDetail"
       required:
         - error
+
+    ToolPackInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        author:
+          type: string
+        description:
+          type: string
+        commands:
+          type: array
+          items:
+            $ref: "#/components/schemas/ToolPackCommand"
+        trusted:
+          type: boolean
+        permissions:
+          type: array
+          items:
+            type: string
+        compat:
+          type: object
+          properties:
+            min_shell_version:
+              type: string
+            platform:
+              type: array
+              items:
+                type: string
+        enabled:
+          type: boolean
+        valid:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+        compatible:
+          type: boolean
+        installed_at:
+          type: string
+          nullable: true
+        updated_at:
+          type: string
+          nullable: true
+
+    ToolPackCommand:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        command:
+          type: string
+        args:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              description:
+                type: string
+              required:
+                type: boolean
+              default: {}
+        env:
+          type: object
+          additionalProperties:
+            type: string
+
+    DelegationStatus:
+      type: string
+      enum:
+        - running
+        - completed
+        - failed
+        - cancelled
+        - unknown
+
+    DelegationRunSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        session_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+        title:
+          type: string
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        duration_ms:
+          type: integer
+          nullable: true
+      required:
+        - id
+        - status
+        - started_at
+
+    Delegation:
+      type: object
+      properties:
+        id:
+          type: string
+        parent_run_id:
+          type: string
+        child_run_id:
+          type: string
+        status:
+          $ref: "#/components/schemas/DelegationStatus"
+        tool_name:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        duration_ms:
+          type: integer
+          nullable: true
+        session_id:
+          type: string
+          nullable: true
+      required:
+        - id
+        - parent_run_id
+        - child_run_id
+        - status
+        - tool_name
+        - started_at
+
+    DelegationDetail:
+      allOf:
+        - $ref: "#/components/schemas/Delegation"
+        - type: object
+          properties:
+            parent_run:
+              $ref: "#/components/schemas/DelegationRunSummary"
+            child_run:
+              $ref: "#/components/schemas/DelegationRunSummary"
+          required:
+            - parent_run
+            - child_run
+
+    DelegationListResponse:
+      type: object
+      properties:
+        delegations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Delegation"
+        total:
+          type: integer
+        source:
+          type: string
+      required:
+        - delegations
+        - total
+        - source
+
+    CronJobStatus:
+      type: string
+      enum:
+        - active
+        - paused
+        - error
+        - disabled
+        - unknown
+
+    CronJob:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        schedule:
+          type: string
+        schedule_human:
+          type: string
+        command:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: "#/components/schemas/CronJobStatus"
+        last_run:
+          type: string
+          format: date-time
+          nullable: true
+        next_run:
+          type: string
+          format: date-time
+          nullable: true
+        enabled:
+          type: boolean
+        source_file:
+          type: string
+        created_at:
+          type: string
+          nullable: true
+        updated_at:
+          type: string
+          nullable: true
+      required:
+        - id
+        - name
+        - schedule
+        - schedule_human
+        - command
+        - status
+        - enabled
+        - source_file
+
+    CronJobListResponse:
+      type: object
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/CronJob"
+        total:
+          type: integer
+        source:
+          type: string
+      required:
+        - jobs
+        - total
+        - source

@@ -1,6 +1,6 @@
 # Reference Review: hermes-desktop
 
-> **This is a reference review, not a competitor analysis.** Hermes Local Studio is a personal, local-first, themeable, moddable desktop studio. [hermes-desktop](https://github.com/fathah/hermes-desktop) is a useful existing project that solves related problems with different tradeoffs.
+> **This is a reference review, not a competitor analysis.** Hermes Desktop Studio is a personal, local-first, themeable, moddable desktop studio. [hermes-desktop](https://github.com/fathah/hermes-desktop) is a useful existing project that solves related problems with different tradeoffs.
 
 ## 1. What hermes-desktop Appears to Solve
 
@@ -23,7 +23,7 @@ hermes-desktop is a comprehensive Electron + React + TypeScript GUI for Hermes A
 
 ### Tech Stack
 
-| Layer | hermes-desktop | Hermes Local Studio |
+| Layer | hermes-desktop | Hermes Desktop Studio |
 |-------|---------------|-------------------|
 | Shell | Electron 39 | **Tauri v2** |
 | UI | React 19 + TypeScript | **React + TypeScript + Vite** |
@@ -34,7 +34,7 @@ hermes-desktop is a comprehensive Electron + React + TypeScript GUI for Hermes A
 | Testing | Vitest | Vitest (planned) |
 | Packaging | electron-builder | **Tauri native installers** |
 
-## 2. Useful Lessons for Hermes Local Studio
+## 2. Useful Lessons for Hermes Desktop Studio
 
 ### Setup Flow Ideas
 
@@ -78,9 +78,9 @@ hermes-desktop is a comprehensive Electron + React + TypeScript GUI for Hermes A
 - **Credential pool with rotation** — nice but not MVP.
 - **80+ IPC handlers** — hermes-desktop has ~80 typed IPC methods. Our adapter HTTP API is simpler and more maintainable. We should not replicate this IPC surface.
 
-## 3. What Hermes Local Studio Keeps Different
+## 3. What Hermes Desktop Studio Keeps Different
 
-| Dimension | hermes-desktop | Hermes Local Studio |
+| Dimension | hermes-desktop | Hermes Desktop Studio |
 |-----------|---------------|-------------------|
 | **Desktop framework** | Electron (~150MB bundle) | **Tauri v2 (~10MB bundle)** |
 | **Primary focus** | Broad control panel for all Hermes features | **Local-first personal studio** |
@@ -89,7 +89,7 @@ hermes-desktop is a comprehensive Electron + React + TypeScript GUI for Hermes A
 | **Kanban** | Not present | **First-class core surface** |
 | **Plugin architecture** | None | **Manifest-based plugin system** (theme-pack, layout-pack, panel-pack, command-pack, kanban-pack) |
 | **State management** | useState + props drilling (already straining at 13 screens) | **Zustand** (scalable, testable) |
-| **API contract** | Direct Hermes API + 80 IPC handlers | **Stable adapter contract** (`/studio/*` endpoints, 16 endpoints) |
+| **API contract** | Direct Hermes API + 80 IPC handlers | **Stable adapter contract** (`/studio/*` endpoints, 50+ endpoints) |
 | **Session access** | Direct better-sqlite3 in Electron main | **Read-only via adapter** |
 | **Event system** | Hermes SSE → IPC events | **Normalized 15-event system** (adapter synthesizes missing events) |
 | **i18n** | 4 locales, 80 translation files | Future |
@@ -97,9 +97,9 @@ hermes-desktop is a comprehensive Electron + React + TypeScript GUI for Hermes A
 
 ## 4. Roadmap Impact
 
-### Faz 2 proceeds unchanged
+### Phase 2 proceeds unchanged
 
-Faz 2 should still build the Tauri + React skeleton with our planned layout:
+Phase 2 should still build the Tauri + React skeleton with our planned layout:
 - Left sidebar (profiles, sessions, search)
 - Center tabs (chat, kanban, artifacts)
 - Right sidebar (model, tools, memory, inspector)

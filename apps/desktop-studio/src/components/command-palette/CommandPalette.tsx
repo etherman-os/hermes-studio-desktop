@@ -85,7 +85,7 @@ export function CommandPalette() {
   if (!open) return null;
 
   return (
-    <div className="command-palette-overlay" onClick={close}>
+    <div className="command-palette-overlay" onClick={close} role="dialog" aria-modal="true" aria-label="Command palette">
       <div className="command-palette" onClick={(e) => e.stopPropagation()}>
         <input
           className="command-palette-input"
@@ -93,20 +93,32 @@ export function CommandPalette() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           autoFocus
+          role="combobox"
+          aria-expanded={true}
+          aria-controls="command-palette-listbox"
+          aria-activedescendant={filtered[selectedIndex] ? `cmd-${filtered[selectedIndex].id}` : undefined}
         />
-        <div className="command-palette-list">
+        <div className="command-palette-list" id="command-palette-listbox" role="listbox" aria-label="Commands">
           {filtered.map((cmd, i) => (
             <button
               key={cmd.id}
+              id={`cmd-${cmd.id}`}
+              role="option"
+              aria-selected={i === selectedIndex}
               className={`command-palette-item ${i === selectedIndex ? "selected" : ""}`}
               onClick={() => cmd.action()}
               onMouseEnter={() => setSelected(i)}
             >
-              <span className="command-palette-item-icon">{cmd.icon}</span>
+              <span className="command-palette-item-icon" aria-hidden="true">{cmd.icon}</span>
               <span className="command-palette-item-label">{cmd.label}</span>
               {cmd.shortcut && <span className="command-palette-item-shortcut">{cmd.shortcut}</span>}
             </button>
           ))}
+          {filtered.length === 0 && (
+            <div style={{ padding: "var(--app-spacing-md)", color: "var(--app-text-muted)", textAlign: "center", fontSize: "var(--app-font-size-sm)" }}>
+              No matching commands
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -139,21 +139,21 @@ Hermes YAML skins can be imported with a mapping:
 | `tool_emojis.*` | `icons.*` |
 | `banner_logo` | `assets.banner` |
 
-## Commands
+## Theme API
 
-```bash
-# List installed themes
-hermes-local-studio theme list
+Theme management is available through the `/studio/themes/*` endpoints:
 
-# Install from local path
-hermes-local-studio theme install ./my-theme
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/studio/themes` | GET | List all available themes |
+| `/studio/themes/active` | GET | Get the currently active theme |
+| `/studio/themes/{theme_id}` | GET | Get a specific theme by ID |
+| `/studio/themes/activate` | POST | Activate a theme (body: `{"theme_id": "..."}`) |
+| `/studio/themes/reload` | POST | Reload themes from disk |
 
-# Install from GitHub
-hermes-local-studio theme install gh:owner/repo
+Theme activation persists in `~/.config/hermes-desktop-studio/config.json`.
 
-# Import Hermes YAML skin
-hermes-local-studio theme import-hermes ~/.hermes/skins/ares.yaml
-
-# Enable theme for profile
-hermes-local-studio theme enable minecraft-overworld --profile coder
-```
+Themes are discovered from:
+1. Built-in themes in `themes/` directory
+2. User-installed themes in the platform data directory
+3. Workspace-local themes in `.hermes-shell/`

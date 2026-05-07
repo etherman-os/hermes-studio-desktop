@@ -4,6 +4,7 @@ import { useAdapterStore } from "../../stores/adapterStore";
 import { useRunLedgerStore, type RunRecord } from "../../stores/runLedgerStore";
 import { ApprovalCenter } from "../approvals/ApprovalCenter";
 import { RuntimeStatus } from "../runtime/RuntimeStatus";
+import { LoadingSkeleton } from "../Skeleton";
 import { mockMemory } from "../../fixtures/mockData";
 import * as api from "../../api/studioClient";
 
@@ -17,7 +18,7 @@ export function RightPanel() {
   const run = runs.find((item) => item.runId === currentRunId) ?? runs[0] ?? null;
 
   return (
-    <div className="right-panel">
+    <aside className="right-panel" role="complementary" aria-label="Inspector panel">
       <SelectedRunSection run={run} label={label} />
       <ModelSection connected={connected} backendMode={backendMode} label={label} icon={icon} />
       <ToolsSection run={run} />
@@ -40,7 +41,7 @@ export function RightPanel() {
       <div className="right-section runtime-right-section">
         <RuntimeStatus compact />
       </div>
-    </div>
+    </aside>
   );
 }
 
@@ -150,7 +151,7 @@ function ModelSection({ connected, backendMode, label, icon }: { connected: bool
       )}
 
       {connected && loading && (
-        <div style={{ fontSize: "var(--app-font-size-sm)", color: "var(--app-text-muted)" }}>Loading...</div>
+        <LoadingSkeleton lines={3} />
       )}
 
       {connected && error && (

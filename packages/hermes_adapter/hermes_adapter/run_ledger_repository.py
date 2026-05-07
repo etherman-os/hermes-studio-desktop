@@ -285,7 +285,8 @@ class RunLedgerRepository:
             return
 
         payload = event.get("payload") if isinstance(event.get("payload"), Mapping) else {}
-        assert isinstance(payload, Mapping)
+        if not isinstance(payload, Mapping):
+            payload = {}
         session_id = event.get("session_id") or payload.get("session_id")
         status = _TERMINAL_STATUS_BY_EVENT.get(str(event.get("type")), "running")
         error = payload.get("message") if status == "failed" else None

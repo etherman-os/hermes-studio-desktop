@@ -127,3 +127,17 @@ export type {
 } from "./plugin";
 
 export { MVP_PLUGIN_TYPES, FUTURE_PLUGIN_TYPES } from "./plugin";
+
+export type {
+  DelegationStatus,
+  DelegationRunSummary,
+  Delegation,
+  DelegationDetail,
+  DelegationListResponse,
+} from "./delegations";
+
+export type {
+  CronJobStatus,
+  CronJob,
+  CronJobListResponse,
+} from "./cron";

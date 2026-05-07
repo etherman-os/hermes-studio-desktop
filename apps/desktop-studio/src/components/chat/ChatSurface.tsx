@@ -65,7 +65,7 @@ export function ChatSurface() {
   }
 
   return (
-    <div className="chat-container">
+    <div className="chat-container" role="region" aria-label="Chat">
       <div className="chat-run-strip">
         <div>
           <div className="workbench-eyebrow">Chat Surface</div>
@@ -78,19 +78,20 @@ export function ChatSurface() {
           </div>
         </div>
         <div className="chat-run-actions">
-          <button className="tool-button" onClick={openNewRun}>New Chat</button>
-          <button className="tool-button" onClick={openLedger}>Open in Run Ledger</button>
+          <button className="tool-button" onClick={openNewRun} aria-label="Start new chat">New Chat</button>
+          <button className="tool-button" onClick={openLedger} aria-label="Open run in ledger">Open in Run Ledger</button>
           <button
             className="tool-button"
             disabled={!ledgerRun || savingRunCard}
             onClick={() => ledgerRun && void createCardFromRun(ledgerRun.runId)}
+            aria-label="Create kanban card from run"
           >
             Create Card from Run
           </button>
         </div>
       </div>
       {toolEvents.length > 0 && (
-        <div className="chat-tool-strip">
+        <div className="chat-tool-strip" role="status" aria-label="Active tools">
           {toolEvents.map((event) => (
             <span key={event.id} className={`tool-chip ${event.type === "tool.completed" ? "completed" : "running"}`}>
               {String(event.payload.tool ?? "tool")}
@@ -98,11 +99,11 @@ export function ChatSurface() {
           ))}
         </div>
       )}
-      <div className="chat-messages selectable">
-        {messages.map((msg, i) => {
+      <div className="chat-messages selectable" role="log" aria-label="Chat messages" aria-live="polite">
+        {messages.map((msg) => {
           if (msg.role === "tool") {
             return (
-              <div key={i} style={{ display: "flex", gap: "var(--app-spacing-sm)", alignItems: "center" }}>
+              <div key={msg.id} style={{ display: "flex", gap: "var(--app-spacing-sm)", alignItems: "center" }}>
                 <span className={`tool-chip ${msg.toolStatus === "completed" ? "completed" : msg.toolStatus === "running" ? "running" : ""}`}>
                   {msg.toolStatus === "completed" ? "✓" : msg.toolStatus === "running" ? "⏳" : "✕"} {msg.toolName}
                   {msg.toolDuration ? ` (${(msg.toolDuration / 1000).toFixed(1)}s)` : ""}
@@ -111,14 +112,14 @@ export function ChatSurface() {
             );
           }
           return (
-            <div key={i} className={`chat-message ${msg.role}`}>
+            <div key={msg.id} className={`chat-message ${msg.role}`} role="article" aria-label={`${msg.role} message`}>
               <div className="chat-message-role">{msg.role}</div>
               <div className="chat-message-content">{msg.content}</div>
             </div>
           );
         })}
         {isStreaming && (
-          <div className="chat-message assistant">
+          <div className="chat-message assistant" role="status" aria-label="Assistant is typing">
             <div className="typing-indicator">
               <div className="typing-dot" />
               <div className="typing-dot" />
@@ -129,20 +130,23 @@ export function ChatSurface() {
         <div ref={messagesEndRef} />
       </div>
       <div className="composer-bar">
+        <label htmlFor="composer-input" className="sr-only">Message input</label>
         <input
+          id="composer-input"
           className="composer-input"
           placeholder={connected ? `${label("composer")} in ${selectedWorkspace ?? "no workspace"}...` : `${label("composer")} (adapter offline - messages saved locally)`}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           style={!connected ? { borderColor: "var(--app-warn)" } : undefined}
+          aria-label="Type a message"
         />
         {isStreaming ? (
-          <button className="composer-send" onClick={stopRun} style={{ background: "var(--app-danger)" }}>
+          <button className="composer-send" onClick={stopRun} style={{ background: "var(--app-danger)" }} aria-label="Stop run">
             {label("stop")}
           </button>
         ) : (
-          <button className="composer-send" onClick={handleSend}>
+          <button className="composer-send" onClick={handleSend} aria-label="Send message">
             {label("send")}
           </button>
         )}

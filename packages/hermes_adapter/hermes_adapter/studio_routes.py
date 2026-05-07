@@ -5,6 +5,7 @@ Supports mock and Hermes backends. Frontend always talks to /studio/* endpoints.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -15,11 +16,17 @@ from fastapi.responses import StreamingResponse
 
 from hermes_adapter.approval_repository import ApprovalRepository
 from hermes_adapter.backend_base import StudioBackend
+from hermes_adapter.checkpoint_repository import CheckpointRepository
 from hermes_adapter.context_repository import ContextRepository
+from hermes_adapter.cron_repository import CronRepository
+from hermes_adapter.delegation_repository import DelegationRepository
+from hermes_adapter.process_manager import get_process_manager
 from hermes_adapter.run_ledger_repository import RunLedgerRepository
 from hermes_adapter.security import require_token
 from hermes_adapter.studio_events import make_studio_event
 from hermes_adapter.studio_storage import get_studio_storage_status
+from hermes_adapter.tool_pack_repository import ToolPackRepository
+from hermes_adapter.worktree_repository import WorktreeRepository
 
 router = APIRouter(prefix="/studio")
 logger = logging.getLogger(__name__)
@@ -27,14 +34,17 @@ logger = logging.getLogger(__name__)
 # Backend instance — initialized on first request
 _backend: StudioBackend | None = None
 _backend_status: dict[str, Any] = {}
+_backend_lock = asyncio.Lock()
 
 
 async def _get_backend() -> StudioBackend:
     """Get or create the backend instance."""
     global _backend, _backend_status
     if _backend is None:
-        from hermes_adapter.backend_factory import create_backend
-        _backend, _backend_status = await create_backend()
+        async with _backend_lock:
+            if _backend is None:
+                from hermes_adapter.backend_factory import create_backend
+                _backend, _backend_status = await create_backend()
     return _backend
 
 
@@ -307,28 +317,47 @@ async def get_approval(approval_id: str, _token: None = Depends(require_token)) 
 
 @router.post("/approvals/{approval_id}/approve")
 async def approve_approval(approval_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
-    raise HTTPException(
-        status_code=501,
-        detail=_error_detail(
-            "approval_response_unavailable",
-            f"Approval response is not wired yet for '{approval_id}'. This view is read-only.",
-            source="studio",
-            hint="Respond through the verified Hermes approval surface until adapter approval mutation is implemented.",
-        ),
-    )
+    backend = await _get_backend()
+    try:
+        result = await backend.respond_to_approval(approval_id, "approved")
+        # Emit SSE event for approval resolution
+        try:
+            from hermes_adapter.approval_repository import ApprovalRepository
+            approval = ApprovalRepository().get_approval(approval_id)
+            # Record the resolved event
+            ApprovalRepository().record_approval_resolved({
+                "type": "approval.resolved",
+                "payload": {"approval_id": approval_id, "decision": "approved"},
+                "run_id": approval.get("run_id"),
+                "session_id": approval.get("session_id"),
+            })
+        except Exception:
+            pass
+        return result
+    except ValueError as e:
+        raise _approval_http_error(e) from e
 
 
 @router.post("/approvals/{approval_id}/deny")
 async def deny_approval(approval_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
-    raise HTTPException(
-        status_code=501,
-        detail=_error_detail(
-            "approval_response_unavailable",
-            f"Approval response is not wired yet for '{approval_id}'. This view is read-only.",
-            source="studio",
-            hint="Respond through the verified Hermes approval surface until adapter approval mutation is implemented.",
-        ),
-    )
+    backend = await _get_backend()
+    try:
+        result = await backend.respond_to_approval(approval_id, "denied")
+        # Emit SSE event for approval resolution
+        try:
+            from hermes_adapter.approval_repository import ApprovalRepository
+            approval = ApprovalRepository().get_approval(approval_id)
+            ApprovalRepository().record_approval_resolved({
+                "type": "approval.resolved",
+                "payload": {"approval_id": approval_id, "decision": "denied"},
+                "run_id": approval.get("run_id"),
+                "session_id": approval.get("session_id"),
+            })
+        except Exception:
+            pass
+        return result
+    except ValueError as e:
+        raise _approval_http_error(e) from e
 
 
 @router.get("/sessions/{session_id}/approvals")
@@ -824,6 +853,153 @@ async def get_current_workspace_context(
 
 
 # ---------------------------------------------------------------------------
+# Process Management
+# ---------------------------------------------------------------------------
+
+
+def _process_http_error(error: ValueError | RuntimeError) -> HTTPException:
+    message = str(error)
+    status_code = 404 if "not found" in message.lower() else 400
+    return HTTPException(
+        status_code=status_code,
+        detail=_error_detail("process_error", message, source="studio"),
+    )
+
+
+@router.get("/processes")
+async def list_processes(_token: None = Depends(require_token)) -> dict[str, Any]:
+    manager = get_process_manager()
+    return {
+        "processes": manager.list_processes(),
+        "templates": manager.list_templates(),
+    }
+
+
+@router.post("/processes/start")
+async def start_process(body: dict[str, Any], _token: None = Depends(require_token)) -> dict[str, Any]:
+    manager = get_process_manager()
+    template_id = body.get("template_id", "")
+    cwd = body.get("cwd")
+    env_overrides = body.get("env")
+    try:
+        return await manager.start_process(template_id, cwd=cwd, env_overrides=env_overrides)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("process_start_error", str(e), source="studio"),
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=_error_detail("process_start_error", str(e), source="studio", retryable=True),
+        ) from e
+
+
+@router.post("/processes/{process_id}/stop")
+async def stop_process(process_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
+    manager = get_process_manager()
+    try:
+        return await manager.stop_process(process_id)
+    except ValueError as e:
+        raise _process_http_error(e) from e
+
+
+@router.get("/processes/{process_id}/logs")
+async def get_process_logs(
+    process_id: str,
+    tail: int = Query(200, ge=1, le=5000),
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    manager = get_process_manager()
+    try:
+        return manager.get_logs(process_id, tail=tail)
+    except ValueError as e:
+        raise _process_http_error(e) from e
+
+
+@router.delete("/processes/{process_id}")
+async def remove_process(process_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
+    manager = get_process_manager()
+    try:
+        removed = manager.remove_process(process_id)
+        return {"removed": removed}
+    except ValueError as e:
+        raise _process_http_error(e) from e
+
+
+# ---------------------------------------------------------------------------
+# Delegations (read-only)
+# ---------------------------------------------------------------------------
+
+
+def _delegation_http_error(error: ValueError | RuntimeError) -> HTTPException:
+    message = str(error)
+    status_code = 404 if "not found" in message.lower() else 400
+    return HTTPException(
+        status_code=status_code,
+        detail=_error_detail("delegation_error", message, source="studio"),
+    )
+
+
+@router.get("/delegations")
+async def list_delegations(
+    parent_run_id: str | None = Query(None, description="Filter by parent run ID"),
+    status: str | None = Query(None, description="Filter by delegation status"),
+    limit: int = Query(100, ge=1, le=250),
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    try:
+        return DelegationRepository().list_delegations(
+            parent_run_id=parent_run_id,
+            status=status,
+            limit=limit,
+        )
+    except (RuntimeError, ValueError) as e:
+        raise _delegation_http_error(e) from e
+
+
+@router.get("/delegations/{delegation_id}")
+async def get_delegation(delegation_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
+    try:
+        return DelegationRepository().get_delegation(delegation_id)
+    except (RuntimeError, ValueError) as e:
+        raise _delegation_http_error(e) from e
+
+
+# ---------------------------------------------------------------------------
+# Cron Jobs (read-only)
+# ---------------------------------------------------------------------------
+
+
+def _cron_http_error(error: ValueError | RuntimeError) -> HTTPException:
+    message = str(error)
+    status_code = 404 if "not found" in message.lower() else 400
+    return HTTPException(
+        status_code=status_code,
+        detail=_error_detail("cron_error", message, source="studio"),
+    )
+
+
+@router.get("/cron-jobs")
+async def list_cron_jobs(
+    limit: int = Query(100, ge=1, le=250),
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    try:
+        return CronRepository().list_jobs(limit=limit)
+    except (RuntimeError, ValueError) as e:
+        raise _cron_http_error(e) from e
+
+
+@router.get("/cron-jobs/{job_id}")
+async def get_cron_job(job_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
+    try:
+        return CronRepository().get_job(job_id)
+    except (RuntimeError, ValueError) as e:
+        raise _cron_http_error(e) from e
+
+
+# ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 
@@ -851,3 +1027,219 @@ async def patch_config(body: dict[str, Any], _token: None = Depends(require_toke
             status_code=400,
             detail=_error_detail("config_error", str(e)),
         ) from e
+
+
+# ---------------------------------------------------------------------------
+# Checkpoints (read-only)
+# ---------------------------------------------------------------------------
+
+
+def _checkpoint_http_error(error: ValueError | RuntimeError) -> HTTPException:
+    message = str(error)
+    status_code = 404 if "not found" in message.lower() else 400
+    return HTTPException(
+        status_code=status_code,
+        detail=_error_detail("checkpoint_error", message, source="studio"),
+    )
+
+
+@router.get("/checkpoints")
+async def list_checkpoints(
+    workspace_path: str = Query(..., description="Workspace path to scan for checkpoints"),
+    limit: int = Query(100, ge=1, le=500),
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    try:
+        return CheckpointRepository().list_checkpoints(workspace_path, limit=limit)
+    except (RuntimeError, ValueError) as e:
+        raise _checkpoint_http_error(e) from e
+
+
+@router.get("/checkpoints/{commit_hash}")
+async def get_checkpoint(
+    commit_hash: str,
+    workspace_path: str = Query(..., description="Workspace path"),
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    try:
+        return CheckpointRepository().get_checkpoint(workspace_path, commit_hash)
+    except (RuntimeError, ValueError) as e:
+        raise _checkpoint_http_error(e) from e
+
+
+@router.get("/checkpoints/{commit_hash}/diff")
+async def get_checkpoint_diff(
+    commit_hash: str,
+    workspace_path: str = Query(..., description="Workspace path"),
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    try:
+        return CheckpointRepository().get_diff(workspace_path, commit_hash)
+    except (RuntimeError, ValueError) as e:
+        raise _checkpoint_http_error(e) from e
+
+
+# ---------------------------------------------------------------------------
+# Worktrees
+# ---------------------------------------------------------------------------
+
+
+def _worktree_http_error(error: ValueError | RuntimeError) -> HTTPException:
+    message = str(error)
+    status_code = 404 if "not found" in message.lower() else 400
+    return HTTPException(
+        status_code=status_code,
+        detail=_error_detail("worktree_error", message, source="studio"),
+    )
+
+
+@router.get("/worktrees")
+async def list_worktrees(
+    workspace_path: str = Query(..., description="Workspace path"),
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    try:
+        return WorktreeRepository().list_worktrees(workspace_path)
+    except (RuntimeError, ValueError) as e:
+        raise _worktree_http_error(e) from e
+
+
+@router.post("/worktrees")
+async def create_worktree(
+    body: dict[str, Any],
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    workspace_path = body.get("workspace_path", "")
+    branch = body.get("branch", "")
+    new_branch = body.get("new_branch", True)
+    if not workspace_path:
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("invalid_request", "workspace_path is required"),
+        )
+    if not branch:
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("invalid_request", "branch is required"),
+        )
+    try:
+        return WorktreeRepository().create_worktree(
+            workspace_path, branch, new_branch=new_branch,
+        )
+    except (RuntimeError, ValueError) as e:
+        raise _worktree_http_error(e) from e
+
+
+@router.delete("/worktrees/{worktree_id}")
+async def remove_worktree(
+    worktree_id: str,
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    try:
+        return WorktreeRepository().remove_worktree(worktree_id)
+    except (RuntimeError, ValueError) as e:
+        raise _worktree_http_error(e) from e
+
+
+@router.post("/worktrees/{worktree_id}/run")
+async def start_run_in_worktree(
+    worktree_id: str,
+    body: dict[str, Any],
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    backend = await _get_backend()
+    prompt = body.get("prompt", "")
+    session_id = body.get("session_id", "default")
+    profile = body.get("profile")
+
+    worktree_repo = WorktreeRepository()
+    try:
+        wt = worktree_repo.get_worktree(worktree_id)
+        if not wt:
+            raise ValueError(f"Worktree not found: {worktree_id}")
+    except (RuntimeError, ValueError) as e:
+        raise _worktree_http_error(e) from e
+
+    worktree_path = wt["worktree_path"]
+    result = await backend.start_run(session_id, prompt, profile)
+    run_id = result.get("run_id")
+    if run_id:
+        _persist_started_run(
+            run_id=str(run_id),
+            session_id=str(session_id) if session_id else None,
+            status=str(result.get("status", "started")),
+            prompt=str(prompt),
+            backend=_backend_name(),
+            model=await _model_name(backend),
+            workspace_path=worktree_path,
+        )
+        worktree_repo.record_run(worktree_id)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Tool Packs
+# ---------------------------------------------------------------------------
+
+
+def _tool_pack_http_error(error: ValueError | RuntimeError) -> HTTPException:
+    message = str(error)
+    status_code = 404 if "not found" in message.lower() else 400
+    return HTTPException(
+        status_code=status_code,
+        detail=_error_detail("tool_pack_error", message, source="studio"),
+    )
+
+
+@router.get("/tool-packs")
+async def list_tool_packs(_token: None = Depends(require_token)) -> dict[str, Any]:
+    try:
+        repo = ToolPackRepository()
+        return {"packs": repo.list_packs()}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=_error_detail("tool_pack_error", str(e), source="studio", retryable=True),
+        ) from e
+
+
+@router.get("/tool-packs/{pack_id}")
+async def get_tool_pack(pack_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
+    try:
+        repo = ToolPackRepository()
+        return repo.get_pack(pack_id)
+    except (RuntimeError, ValueError) as e:
+        raise _tool_pack_http_error(e) from e
+
+
+@router.post("/tool-packs/{pack_id}/enable")
+async def enable_tool_pack(pack_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
+    try:
+        repo = ToolPackRepository()
+        return repo.enable_pack(pack_id)
+    except (RuntimeError, ValueError) as e:
+        raise _tool_pack_http_error(e) from e
+
+
+@router.post("/tool-packs/{pack_id}/disable")
+async def disable_tool_pack(pack_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
+    try:
+        repo = ToolPackRepository()
+        return repo.disable_pack(pack_id)
+    except (RuntimeError, ValueError) as e:
+        raise _tool_pack_http_error(e) from e
+
+
+@router.post("/tool-packs/install")
+async def install_tool_pack(body: dict[str, Any], _token: None = Depends(require_token)) -> dict[str, Any]:
+    source_path = body.get("path", "")
+    if not source_path:
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("invalid_request", "path is required"),
+        )
+    try:
+        repo = ToolPackRepository()
+        return repo.install_pack(source_path)
+    except (RuntimeError, ValueError) as e:
+        raise _tool_pack_http_error(e) from e

@@ -2,7 +2,7 @@
 
 ## Product Vision
 
-Hermes Local Studio is a **local-first, themeable desktop workbench** for [Hermes Agent](https://github.com/NousResearch/hermes-agent). It is designed for users who run Hermes on their own machine and want a comfortable, VS Code/Warp-like daily interface — not a terminal-only experience.
+Hermes Desktop Studio is a **local-first, themeable desktop workbench** for [Hermes Agent](https://github.com/NousResearch/hermes-agent). It is designed for users who run Hermes on their own machine and want a comfortable, VS Code/Warp-like daily interface — not a terminal-only experience.
 
 ## Why Not Terminal TUI?
 

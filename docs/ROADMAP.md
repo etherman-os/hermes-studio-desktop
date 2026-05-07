@@ -302,17 +302,90 @@
 - [x] Activity rail and status bar show pending approval counts without noisy prompts
 - [x] No Hermes core changes, no Hermes `state.db` writes, no Hermes config writes, and no approval bypass
 
+## Phase Product-6 — Process Management (Done)
+
+- [x] Process manager with predefined templates (dev-server, adapter, test-runner, build)
+- [x] /studio/processes/* endpoints (list, start, stop, logs, remove)
+- [x] Process cockpit frontend with template grid and process cards
+- [x] Tests for process manager and routes
+
+## Phase Product-7 — Extensions and Tool Packs (Done)
+
+- [x] Tool pack schema (toolPack.schema.json)
+- [x] Tool pack repository with discovery, validation, enable/disable
+- [x] /studio/tool-packs/* endpoints
+- [x] Extensions panel frontend
+- [x] Example tool pack (example-tools)
+
+## Phase Product-8 — Checkpoints and Worktrees (Done)
+
+- [x] Checkpoint repository (git commit timeline)
+- [x] /studio/checkpoints/* endpoints
+- [x] Checkpoint timeline frontend component
+- [x] Worktree repository (git worktree CRUD)
+- [x] /studio/worktrees/* endpoints
+- [x] Worktree launcher frontend component
+
+## Phase Product-9 — Delegations and Cron (Done)
+
+- [x] Delegation repository (sub-agent tracking from run events)
+- [x] /studio/delegations/* endpoints
+- [x] Delegation panel frontend
+- [x] Cron repository (read from ~/.hermes/cron/)
+- [x] /studio/cron-jobs/* endpoints
+- [x] Cron panel frontend
+
+## Phase Product-10 — Security Hardening (Done)
+
+- [x] Secret guard with 14 detection patterns
+- [x] Input validator for all API inputs
+- [x] Audit logging to studio.db
+- [x] DB hardening (WAL mode, backup rotation, integrity checks)
+- [x] Token security (rotation, expiry, rate limiting)
+- [x] TOCTOU-safe token file creation
+
+## Phase Product-11 — Native Desktop Features (Done)
+
+- [x] System tray with menu (Show/Hide, New Run, Quit)
+- [x] Global shortcuts (Ctrl+Shift+N, Ctrl+Shift+H)
+- [x] Native notifications (run complete, approval needed)
+- [x] Preview Canvas (second window for URL preview)
+- [x] Playwright test infrastructure (33 E2E tests)
+
+## Phase Product-12 — Connection Resilience (Done)
+
+- [x] Circuit breaker pattern for Hermes API
+- [x] Retry with exponential backoff
+- [x] SSE buffer size limit (1MB)
+- [x] Log rotation detection
+- [x] Connection caching for studio.db
+
+## Phase Product-13 — Hermes v0.13.0 Integration (Done)
+
+- [x] X-Hermes-Session-Key header support
+- [x] Post-write lint event handling
+- [x] i18n support (display.language config)
+- [x] Memory system integration (~/.hermes/memories/)
+- [x] Skills system integration (~/.hermes/skills/)
+- [x] Profile switching (API + CLI fallback)
+- [x] Approval response wiring (approve/deny)
+
 ## Next Core Layers
 
 - [x] Persist Run Ledger history in Studio-owned `studio.db`
 - [x] Artifact Shelf v1 with persistent metadata and safe text/reference viewer
 - [x] Context Inspector v1 with safe read-only local aggregation
 - [x] Approval Center v1 read-only visibility and audit
+- [x] Process Management with template-based process cockpit
+- [x] Extensions and Tool Packs with discovery and enable/disable
+- [x] Checkpoints and Worktrees for git-based timeline and branching
+- [x] Delegations and Cron for sub-agent tracking and scheduling
+- [x] Security hardening (secret guard, input validation, audit logging)
+- [x] Native desktop features (tray, shortcuts, notifications, Preview Canvas)
+- [x] Connection resilience (circuit breaker, retry, buffer limits)
+- [x] Hermes v0.13.0 integration (session key, i18n, memory, skills, profiles)
 - [ ] Artifact extraction from real run outputs and sanitized Preview Canvas
 - [ ] Real approval response wiring after verified Hermes API support
-- [ ] Checkpoint Timeline
-- [ ] Preview Canvas
-- [ ] Process Cockpit
 - [ ] Richer concept packs after the workbench spine is stable
 
 ## Phase 7 — Packaging and Release
@@ -324,4 +397,4 @@
 
 ## Reference Projects
 
-- **[hermes-desktop](https://github.com/fathah/hermes-desktop)** — Electron + React + TypeScript desktop GUI for Hermes Agent. Useful reference for Hermes desktop UX patterns (setup flow, chat streaming, session browsing, settings organization, packaging). Hermes Local Studio remains a local-first, themeable, moddable Tauri studio with a different product direction. See `docs/REFERENCE_HERMES_DESKTOP.md` for the full reference review.
+- **[hermes-desktop](https://github.com/fathah/hermes-desktop)** — Electron + React + TypeScript desktop GUI for Hermes Agent. Useful reference for Hermes desktop UX patterns (setup flow, chat streaming, session browsing, settings organization, packaging). Hermes Desktop Studio remains a local-first, themeable, moddable Tauri studio with a different product direction. See `docs/REFERENCE_HERMES_DESKTOP.md` for the full reference review.

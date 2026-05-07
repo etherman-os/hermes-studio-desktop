@@ -4,6 +4,8 @@ import { useApprovalStore } from "../../stores/approvalStore";
 import { useProfileStore } from "../../stores/profileStore";
 import { useRunLedgerStore } from "../../stores/runLedgerStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useNativeStore } from "../../stores/nativeStore";
+import { useProcessStore } from "../../stores/processStore";
 
 export function StatusBar() {
   const activeTheme = useThemeStore((s) => s.activeTheme);
@@ -18,6 +20,11 @@ export function StatusBar() {
   const currentRunId = useRunLedgerStore((s) => s.currentRunId);
   const selectedWorkspace = useWorkspaceStore((s) => s.selectedWorkspace);
   const pendingApprovals = useApprovalStore((s) => s.pending.length);
+  const trayActive = useNativeStore((s) => s.trayActive);
+  const shortcutsRegistered = useNativeStore((s) => s.shortcutsRegistered);
+  const notificationsEnabled = useNativeStore((s) => s.notificationsEnabled);
+  const processes = useProcessStore((s) => s.processes);
+  const runningProcesses = processes.filter((p) => p.status === "running").length;
 
   const statusColor = connected ? "var(--app-ok)" : checking ? "var(--app-warn)" : "var(--app-danger)";
   const statusText = connected ? "Connected" : checking ? "Checking..." : authError ? "Auth token missing" : "Disconnected";
@@ -36,9 +43,9 @@ export function StatusBar() {
   const run = runs.find((item) => item.runId === currentRunId) ?? runs[0];
 
   return (
-    <div className="status-bar">
+    <footer className="status-bar" role="contentinfo" aria-label="Status bar">
       <div className="status-item">
-        <span className="status-dot" />
+        <span className="status-dot" aria-hidden="true" />
         <span>{profileName}</span>
       </div>
       <div className="status-item workspace-status" title={selectedWorkspace ?? "No workspace selected"}>
@@ -52,9 +59,23 @@ export function StatusBar() {
           <span>Approvals: {pendingApprovals} pending</span>
         </div>
       )}
+      {runningProcesses > 0 && (
+        <div className="status-item">
+          <span className="status-dot" style={{ background: "var(--app-ok)" }} />
+          <span>Processes: {runningProcesses}</span>
+        </div>
+      )}
       <div style={{ flex: 1 }} />
-      <div className="status-item">
-        <span className="status-dot" style={{ background: statusColor }} />
+      <div className="status-item" title={`Tray: ${trayActive ? "active" : "inactive"} | Shortcuts: ${shortcutsRegistered ? "registered" : "off"} | Notifications: ${notificationsEnabled ? "on" : "off"}`}>
+        <span className="status-dot" style={{ background: trayActive ? "var(--app-ok)" : "var(--app-warn)" }} aria-hidden="true" />
+        <span>Tray</span>
+        <span className="status-dot" style={{ background: shortcutsRegistered ? "var(--app-ok)" : "var(--app-warn)", marginLeft: 4 }} aria-hidden="true" />
+        <span>Keys</span>
+        <span className="status-dot" style={{ background: notificationsEnabled ? "var(--app-ok)" : "var(--app-warn)", marginLeft: 4 }} aria-hidden="true" />
+        <span>Notify</span>
+      </div>
+      <div className="status-item" role="status" aria-live="polite">
+        <span className="status-dot" style={{ background: statusColor }} aria-hidden="true" />
         <span title={adapterTitle}>Adapter: {statusText}</span>
       </div>
       {connected && (
@@ -68,6 +89,6 @@ export function StatusBar() {
       <div className="status-item">
         <span>v0.1.0</span>
       </div>
-    </div>
+    </footer>
   );
 }

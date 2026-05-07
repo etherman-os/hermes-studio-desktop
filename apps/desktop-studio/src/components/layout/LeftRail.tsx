@@ -8,6 +8,11 @@ const RAIL_ITEMS = [
   { id: "board", slot: "board" },
   { id: "sessions", slot: "sessions" },
   { id: "artifacts", slot: "artifacts" },
+  { id: "processes", slot: "processes" },
+  { id: "delegations", slot: "delegations" },
+  { id: "cron", slot: "cron" },
+  { id: "checkpoints", slot: "checkpoints" },
+  { id: "worktrees", slot: "worktrees" },
   { id: "context", slot: "context" },
   { id: "approvals", slot: "approvals" },
   { id: "logs", slot: "logs" },
@@ -27,7 +32,7 @@ export function LeftRail() {
   const label = useThemeStore((s) => s.label);
 
   function handleClick(id: string) {
-    if (["runs", "chat", "board", "sessions", "artifacts"].includes(id)) {
+    if (["runs", "chat", "board", "sessions", "artifacts", "processes", "delegations", "cron", "checkpoints", "worktrees"].includes(id)) {
       setActiveTab(id);
     }
     if (id === "logs") {
@@ -38,18 +43,25 @@ export function LeftRail() {
   }
 
   return (
-    <div className="rail">
-      {RAIL_ITEMS.map((item) => (
-        <button
-          key={item.id}
-          className={`rail-icon ${sidebarSection === item.id || activeTab === item.id ? "active" : ""}`}
-          onClick={() => handleClick(item.id)}
-          title={label(item.slot)}
-        >
-          {icon(item.slot)}
-          {item.id === "approvals" && pendingApprovals > 0 && <span className="rail-badge">{pendingApprovals}</span>}
-        </button>
-      ))}
-    </div>
+    <nav className="rail" role="navigation" aria-label="Main navigation">
+      {RAIL_ITEMS.map((item) => {
+        const isActive = sidebarSection === item.id || activeTab === item.id;
+        return (
+          <button
+            key={item.id}
+            className={`rail-icon ${isActive ? "active" : ""}`}
+            onClick={() => handleClick(item.id)}
+            aria-label={label(item.slot)}
+            aria-current={isActive ? "page" : undefined}
+            data-tooltip={label(item.slot)}
+          >
+            {icon(item.slot)}
+            {item.id === "approvals" && pendingApprovals > 0 && (
+              <span className="rail-badge" aria-label={`${pendingApprovals} pending approvals`}>{pendingApprovals}</span>
+            )}
+          </button>
+        );
+      })}
+    </nav>
   );
 }

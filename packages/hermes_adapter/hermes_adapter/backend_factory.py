@@ -52,7 +52,8 @@ async def create_backend() -> tuple[StudioBackend, dict[str, Any]]:
             "hermes_connected": True,
         }
 
-    # Hermes unavailable — fall back to mock
+    # Hermes unavailable — close its client and fall back to mock
+    await hermes.close()
     mock = MockBackend()
     return mock, {
         "backend_mode": "auto",

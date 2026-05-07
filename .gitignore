@@ -66,7 +66,7 @@ node_modules/
 *.local
 
 # Tauri
-apps/desktop-shell/src-tauri/target/
+apps/desktop-studio/src-tauri/target/
 
 # Vite
-apps/desktop-shell/dist/
+apps/desktop-studio/dist/

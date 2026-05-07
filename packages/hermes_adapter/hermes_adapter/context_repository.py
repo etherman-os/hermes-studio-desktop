@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import logging
+import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,6 +16,8 @@ from hermes_adapter.backend_base import StudioBackend
 from hermes_adapter.kanban_repository import KanbanRepository
 from hermes_adapter.run_ledger_repository import RunLedgerRepository
 from hermes_adapter.studio_storage import StudioStorage
+
+logger = logging.getLogger("hermes_adapter.context_repository")
 
 _CONTEXT_FILES = ("SOUL.md", "AGENTS.md", "CLAUDE.md", "README.md", "package.json", "pyproject.toml", "Cargo.toml")
 _MAX_PREVIEW_CHARS = 1600
@@ -138,6 +143,8 @@ class ContextRepository:
         runtime = await self._safe_runtime(backend, backend_status, warnings)
         workspace = self._workspace(workspace_path, warnings)
         context_files = self._context_files(workspace_path, warnings)
+        memory = self._read_memory(warnings)
+        skills = self._read_skills(warnings)
         related = self._related(run=run, session=session, related_runs=related_runs, warnings=warnings)
 
         if not workspace_path:
@@ -153,16 +160,8 @@ class ContextRepository:
             "workspace": workspace,
             "session": session,
             "run": run,
-            "memory": {
-                "available": False,
-                "items": [],
-                "warnings": ["Memory snippets are read-only future work in this layer."],
-            },
-            "skills": {
-                "available": False,
-                "items": [],
-                "warnings": ["Skill discovery is read-only future work in this layer."],
-            },
+            "memory": memory,
+            "skills": skills,
             "context_files": context_files,
             "related": related,
             "warnings": list(dict.fromkeys(warnings)),
@@ -317,6 +316,149 @@ class ContextRepository:
             items.append(item)
         return {"items": items, "warnings": file_warnings}
 
+    def _read_memory(self, warnings: list[str]) -> dict[str, Any]:
+        """Read memory entries from ~/.hermes/memories/."""
+        hermes_home = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
+        memories_dir = hermes_home / "memories"
+        if not memories_dir.is_dir():
+            return {"available": False, "items": [], "warnings": ["No memories directory found."]}
+
+        items: list[dict[str, Any]] = []
+        mem_warnings: list[str] = []
+        try:
+            for entry in sorted(memories_dir.iterdir(), reverse=True):
+                if entry.is_file():
+                    item = self._parse_memory_entry(entry, mem_warnings)
+                    if item:
+                        items.append(item)
+        except OSError as exc:
+            mem_warnings.append(f"Error reading memories: {exc}")
+            logger.warning("Failed to read memories dir: %s", exc)
+
+        warnings.extend(mem_warnings)
+        return {
+            "available": len(items) > 0,
+            "items": items[:50],  # Limit to 50 entries
+            "total": len(items),
+            "warnings": mem_warnings if mem_warnings else [],
+        }
+
+    def _parse_memory_entry(self, path: Path, warnings: list[str]) -> dict[str, Any] | None:
+        """Parse a single memory entry file."""
+        try:
+            content = path.read_text(encoding="utf-8", errors="replace")
+            # Try JSON first
+            if content.strip().startswith("{"):
+                try:
+                    data = json.loads(content)
+                    return {
+                        "id": path.stem,
+                        "type": data.get("type", "note"),
+                        "content": _redact(data.get("content", content[:_MAX_PREVIEW_CHARS])),
+                        "tags": data.get("tags", []),
+                        "created_at": data.get("created_at", ""),
+                        "source": str(path.name),
+                    }
+                except json.JSONDecodeError:
+                    pass
+            # Plain text
+            return {
+                "id": path.stem,
+                "type": "text",
+                "content": _redact(content[:_MAX_PREVIEW_CHARS]),
+                "tags": [],
+                "created_at": "",
+                "source": str(path.name),
+            }
+        except OSError as exc:
+            warnings.append(f"Memory file {path.name} unreadable: {exc}")
+            return None
+
+    def _read_skills(self, warnings: list[str]) -> dict[str, Any]:
+        """Read skill manifests from ~/.hermes/skills/."""
+        hermes_home = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
+        skills_dir = hermes_home / "skills"
+        if not skills_dir.is_dir():
+            return {"available": False, "items": [], "warnings": ["No skills directory found."]}
+
+        items: list[dict[str, Any]] = []
+        skill_warnings: list[str] = []
+        try:
+            for entry in sorted(skills_dir.iterdir()):
+                if entry.is_dir():
+                    skill = self._parse_skill_manifest(entry, skill_warnings)
+                    if skill:
+                        items.append(skill)
+                elif entry.is_file() and entry.suffix in (".json", ".yaml", ".yml"):
+                    skill = self._parse_skill_file(entry, skill_warnings)
+                    if skill:
+                        items.append(skill)
+        except OSError as exc:
+            skill_warnings.append(f"Error reading skills: {exc}")
+            logger.warning("Failed to read skills dir: %s", exc)
+
+        warnings.extend(skill_warnings)
+        return {
+            "available": len(items) > 0,
+            "items": items,
+            "total": len(items),
+            "warnings": skill_warnings if skill_warnings else [],
+        }
+
+    def _parse_skill_manifest(self, skill_dir: Path, warnings: list[str]) -> dict[str, Any] | None:
+        """Parse a skill directory manifest."""
+        manifest_candidates = [
+            skill_dir / "manifest.json",
+            skill_dir / "skill.json",
+            skill_dir / "manifest.yaml",
+            skill_dir / "manifest.yml",
+        ]
+        for candidate in manifest_candidates:
+            if candidate.is_file():
+                try:
+                    content = candidate.read_text(encoding="utf-8", errors="replace")
+                    data = json.loads(content) if content.strip().startswith("{") else {}
+                    return {
+                        "id": skill_dir.name,
+                        "name": data.get("name", skill_dir.name),
+                        "description": data.get("description", ""),
+                        "version": data.get("version", ""),
+                        "enabled": data.get("enabled", True),
+                        "path": str(skill_dir),
+                        "source": "manifest",
+                    }
+                except (json.JSONDecodeError, OSError) as exc:
+                    warnings.append(f"Skill manifest {candidate.name} parse error: {exc}")
+
+        # No manifest found, use directory name
+        return {
+            "id": skill_dir.name,
+            "name": skill_dir.name,
+            "description": "",
+            "version": "",
+            "enabled": True,
+            "path": str(skill_dir),
+            "source": "directory",
+        }
+
+    def _parse_skill_file(self, path: Path, warnings: list[str]) -> dict[str, Any] | None:
+        """Parse a skill file."""
+        try:
+            content = path.read_text(encoding="utf-8", errors="replace")
+            data = json.loads(content) if content.strip().startswith("{") else {}
+            return {
+                "id": path.stem,
+                "name": data.get("name", path.stem),
+                "description": data.get("description", ""),
+                "version": data.get("version", ""),
+                "enabled": data.get("enabled", True),
+                "path": str(path),
+                "source": "file",
+            }
+        except (json.JSONDecodeError, OSError) as exc:
+            warnings.append(f"Skill file {path.name} parse error: {exc}")
+            return None
+
     @staticmethod
     def _safe_workspace_root(workspace_path: str | None, warnings: list[str]) -> Path | None:
         if not workspace_path:
@@ -340,7 +482,7 @@ class ContextRepository:
     @staticmethod
     def _is_inside_root(path: Path, root: Path) -> bool:
         try:
-            path.resolve(strict=True).relative_to(root.resolve(strict=True))
+            path.resolve(strict=False).relative_to(root.resolve(strict=False))
             return True
         except (OSError, ValueError):
             return False

@@ -32,8 +32,8 @@
     },
     "type": {
       "type": "string",
-      "enum": ["theme-pack", "layout-pack", "panel-pack", "command-pack", "kanban-pack"],
-      "description": "Plugin type. MVP supports theme-pack and layout-pack only."
+      "enum": ["theme-pack", "layout-pack", "panel-pack", "command-pack", "kanban-pack", "tool-pack"],
+      "description": "Plugin type. MVP supports theme-pack and layout-pack only. tool-pack is supported for local tool packs."
     },
     "compat": {
       "type": "object",

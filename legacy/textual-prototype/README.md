@@ -1,6 +1,6 @@
 # Legacy Textual Prototype
 
-This directory contains the original terminal/TUI prototype of Hermes Local Studio, built with [Textual](https://textual.textualize.io/) and Rich.
+This directory contains the original terminal/TUI prototype of Hermes Desktop Studio, built with [Textual](https://textual.textualize.io/) and Rich.
 
 ## Why is this here?
 

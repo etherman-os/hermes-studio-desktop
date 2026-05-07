@@ -8,6 +8,7 @@ import type {
   StudioEvent,
 } from "../api/studioClient";
 import * as api from "../api/studioClient";
+import { useNativeStore } from "./nativeStore";
 
 type ApprovalFilter = "all" | "pending" | "approved" | "denied" | "high_risk";
 
@@ -158,7 +159,13 @@ export const useApprovalStore = create<ApprovalState>((set, get) => ({
         lastLoadedAt: nowIso(),
       }));
       const selectedId = get().selectedApprovalId;
-      if (selectedId) await get().loadApprovalDetail(selectedId);
+      if (selectedId) {
+        try {
+          await get().loadApprovalDetail(selectedId);
+        } catch {
+          // Detail load failure is non-fatal; list is already displayed
+        }
+      }
     } catch (err) {
       set({ loading: false, error: messageFromError(err, "Approvals unavailable") });
     }
@@ -233,6 +240,13 @@ export const useApprovalStore = create<ApprovalState>((set, get) => ({
   recordEvent: (event) => {
     const normalized = approvalFromEvent(event);
     if (!normalized) return;
+    if (event.type === "approval.requested") {
+      const toolName = normalized.approval.tool_name ?? "unknown tool";
+      void useNativeStore.getState().sendNotification(
+        "Approval Required",
+        `${toolName} needs approval`,
+      );
+    }
     set((state) => ({
       approvals: upsertApproval(state.approvals, normalized.approval),
       pending: normalized.approval.status === "pending"

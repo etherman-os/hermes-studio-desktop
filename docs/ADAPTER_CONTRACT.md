@@ -95,6 +95,27 @@ Both include `storage` diagnostics for Studio-owned `studio.db`:
 - `GET /studio/context/workspaces/current`
 - `GET /studio/config`
 - `PATCH /studio/config`
+- `GET /studio/processes`
+- `POST /studio/processes/start`
+- `POST /studio/processes/{process_id}/stop`
+- `GET /studio/processes/{process_id}/logs`
+- `DELETE /studio/processes/{process_id}`
+- `GET /studio/tool-packs`
+- `GET /studio/tool-packs/{pack_id}`
+- `POST /studio/tool-packs/{pack_id}/enable`
+- `POST /studio/tool-packs/{pack_id}/disable`
+- `POST /studio/tool-packs/validate`
+- `GET /studio/checkpoints`
+- `GET /studio/checkpoints/{checkpoint_id}`
+- `POST /studio/checkpoints`
+- `GET /studio/worktrees`
+- `GET /studio/worktrees/{worktree_id}`
+- `POST /studio/worktrees`
+- `DELETE /studio/worktrees/{worktree_id}`
+- `GET /studio/delegations`
+- `GET /studio/delegations/{delegation_id}`
+- `GET /studio/cron-jobs`
+- `GET /studio/cron-jobs/{job_id}`
 
 `packages/protocol/openapi.yaml` must document every implemented `/studio/*` path/method. The route parity test fails when implementation and OpenAPI drift.
 

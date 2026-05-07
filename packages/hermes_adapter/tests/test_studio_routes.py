@@ -40,7 +40,7 @@ class TestHealthEndpoints:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "healthy"
-        assert data["storage"]["schema_version"] == 6
+        assert data["storage"]["schema_version"] == 8
 
     def test_health_no_auth_required(self, client: TestClient) -> None:
         resp = client.get("/studio/health")
@@ -319,3 +319,51 @@ class TestLogs:
         assert "source" in data
         assert "lines" in data
         assert "total" in data
+
+
+class TestDelegations:
+    def test_list_delegations_empty(self, client: TestClient) -> None:
+        resp = client.get("/studio/delegations", headers=HEADERS)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "delegations" in data
+        assert "total" in data
+        assert isinstance(data["delegations"], list)
+
+    def test_list_delegations_with_limit(self, client: TestClient) -> None:
+        resp = client.get("/studio/delegations?limit=10", headers=HEADERS)
+        assert resp.status_code == 200
+
+    def test_get_delegation_not_found(self, client: TestClient) -> None:
+        resp = client.get("/studio/delegations/nonexistent:id", headers=HEADERS)
+        assert resp.status_code == 404
+        data = resp.json()
+        assert data["error"]["code"] == "delegation_error"
+
+    def test_delegations_require_auth(self, client: TestClient) -> None:
+        resp = client.get("/studio/delegations")
+        assert resp.status_code == 401
+
+
+class TestCronJobs:
+    def test_list_cron_jobs(self, client: TestClient) -> None:
+        resp = client.get("/studio/cron-jobs", headers=HEADERS)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "jobs" in data
+        assert "total" in data
+        assert isinstance(data["jobs"], list)
+
+    def test_list_cron_jobs_with_limit(self, client: TestClient) -> None:
+        resp = client.get("/studio/cron-jobs?limit=50", headers=HEADERS)
+        assert resp.status_code == 200
+
+    def test_get_cron_job_not_found(self, client: TestClient) -> None:
+        resp = client.get("/studio/cron-jobs/nonexistent-job", headers=HEADERS)
+        assert resp.status_code == 404
+        data = resp.json()
+        assert data["error"]["code"] == "cron_error"
+
+    def test_cron_jobs_require_auth(self, client: TestClient) -> None:
+        resp = client.get("/studio/cron-jobs")
+        assert resp.status_code == 401

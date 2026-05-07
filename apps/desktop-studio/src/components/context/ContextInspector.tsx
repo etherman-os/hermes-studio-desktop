@@ -118,16 +118,48 @@ export function ContextInspector() {
 
           <section className="context-section">
             <div className="context-section-title">Memory</div>
-            <div className="panel-note">
-              {snapshot.memory.available ? `${snapshot.memory.items.length} snippets available` : snapshot.memory.warnings.join(" ")}
-            </div>
+            {snapshot.memory.available ? (
+              <div className="context-memory-list">
+                <div className="panel-note">{snapshot.memory.items.length} memory entries</div>
+                {(snapshot.memory.items as Array<Record<string, unknown>>).slice(0, 8).map((item, i) => (
+                  <div key={String(item.id ?? i)} className="context-memory-item">
+                    <div className="context-memory-header">
+                      <span className="context-memory-type">{String(item.type ?? "note")}</span>
+                      <span className="context-memory-source">{String(item.source ?? "")}</span>
+                    </div>
+                    <pre className="context-memory-preview">{String(item.content ?? "").slice(0, 200)}</pre>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="panel-note">
+                {snapshot.memory.warnings.join(" ")}
+              </div>
+            )}
           </section>
 
           <section className="context-section">
             <div className="context-section-title">Skills</div>
-            <div className="panel-note">
-              {snapshot.skills.available ? `${snapshot.skills.items.length} skills available` : snapshot.skills.warnings.join(" ")}
-            </div>
+            {snapshot.skills.available ? (
+              <div className="context-skills-list">
+                <div className="panel-note">{snapshot.skills.items.length} skills discovered</div>
+                {(snapshot.skills.items as Array<Record<string, unknown>>).slice(0, 10).map((item, i) => (
+                  <div key={String(item.id ?? i)} className="context-skill-item">
+                    <div className="context-skill-header">
+                      <span>{String(item.name ?? item.id ?? "unknown")}</span>
+                      <strong className={item.enabled ? "status-active" : "status-inactive"}>
+                        {String(item.enabled ? "enabled" : "disabled")}
+                      </strong>
+                    </div>
+                    {String(item.description ?? "") && <div className="context-skill-desc">{String(item.description ?? "")}</div>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="panel-note">
+                {snapshot.skills.warnings.join(" ")}
+              </div>
+            )}
           </section>
 
           <section className="context-section">

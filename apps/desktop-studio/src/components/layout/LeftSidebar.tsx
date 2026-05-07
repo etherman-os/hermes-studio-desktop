@@ -1,3 +1,4 @@
+import React from "react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useThemeStore } from "../../stores/themeStore";
 import { useSessionStore } from "../../stores/sessionStore";
@@ -6,9 +7,13 @@ import { useAdapterStore } from "../../stores/adapterStore";
 import { useRunLedgerStore } from "../../stores/runLedgerStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useUiStore } from "../../stores/uiStore";
+import { useToolPackStore } from "../../stores/toolPackStore";
 import { ApprovalCenter } from "../approvals/ApprovalCenter";
 import { ContextInspector } from "../context/ContextInspector";
+import { DelegationPanel } from "../delegation/DelegationPanel";
+import { CronPanel } from "../cron/CronPanel";
 import { RuntimeStatus } from "../runtime/RuntimeStatus";
+import { LoadingSkeleton } from "../Skeleton";
 
 export function LeftSidebar() {
   const section = useLayoutStore((s) => s.sidebarSection);
@@ -16,14 +21,16 @@ export function LeftSidebar() {
   const icon = useThemeStore((s) => s.icon);
 
   return (
-    <div className="sidebar">
-      <div className="sidebar-header">{label(section)}</div>
-      <div className="sidebar-content">
+    <aside className="sidebar" role="complementary" aria-label={`${label(section)} sidebar`}>
+      <div className="sidebar-header" id="sidebar-heading">{label(section)}</div>
+      <div className="sidebar-content" aria-labelledby="sidebar-heading">
         {section === "runs" && <RunsList />}
         {section === "chat" && <ChatSection />}
         {section === "board" && <BoardSection />}
         {section === "sessions" && <SessionsList />}
         {section === "artifacts" && <ArtifactsSection />}
+        {section === "delegations" && <DelegationsSection />}
+        {section === "cron" && <CronSection />}
         {section === "context" && <ContextSection />}
         {section === "approvals" && <ApprovalsSection />}
         {section === "logs" && <LogsSection />}
@@ -31,14 +38,14 @@ export function LeftSidebar() {
         {section === "search" && <SearchSection />}
         {section === "theme_gallery" && <ThemeGallerySection />}
         {section === "settings" && <SettingsSection />}
-        {!["runs", "chat", "board", "sessions", "artifacts", "context", "approvals", "logs", "profiles", "search", "theme_gallery", "settings"].includes(section) && (
+        {!["runs", "chat", "board", "sessions", "artifacts", "delegations", "cron", "context", "approvals", "logs", "profiles", "search", "theme_gallery", "settings"].includes(section) && (
           <div className="empty-state">
-            <div className="empty-state-icon">{icon(section)}</div>
+            <div className="empty-state-icon" aria-hidden="true">{icon(section)}</div>
             <div className="empty-state-text">{label(section)}</div>
           </div>
         )}
       </div>
-    </div>
+    </aside>
   );
 }
 
@@ -51,8 +58,14 @@ function RunsList() {
   if (runs.length === 0) {
     return (
       <div className="sidebar-stack">
-        <button className="primary-button" onClick={openNewRun}>New Run</button>
-        <div className="sidebar-note">No runs captured in this Studio session.</div>
+        <button className="primary-button" onClick={openNewRun} aria-label="Create new run">New Run</button>
+        <div className="empty-state" style={{ padding: "var(--app-spacing-md)" }}>
+          <div className="workbench-empty-icon" aria-hidden="true">R</div>
+          <div className="sidebar-note">No runs captured in this Studio session.</div>
+          <div className="empty-state-action">
+            <button className="tool-button" onClick={openNewRun}>Start your first run</button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -114,6 +127,22 @@ function ArtifactsSection() {
   );
 }
 
+function DelegationsSection() {
+  return (
+    <div className="sidebar-embedded" style={{ height: "100%" }}>
+      <DelegationPanel />
+    </div>
+  );
+}
+
+function CronSection() {
+  return (
+    <div className="sidebar-embedded" style={{ height: "100%" }}>
+      <CronPanel />
+    </div>
+  );
+}
+
 function ContextSection() {
   return (
     <div className="sidebar-embedded">
@@ -126,6 +155,67 @@ function ApprovalsSection() {
   return (
     <div className="sidebar-embedded">
       <ApprovalCenter />
+    </div>
+  );
+}
+
+function ExtensionsSection() {
+  const packs = useToolPackStore((s) => s.packs);
+  const loading = useToolPackStore((s) => s.loading);
+  const loadPacks = useToolPackStore((s) => s.loadPacks);
+  const enablePack = useToolPackStore((s) => s.enablePack);
+  const disablePack = useToolPackStore((s) => s.disablePack);
+  const setActiveTab = useLayoutStore((s) => s.setActiveTab);
+
+  React.useEffect(() => {
+    loadPacks();
+  }, [loadPacks]);
+
+  const enabledCount = packs.filter((p) => p.enabled).length;
+
+  return (
+    <div className="sidebar-stack">
+      <button className="primary-button sidebar-primary" onClick={() => setActiveTab("extensions")}>
+        Manage Extensions
+      </button>
+      <div className="sidebar-note">
+        {packs.length} pack{packs.length !== 1 ? "s" : ""} installed, {enabledCount} enabled
+      </div>
+      {loading && packs.length === 0 && <LoadingSkeleton lines={3} />}
+      {packs.map((pack) => (
+        <div key={pack.id} className="sidebar-item-row">
+          <button
+            className={`sidebar-item ${pack.enabled ? "active" : ""}`}
+            onClick={() => setActiveTab("extensions")}
+            title={pack.description}
+          >
+            <span style={{ opacity: pack.trusted ? 1 : 0.6 }}>{pack.enabled ? "E" : "e"}</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+              {pack.name}
+            </span>
+            <span style={{ fontSize: "10px", color: "var(--app-text-muted)", flexShrink: 0 }}>
+              {pack.commands.length}
+            </span>
+          </button>
+          <label
+            className="pack-toggle-mini"
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`${pack.enabled ? "Disable" : "Enable"} ${pack.name}`}
+          >
+            <input
+              type="checkbox"
+              checked={pack.enabled}
+              onChange={() => (pack.enabled ? disablePack(pack.id) : enablePack(pack.id))}
+              disabled={!pack.valid || !pack.compatible}
+            />
+          </label>
+        </div>
+      ))}
+      {packs.length === 0 && !loading && (
+        <div style={{ padding: "var(--app-spacing-md)", color: "var(--app-text-muted)", fontSize: "var(--app-font-size-sm)", textAlign: "center" }}>
+          No tool packs installed
+        </div>
+      )}
     </div>
   );
 }
@@ -188,7 +278,7 @@ function ProfilesList() {
   const activateProfile = useProfileStore((s) => s.activateProfile);
 
   if (!loaded) {
-    return <div style={{ padding: "var(--app-spacing-md)", color: "var(--app-text-muted)", textAlign: "center" }}>Loading...</div>;
+    return <LoadingSkeleton lines={4} />;
   }
 
   if (profiles.length === 0) {
@@ -276,8 +366,7 @@ function ThemeGallerySection() {
       }));
 
   return (
-    <div className="theme-switcher-panel">
-      {/* Header with reload */}
+    <div className="theme-switcher-panel" role="radiogroup" aria-label="Theme selection">
       <div style={{ padding: "var(--app-spacing-xs) var(--app-spacing-sm)", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--app-border-subtle)" }}>
         <span style={{ fontSize: "10px", color: "var(--app-text-muted)" }}>
           {themeList.length} theme{themeList.length !== 1 ? "s" : ""}
@@ -288,29 +377,35 @@ function ThemeGallerySection() {
           disabled={loading}
           style={{ background: "transparent", border: "none", color: loading ? "var(--app-text-muted)" : "var(--app-accent)", cursor: loading ? "default" : "pointer", fontSize: "11px", padding: "2px 6px" }}
           title="Reload themes from disk"
+          aria-label="Reload themes"
         >
           {loading ? "..." : "↻ Reload"}
         </button>
       </div>
 
-      {/* Error */}
       {error && (
-        <div style={{ padding: "var(--app-spacing-xs) var(--app-spacing-sm)", fontSize: "11px", color: "var(--app-danger)", background: "rgba(248,81,73,0.1)" }}>
-          {error}
+        <div className="inline-error" role="alert">
+          <span>{error}</span>
+          <div className="inline-error-actions">
+            <button className="retry-button" onClick={() => reloadThemes()} disabled={loading}>Retry</button>
+          </div>
         </div>
       )}
 
-      {/* Theme list */}
       {themeList.map((t) => (
         <button
           key={t.id}
+          role="radio"
+          aria-checked={activeThemeId === t.id}
           className={`theme-card ${activeThemeId === t.id ? "active" : ""}`}
           onClick={() => activateTheme(t.id)}
           style={{ opacity: t.valid ? 1 : 0.7 }}
+          aria-label={`${t.name}${!t.valid ? " (has warnings)" : ""}`}
         >
           <div
             className="theme-swatch"
             style={{ background: t.accent }}
+            aria-hidden="true"
           />
           <div className="theme-card-info">
             <div className="theme-card-name">
@@ -333,9 +428,8 @@ function ThemeGallerySection() {
         </button>
       ))}
 
-      {/* Empty state */}
       {themeList.length === 0 && !loading && (
-        <div style={{ padding: "var(--app-spacing-md)", color: "var(--app-text-muted)", textAlign: "center", fontSize: "var(--app-font-size-sm)" }}>
+        <div style={{ padding: "var(--app-spacing-md)", color: "var(--app-text-muted)", textAlign: "center", fontSize: "var(--app-font-size-sm)" }} role="status">
           No themes found
         </div>
       )}
@@ -346,10 +440,37 @@ function ThemeGallerySection() {
 function SettingsSection() {
   const openWorkspacePicker = useUiStore((s) => s.openWorkspacePicker);
   const selectedWorkspace = useWorkspaceStore((s) => s.selectedWorkspace);
+  const [highContrast, setHighContrast] = React.useState(
+    document.documentElement.classList.contains("high-contrast")
+  );
+
+  function toggleHighContrast() {
+    const next = !highContrast;
+    setHighContrast(next);
+    document.documentElement.classList.toggle("high-contrast", next);
+  }
+
   return (
     <div className="sidebar-stack">
-      <button className="primary-button" onClick={openWorkspacePicker}>Select Workspace</button>
+      <button className="primary-button" onClick={openWorkspacePicker} aria-label="Select workspace">Select Workspace</button>
       <div className="sidebar-note">Workspace: {selectedWorkspace ?? "none selected"}</div>
+      <div style={{ padding: "var(--app-spacing-sm) 0", borderTop: "1px solid var(--app-border-subtle)", marginTop: "var(--app-spacing-sm)" }}>
+        <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--app-text-muted)", marginBottom: "var(--app-spacing-sm)" }}>
+          Accessibility
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: "var(--app-spacing-sm)", cursor: "pointer", fontSize: "var(--app-font-size-sm)", color: "var(--app-text-secondary)" }}>
+          <input
+            type="checkbox"
+            checked={highContrast}
+            onChange={toggleHighContrast}
+            aria-label="Toggle high contrast mode"
+          />
+          High Contrast Mode
+        </label>
+        <div className="field-help" style={{ marginTop: "var(--app-spacing-xs)" }}>
+          Increases contrast for better readability. Meets WCAG AA guidelines.
+        </div>
+      </div>
       <RuntimeStatus />
     </div>
   );

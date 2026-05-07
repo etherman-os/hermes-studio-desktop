@@ -1,8 +1,35 @@
 import type { ThemePack } from "@hermes-studio/shared-types";
 
+const ALL_THEME_VARS = [
+  "--app-bg",
+  "--app-surface",
+  "--app-surface-alt",
+  "--app-panel",
+  "--app-border",
+  "--app-border-subtle",
+  "--app-text",
+  "--app-text-secondary",
+  "--app-text-muted",
+  "--app-accent",
+  "--app-accent-alt",
+  "--app-accent-subtle",
+  "--app-ok",
+  "--app-warn",
+  "--app-danger",
+  "--app-info",
+  "--kanban-todo",
+  "--kanban-doing",
+  "--kanban-done",
+  "--kanban-blocked",
+];
+
 export function applyThemeToDOM(theme: ThemePack) {
   const root = document.documentElement;
   const p = theme.palette ?? {};
+
+  for (const cssVar of ALL_THEME_VARS) {
+    root.style.removeProperty(cssVar);
+  }
 
   const mapping: Record<string, string | undefined> = {
     "--app-bg": p.bg,

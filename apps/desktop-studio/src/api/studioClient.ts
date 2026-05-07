@@ -12,6 +12,11 @@ import type {
   ArtifactUpdateRequest,
   ContextScope,
   ContextSnapshot,
+  CronJob,
+  CronJobListResponse,
+  Delegation,
+  DelegationDetail,
+  DelegationListResponse,
   RunLedgerRecentResponse,
   RunLedgerResponse,
   RunLedgerRun,
@@ -31,6 +36,13 @@ export type {
   ArtifactUpdateRequest,
   ContextScope,
   ContextSnapshot,
+  CronJob,
+  CronJobListResponse,
+  CronJobStatus,
+  Delegation,
+  DelegationDetail,
+  DelegationListResponse,
+  DelegationStatus,
   RunLedgerRecentResponse,
   RunLedgerResponse,
   RunLedgerRun,
@@ -136,11 +148,12 @@ export async function initializeAdapterAuth(force = false): Promise<AuthBootstra
     };
   })();
 
-  const result = await authBootstrapPromise;
-  if (!result.authenticated) {
+  try {
+    const result = await authBootstrapPromise;
+    return result;
+  } finally {
     authBootstrapPromise = null;
   }
-  return result;
 }
 
 function requireAdapterToken() {
@@ -399,6 +412,68 @@ export async function patchConfig(input: { key: string; value: unknown }) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Tool Packs
+// ---------------------------------------------------------------------------
+
+export interface ToolPackCommand {
+  id: string;
+  name: string;
+  description: string;
+  command: string;
+  args?: { name: string; description?: string; required?: boolean; default?: unknown }[];
+  env?: Record<string, string>;
+}
+
+export interface ToolPackInfo {
+  id: string;
+  name: string;
+  version: string;
+  author: string;
+  description: string;
+  commands: ToolPackCommand[];
+  trusted: boolean;
+  permissions: string[];
+  compat: { min_shell_version?: string; platform?: string[] };
+  enabled: boolean;
+  valid: boolean;
+  warnings: string[];
+  compatible: boolean;
+  installed_at?: string;
+  updated_at?: string;
+}
+
+export interface ToolPacksResponse {
+  packs: ToolPackInfo[];
+}
+
+export async function getToolPacks() {
+  return request<ToolPacksResponse>("/studio/tool-packs");
+}
+
+export async function getToolPack(packId: string) {
+  return request<ToolPackInfo>(`/studio/tool-packs/${packId}`);
+}
+
+export async function enableToolPack(packId: string) {
+  return request<ToolPackInfo>(`/studio/tool-packs/${packId}/enable`, {
+    method: "POST",
+  });
+}
+
+export async function disableToolPack(packId: string) {
+  return request<ToolPackInfo>(`/studio/tool-packs/${packId}/disable`, {
+    method: "POST",
+  });
+}
+
+export async function installToolPack(sourcePath: string) {
+  return request<ToolPackInfo>("/studio/tool-packs/install", {
+    method: "POST",
+    body: JSON.stringify({ path: sourcePath }),
+  });
+}
+
 export async function getKanbanBoards() {
   return request<KanbanBoardsResponse>("/studio/kanban/boards");
 }
@@ -521,6 +596,48 @@ export async function linkArtifactToCard(artifactId: string, cardId: string) {
     method: "POST",
     body: JSON.stringify({ kanban_card_id: cardId }),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Delegations (read-only)
+// ---------------------------------------------------------------------------
+
+export interface DelegationListParams {
+  parent_run_id?: string;
+  status?: string;
+  limit?: number;
+}
+
+function delegationQuery(params?: DelegationListParams) {
+  if (!params) return "";
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === "") continue;
+    searchParams.set(key, String(value));
+  }
+  const query = searchParams.toString();
+  return query ? `?${query}` : "";
+}
+
+export async function listDelegations(params?: DelegationListParams) {
+  return request<DelegationListResponse>(`/studio/delegations${delegationQuery(params)}`);
+}
+
+export async function getDelegation(delegationId: string) {
+  return request<DelegationDetail>(`/studio/delegations/${delegationId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Cron Jobs (read-only)
+// ---------------------------------------------------------------------------
+
+export async function listCronJobs(limit = 100) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return request<CronJobListResponse>(`/studio/cron-jobs?${params.toString()}`);
+}
+
+export async function getCronJob(jobId: string) {
+  return request<CronJob>(`/studio/cron-jobs/${jobId}`);
 }
 
 function optionalQuery(params: Record<string, string | null | undefined>) {
@@ -695,6 +812,163 @@ export interface KanbanLinkRunRequest {
   run_id: string;
 }
 
+// ---------------------------------------------------------------------------
+// Process Management
+// ---------------------------------------------------------------------------
+
+export interface ProcessInfo {
+  id: string;
+  template_id: string;
+  name: string;
+  command: string;
+  status: "running" | "stopped" | "error" | "starting";
+  pid: number | null;
+  started_at: string;
+  stopped_at: string | null;
+  exit_code: number | null;
+  log_count: number;
+  error: string | null;
+}
+
+export interface ProcessTemplate {
+  id: string;
+  name: string;
+  command: string;
+  description: string;
+}
+
+export interface ProcessesResponse {
+  processes: ProcessInfo[];
+  templates: ProcessTemplate[];
+}
+
+export interface ProcessLogsResponse {
+  process_id: string;
+  lines: string[];
+  total: number;
+}
+
+export async function listProcesses() {
+  return request<ProcessesResponse>("/studio/processes");
+}
+
+export async function startProcess(templateId: string, cwd?: string, env?: Record<string, string>) {
+  return request<ProcessInfo>("/studio/processes/start", {
+    method: "POST",
+    body: JSON.stringify({ template_id: templateId, cwd, env }),
+  });
+}
+
+export async function stopProcess(processId: string) {
+  return request<ProcessInfo>(`/studio/processes/${processId}/stop`, {
+    method: "POST",
+  });
+}
+
+export async function getProcessLogs(processId: string, tail = 200) {
+  const params = new URLSearchParams({ tail: String(tail) });
+  return request<ProcessLogsResponse>(`/studio/processes/${processId}/logs?${params}`);
+}
+
+export async function removeProcess(processId: string) {
+  return request<{ removed: boolean }>(`/studio/processes/${processId}`, {
+    method: "DELETE",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Checkpoints (read-only)
+// ---------------------------------------------------------------------------
+
+export interface Checkpoint {
+  hash: string;
+  short_hash: string;
+  message: string;
+  timestamp: string;
+  author: string;
+  files_changed: number;
+  insertions: number;
+  deletions: number;
+  is_head: boolean;
+}
+
+export interface CheckpointListResponse {
+  checkpoints: Checkpoint[];
+  total: number;
+  workspace: string;
+  is_git_repo: boolean;
+}
+
+export interface CheckpointDiffResponse {
+  hash: string;
+  stat: string;
+  diff: string;
+  files: string[];
+  truncated: boolean;
+}
+
+export async function listCheckpoints(workspacePath: string, limit = 100) {
+  const params = new URLSearchParams({ workspace_path: workspacePath, limit: String(limit) });
+  return request<CheckpointListResponse>(`/studio/checkpoints?${params.toString()}`);
+}
+
+export async function getCheckpoint(commitHash: string, workspacePath: string) {
+  const params = new URLSearchParams({ workspace_path: workspacePath });
+  return request<Checkpoint>(`/studio/checkpoints/${commitHash}?${params.toString()}`);
+}
+
+export async function getCheckpointDiff(commitHash: string, workspacePath: string) {
+  const params = new URLSearchParams({ workspace_path: workspacePath });
+  return request<CheckpointDiffResponse>(`/studio/checkpoints/${commitHash}/diff?${params.toString()}`);
+}
+
+// ---------------------------------------------------------------------------
+// Worktrees
+// ---------------------------------------------------------------------------
+
+export interface Worktree {
+  id: string;
+  workspace_path: string;
+  worktree_path: string;
+  branch: string | null;
+  head_hash: string | null;
+  status: "main" | "active" | "idle";
+  last_used_at: string | null;
+  run_count: number;
+  created_at: string;
+}
+
+export interface WorktreeListResponse {
+  worktrees: Worktree[];
+  is_git_repo: boolean;
+  workspace: string;
+}
+
+export async function listWorktrees(workspacePath: string) {
+  const params = new URLSearchParams({ workspace_path: workspacePath });
+  return request<WorktreeListResponse>(`/studio/worktrees?${params.toString()}`);
+}
+
+export async function createWorktree(workspacePath: string, branch: string, newBranch = true) {
+  return request<Worktree>("/studio/worktrees", {
+    method: "POST",
+    body: JSON.stringify({ workspace_path: workspacePath, branch, new_branch: newBranch }),
+  });
+}
+
+export async function removeWorktree(worktreeId: string) {
+  return request<{ removed: boolean; id: string }>(`/studio/worktrees/${worktreeId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function startRunInWorktree(worktreeId: string, input: { prompt: string; session_id?: string; profile?: string }) {
+  return request<RunResponse>(`/studio/worktrees/${worktreeId}/run`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export interface KanbanUpdatedPayload {
   board_id: string;
   action: string;
@@ -719,7 +993,8 @@ export type StudioEventType =
   | "log.line"
   | "adapter.warning"
   | "kanban.updated"
-  | "memory.updated";
+  | "memory.updated"
+  | "lint.result";
 
 export interface StudioEvent<T = Record<string, unknown>> {
   id: string;
@@ -746,6 +1021,7 @@ export interface RunEventHandlers {
   onRunCancelled?: (payload: { run_id: string; reason?: string }) => void;
   onKanbanUpdated?: (payload: KanbanUpdatedPayload) => void;
   onMemoryUpdated?: (payload: { session_id?: string; action: string }) => void;
+  onLintResult?: (payload: { file: string; linter: string; issues: unknown[]; severity: string; fixable?: boolean }) => void;
   onError?: (error: Error) => void;
   onDone?: () => void;
 }
@@ -788,8 +1064,8 @@ export function streamRunEvents(runId: string, handlers: RunEventHandlers): Abor
           let data = "";
 
           for (const line of lines) {
-            if (line.startsWith("event: ")) eventType = line.slice(7).trim();
-            if (line.startsWith("data: ")) data = line.slice(6);
+            if (line.startsWith("event:")) eventType = line.slice(6).replace(/^ /, "").trim();
+            if (line.startsWith("data:")) data = line.slice(5).replace(/^ /, "");
           }
 
           if (!eventType || !data) continue;
@@ -840,6 +1116,9 @@ export function streamRunEvents(runId: string, handlers: RunEventHandlers): Abor
                 break;
               case "memory.updated":
                 handlers.onMemoryUpdated?.(event.payload as { session_id?: string; action: string });
+                break;
+              case "lint.result":
+                handlers.onLintResult?.(event.payload as { file: string; linter: string; issues: unknown[]; severity: string; fixable?: boolean });
                 break;
             }
           } catch {

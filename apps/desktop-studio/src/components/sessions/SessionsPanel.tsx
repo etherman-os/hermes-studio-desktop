@@ -6,6 +6,7 @@ import { useLayoutStore } from "../../stores/layoutStore";
 import { useKanbanStore } from "../../stores/kanbanStore";
 import { useArtifactStore } from "../../stores/artifactStore";
 import { useContextStore } from "../../stores/contextStore";
+import { LoadingSkeleton } from "../Skeleton";
 import * as api from "../../api/studioClient";
 
 interface SessionDetailData {
@@ -117,15 +118,15 @@ export function SessionsPanel() {
   if (!loaded) {
     return (
       <div className="empty-state">
-        <div className="empty-state-text">Loading sessions...</div>
+        <LoadingSkeleton lines={5} />
       </div>
     );
   }
 
   if (sessions.length === 0) {
     return (
-      <div className="empty-state">
-        <div className="empty-state-icon">{icon("sessions")}</div>
+      <div className="empty-state" role="status">
+        <div className="empty-state-icon" aria-hidden="true">{icon("sessions")}</div>
         <div className="empty-state-text">No sessions found</div>
         <div style={{ fontSize: "var(--app-font-size-sm)", color: "var(--app-text-muted)", marginTop: "var(--app-spacing-xs)" }}>
           {sessionSource === "unavailable"
@@ -138,35 +139,36 @@ export function SessionsPanel() {
 
   return (
     <div style={{ display: "flex", height: "100%", gap: "var(--app-spacing-md)" }}>
-      {/* Session list */}
       <div style={{ width: 320, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {/* Search */}
         <div style={{ padding: "var(--app-spacing-sm)", borderBottom: "1px solid var(--app-border-subtle)" }}>
+          <label htmlFor="session-filter" className="sr-only">Filter sessions</label>
           <input
+            id="session-filter"
             className="composer-input"
             placeholder="Filter sessions..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ width: "100%" }}
+            aria-label="Filter sessions"
           />
         </div>
 
-        {/* Source indicator */}
         <div style={{ padding: "var(--app-spacing-xs) var(--app-spacing-sm)", fontSize: "10px", color: "var(--app-text-muted)" }}>
           {filtered.length} sessions · {sessionSource === "hermes_state_db" ? "Hermes" : sessionSource === "mock" ? "Mock" : "Unknown"}
         </div>
 
-        {/* Session list */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "var(--app-spacing-xs)" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "var(--app-spacing-xs)" }} role="listbox" aria-label="Sessions">
           {filtered.map((s) => (
             <button
               key={s.id}
+              role="option"
+              aria-selected={activeSessionId === s.id}
               className={`sidebar-item ${activeSessionId === s.id ? "active" : ""}`}
               onClick={() => setActiveSession(s.id)}
               style={{ flexDirection: "column", alignItems: "flex-start", gap: "2px" }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "var(--app-spacing-sm)", width: "100%" }}>
-                <span>💬</span>
+                <span aria-hidden="true">💬</span>
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
                   {s.title}
                 </span>
@@ -179,7 +181,7 @@ export function SessionsPanel() {
             </button>
           ))}
           {filtered.length === 0 && search && (
-            <div style={{ padding: "var(--app-spacing-md)", color: "var(--app-text-muted)", textAlign: "center", fontSize: "var(--app-font-size-sm)" }}>
+            <div style={{ padding: "var(--app-spacing-md)", color: "var(--app-text-muted)", textAlign: "center", fontSize: "var(--app-font-size-sm)" }} role="status">
               No sessions match "{search}"
             </div>
           )}
@@ -195,13 +197,16 @@ export function SessionsPanel() {
         )}
         {activeSessionId && detailLoading && (
           <div className="empty-state">
-            <div className="empty-state-text">Loading...</div>
+            <LoadingSkeleton lines={4} />
           </div>
         )}
         {activeSessionId && detailError && (
-          <div className="empty-state">
-            <div className="empty-state-icon">⚠️</div>
-            <div className="empty-state-text">{detailError}</div>
+          <div className="error-container" role="alert">
+            <div className="error-icon" aria-hidden="true">!</div>
+            <div className="error-message">{detailError}</div>
+            <div className="error-actions">
+              <button className="retry-button" onClick={() => activeSessionId && setActiveSession(activeSessionId)}>Retry</button>
+            </div>
           </div>
         )}
         {activeSessionId && detail && !detailLoading && (

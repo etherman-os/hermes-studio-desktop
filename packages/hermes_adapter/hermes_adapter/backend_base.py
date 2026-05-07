@@ -38,6 +38,10 @@ class StudioBackend(ABC):
         """Activate a profile. Returns {status, message}."""
         return {"status": "not_implemented", "message": "Profile switching not yet implemented"}
 
+    async def respond_to_approval(self, approval_id: str, decision: str) -> dict[str, Any]:
+        """Respond to an approval request. Returns {status, approval_id, decision}."""
+        return {"status": "not_implemented", "message": "Approval response not yet implemented"}
+
     @abstractmethod
     async def list_sessions(self) -> dict[str, Any]:
         """Return session list with total count."""

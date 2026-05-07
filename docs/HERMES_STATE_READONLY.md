@@ -7,8 +7,8 @@ Hermes Desktop Studio reads session data from the local Hermes `state.db` in **r
 | File | Purpose | Mode |
 |------|---------|------|
 | `state.db` | Session metadata, messages | Read-only |
-| `config.yaml` | Hermes configuration | Not read yet (future) |
-| `sessions/*.jsonl` | Session transcripts | Not read yet (future) |
+| `config.yaml` | Hermes configuration (model, provider, API keys) | Read-only |
+| `sessions/*.jsonl` | Session transcripts | Read-only |
 
 ## How State.db Is Located
 

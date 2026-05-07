@@ -129,16 +129,27 @@ class LogRepository:
             return {"source": target, "lines": [], "total": 0, "reason": str(e)}
 
     def _read_tail(self, path: Path, n: int) -> list[str]:
-        """Read the last N lines from a file efficiently."""
+        """Read the last N lines from a file efficiently.
+
+        Uses progressively larger block reads until enough lines are found.
+        """
         try:
             with open(path, "rb") as f:
-                # Seek to end and read backwards
                 f.seek(0, 2)
                 size = f.tell()
                 block_size = min(size, 8192)
-                f.seek(max(0, size - block_size))
-                data = f.read().decode("utf-8", errors="replace")
-                lines = data.splitlines()
+                lines: list[str] = []
+                offset = size
+
+                while offset > 0 and len(lines) < n + 1:
+                    read_size = min(block_size, offset)
+                    offset -= read_size
+                    f.seek(offset)
+                    data = f.read(read_size).decode("utf-8", errors="replace")
+                    chunk_lines = data.splitlines()
+                    lines = chunk_lines + lines
+                    block_size = min(block_size * 2, 256 * 1024)  # grow up to 256KB
+
                 return lines[-n:]
         except Exception:
             # Fallback: read all lines
@@ -161,9 +172,12 @@ class LogStreamer:
             return
 
         # Start from end of file
-        with open(self._path, "rb") as f:
-            f.seek(0, 2)
-            self._position = f.tell()
+        try:
+            with open(self._path, "rb") as f:
+                f.seek(0, 2)
+                self._position = f.tell()
+        except OSError:
+            return
 
         while True:
             try:
@@ -175,7 +189,15 @@ class LogStreamer:
                         text = new_data.decode("utf-8", errors="replace")
                         for line in text.splitlines():
                             yield _redact_line(line)
-            except Exception:
+            except FileNotFoundError:
+                # Log file was removed (e.g. rotation) — try to reopen
+                try:
+                    with open(self._path, "rb") as f:
+                        f.seek(0, 2)
+                        self._position = f.tell()
+                except OSError:
+                    return
+            except OSError:
                 pass
 
             await asyncio.sleep(1.0)

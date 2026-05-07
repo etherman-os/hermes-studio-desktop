@@ -10,6 +10,14 @@
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:smoke": "playwright test tests/smoke.spec.ts",
+    "test:e2e:flow": "playwright test tests/flow.spec.ts",
+    "test:e2e:a11y": "playwright test tests/a11y.spec.ts",
+    "test:e2e:api": "playwright test tests/api.spec.ts",
+    "test:e2e:install": "playwright install chromium",
     "test:visual": "node ./scripts/visual-smoke.mjs",
     "test:visual:firefox": "node ./scripts/visual-smoke.mjs --browser=firefox",
     "test:visual:install": "playwright install firefox"
@@ -17,12 +25,15 @@
   "dependencies": {
     "@hermes-studio/shared-types": "workspace:*",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-global-shortcut": "^2",
+    "@tauri-apps/plugin-notification": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
     "@playwright/test": "^1.59.1",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.0.0",

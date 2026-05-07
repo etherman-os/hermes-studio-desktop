@@ -17,7 +17,13 @@ The desktop UI should feel like a compact operations workbench.
 - Artifact Shelf: categories for files, markdown, screenshots, tests, log snapshots, HTML previews, and reports.
 - Context Inspector: read-only active profile, model/provider, workspace files, memory/skills availability, runtime warnings, and related runs/sessions/cards/artifacts.
 - Approval Center: pending/history, risk/status, run/session links, and read-only audit of approval events.
-- Checkpoint Timeline and Preview Canvas come later.
+- Process Cockpit: template grid, process cards, real-time logs, start/stop controls.
+- Extensions Panel: tool pack discovery, enable/disable, pack detail with tool list.
+- Checkpoint Timeline: git commit history, diff previews, checkpoint creation.
+- Worktree Launcher: worktree list, creation, external editor integration.
+- Delegation Panel: sub-agent tracking, parent run context, delegation status.
+- Cron Panel: scheduled jobs from ~/.hermes/cron/, schedule display, run history.
+- Preview Canvas: second window for URL preview and artifact rendering.
 
 ## Guardrails
 

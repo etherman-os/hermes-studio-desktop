@@ -80,10 +80,11 @@ def test_approval_response_routes_are_read_only_until_wired() -> None:
 
     resp = client.post("/studio/approvals/approval-route/approve", headers=HEADERS)
 
-    assert resp.status_code == 501
-    error = resp.json()["error"]
-    assert error["code"] == "approval_response_unavailable"
-    assert "read-only" in error["message"]
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "responded"
+    assert data["approval_id"] == "approval-route"
+    assert data["decision"] == "approved"
 
 
 def test_streamed_approval_events_are_persisted(monkeypatch: pytest.MonkeyPatch) -> None:

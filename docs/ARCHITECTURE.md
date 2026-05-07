@@ -2,7 +2,7 @@
 
 ## Overview
 
-Hermes Local Studio is a local-first, themeable desktop workbench for Hermes Agent. It does not modify Hermes core; instead, it wraps Hermes through public/local integration surfaces.
+Hermes Desktop Studio is a local-first, themeable desktop workbench for Hermes Agent. It does not modify Hermes core; instead, it wraps Hermes through public/local integration surfaces.
 
 ## Layers
 
@@ -48,8 +48,9 @@ Hermes Local Studio is a local-first, themeable desktop workbench for Hermes Age
 
 - `apps/desktop-studio/` — Tauri v2 + React + TypeScript desktop application.
 - `packages/hermes_adapter/` — Python sidecar adapter. Owns the API contract.
-- `packages/protocol/` — OpenAPI, event schema, theme schema, layout schema, plugin schema.
+- `packages/protocol/` — OpenAPI, event schema, theme schema, layout schema, plugin schema, tool pack schema.
 - `packages/shared-types/` — TypeScript type definitions (events, theme, layout, plugin).
+- `tool-packs/` — Tool pack definitions (example-tools and user-created packs).
 - `themes/` — Data-driven concept packs (theme + layout TOML).
 - `legacy/textual-prototype/` — Original Textual TUI (reference only, not maintained).
 
@@ -64,3 +65,9 @@ Hermes Local Studio is a local-first, themeable desktop workbench for Hermes Age
 - Adapter-to-Hermes token kept separate
 - Legacy `/shell/*` routes are disabled unless `HERMES_STUDIO_ENABLE_LEGACY_SHELL_ROUTES=1`
 - Tauri CSP is restrictive for local app usage; dev allows localhost adapter/Vite connections
+- Secret guard with 14 detection patterns for input/output scanning
+- Input validator for all API inputs (path params, query params, request bodies)
+- Audit logging to `studio.db` for security-relevant operations
+- DB hardening: WAL mode, backup rotation, integrity checks
+- Token security: rotation, expiry, rate limiting
+- TOCTOU-safe token file creation

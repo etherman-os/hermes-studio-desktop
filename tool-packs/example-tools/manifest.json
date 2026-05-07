@@ -1,0 +1,43 @@
+{
+  "id": "example-tools",
+  "name": "Example Tools",
+  "version": "1.0.0",
+  "author": "Hermes Studio",
+  "description": "A simple example tool pack demonstrating the tool pack system. Contains basic utility commands.",
+  "commands": [
+    {
+      "id": "list-files",
+      "name": "List Files",
+      "description": "List files in the current directory with details",
+      "command": "ls -la",
+      "args": [
+        {
+          "name": "path",
+          "description": "Directory path to list",
+          "required": false,
+          "default": "."
+        }
+      ]
+    },
+    {
+      "id": "git-status",
+      "name": "Git Status",
+      "description": "Show the current git repository status",
+      "command": "git status"
+    },
+    {
+      "id": "disk-usage",
+      "name": "Disk Usage",
+      "description": "Show disk usage summary for the current directory",
+      "command": "du -sh *"
+    }
+  ],
+  "trusted": true,
+  "permissions": [
+    "filesystem:read",
+    "process:spawn"
+  ],
+  "compat": {
+    "platform": ["linux", "macos"]
+  }
+}

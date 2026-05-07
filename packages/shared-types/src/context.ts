@@ -14,6 +14,7 @@ export interface ContextWorkspace {
 export interface ContextCollection {
   available: boolean;
   items: Record<string, unknown>[];
+  total?: number;
   warnings: string[];
 }
 
