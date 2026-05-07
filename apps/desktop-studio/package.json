@@ -9,17 +9,21 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:visual": "node ./scripts/visual-smoke.mjs",
+    "test:visual:firefox": "node ./scripts/visual-smoke.mjs --browser=firefox",
+    "test:visual:install": "playwright install firefox"
   },
   "dependencies": {
+    "@hermes-studio/shared-types": "workspace:*",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
-    "@hermes-studio/shared-types": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

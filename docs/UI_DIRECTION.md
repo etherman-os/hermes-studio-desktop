@@ -26,3 +26,9 @@ The desktop UI should feel like a compact operations workbench.
 - Do not implement drag-and-drop Kanban before the run-centered workflow is clear.
 - Do not start animated concept-pack runtime before the workbench structure is stable.
 - Do not hardcode example theme concepts in core components.
+
+## QA Runtime Boundary
+
+The real product runtime is the Tauri desktop app. Browser/Vite rendering is useful for fast frontend QA, but it is not the shipping runtime and should not drive product architecture.
+
+Use `pnpm run tauri dev` for the desktop window. Use `pnpm run test:visual:firefox` only as an optional render smoke that verifies the shell can render in a browser and writes screenshots to `artifacts/visual-smoke/` when available.

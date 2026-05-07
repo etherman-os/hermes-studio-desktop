@@ -53,6 +53,7 @@ data/
 .pytest_cache/
 .coverage
 htmlcov/
+artifacts/
 
 # TUI/Textual
 .textualize/

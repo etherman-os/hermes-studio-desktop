@@ -107,6 +107,9 @@ pnpm run dev:adapter
 # Start frontend dev server (browser)
 pnpm run dev:desktop
 
+# Start the real desktop runtime (opens Tauri window)
+pnpm run tauri dev
+
 # Browser dev with protected /studio/* calls
 VITE_HERMES_STUDIO_ADAPTER_TOKEN="$(cat ~/.hermes-local-shell/runtime/token)" pnpm run dev:desktop
 
@@ -120,6 +123,24 @@ pnpm --filter @hermes-desktop-studio/desktop-studio build
 # Run checks
 pnpm run check:types
 source .venv/bin/activate && pnpm run check:python
+
+# Optional browser render smoke. This is QA tooling, not the product runtime.
+pnpm run test:visual:firefox
+
+# Install the Playwright-managed Firefox browser if needed.
+pnpm run test:visual:install
+```
+
+### Visual Smoke Testing
+
+The real product runtime is Tauri. Use `pnpm run tauri dev` to open the desktop app.
+
+The optional `pnpm run test:visual` / `pnpm run test:visual:firefox` scripts start the Vite frontend and run a lightweight Playwright render smoke in Firefox. They verify the app shell, run-centered navigation, Run Ledger tab, and absence of fatal React/Vite overlays. If no compatible browser is available, the smoke test prints `pnpm run test:visual:install` and skips cleanly. Screenshots, when generated, are written to `artifacts/visual-smoke/` and are ignored by git.
+
+For a system Firefox override:
+
+```bash
+PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH=/usr/bin/firefox pnpm run test:visual:firefox
 ```
 
 ### Adapter Auth

@@ -28,7 +28,15 @@ pnpm --filter @hermes-desktop-studio/desktop-studio build
 
 # Build Tauri desktop app
 pnpm --filter @hermes-desktop-studio/desktop-studio tauri build
+
+# Optional Firefox-compatible frontend render smoke
+pnpm --filter @hermes-desktop-studio/desktop-studio test:visual:firefox
+
+# Install Playwright Firefox if the smoke test asks for it
+pnpm --filter @hermes-desktop-studio/desktop-studio test:visual:install
 ```
+
+The Tauri command is the product runtime. The visual smoke script is only a QA helper for frontend rendering and may skip if no Playwright-compatible Firefox is available. Generated screenshots are written under `artifacts/visual-smoke/` at the repository root.
 
 ## Architecture
 
@@ -64,5 +72,4 @@ The core app uses stable semantic keys: `profiles`, `sessions`, `chat`,
 
 ## Status
 
-Faz 2 (Desktop Studio Skeleton) — UI shell with mock data.
-No real Hermes integration yet. Adapter connection comes in a later phase.
+UX-1 foundation — run-centered desktop workbench shell with adapter-backed sessions, logs, profiles, model viewer, theme loading, and current-session Run Ledger. Tauri is the product runtime; browser smoke tests are optional QA helpers.

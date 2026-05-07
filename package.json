@@ -8,6 +8,9 @@
     "tauri": "pnpm --filter @hermes-desktop-studio/desktop-studio tauri",
     "dev:adapter": ".venv/bin/python -m hermes_adapter.server",
     "dev:desktop": "pnpm --filter @hermes-desktop-studio/desktop-studio dev",
+    "test:visual": "pnpm --filter @hermes-desktop-studio/desktop-studio test:visual",
+    "test:visual:firefox": "pnpm --filter @hermes-desktop-studio/desktop-studio test:visual:firefox",
+    "test:visual:install": "pnpm --filter @hermes-desktop-studio/desktop-studio test:visual:install",
     "check:python": ".venv/bin/ruff check packages/hermes_adapter/hermes_adapter packages/hermes_adapter/tests && .venv/bin/mypy packages/hermes_adapter/hermes_adapter && .venv/bin/pytest -q",
     "check:types": "pnpm --filter @hermes-studio/shared-types typecheck && pnpm --filter @hermes-desktop-studio/desktop-studio typecheck",
     "check:all": "pnpm run check:types && pnpm --filter @hermes-desktop-studio/desktop-studio test && pnpm run check:python"

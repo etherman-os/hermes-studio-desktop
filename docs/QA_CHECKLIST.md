@@ -2,6 +2,24 @@
 
 Manual smoke test checklist for verifying the desktop studio works correctly.
 
+## Desktop Runtime
+
+- [ ] `pnpm run dev:adapter` starts adapter on `127.0.0.1:39191`
+- [ ] `pnpm run tauri dev` opens a native Tauri window
+- [ ] No browser tab is required for the real desktop runtime
+- [ ] Window title is Hermes Desktop Studio
+- [ ] Protected `/studio/*` calls work through the Tauri token bridge
+
+## Optional Browser Visual Smoke
+
+- [ ] `pnpm run test:visual:firefox` starts/uses the Vite frontend and launches Firefox when available
+- [ ] Missing Playwright Firefox prints `pnpm run test:visual:install` and skips without confusing Chrome/Puppeteer errors
+- [ ] `PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH=/usr/bin/firefox pnpm run test:visual:firefox` is documented as an optional system Firefox override
+- [ ] Smoke test verifies activity rail entries: Runs, Chat, Board, Sessions, Artifacts, Context, Logs, Themes, Settings
+- [ ] Smoke test verifies the Run Ledger tab exists
+- [ ] Smoke test fails on fatal React/Vite overlay text
+- [ ] Optional screenshot is written to `artifacts/visual-smoke/home.png` and is not committed
+
 ## Adapter Connection
 
 - [ ] `pnpm run dev:adapter` starts adapter on `127.0.0.1:39191`
@@ -34,6 +52,8 @@ Manual smoke test checklist for verifying the desktop studio works correctly.
 - [ ] Artifact Shelf placeholder renders categories for files, markdown, screenshots, tests, log snapshots, HTML previews, and reports
 - [ ] Context Inspector placeholder renders guidance files, memory, skills, references, active profile, and model/provider status
 - [ ] Approval Center shows no pending approvals and recent approval events when present
+- [ ] Themes still switch after the UX-1 shell realignment
+- [ ] Logs, profiles, sessions, and model viewer still load from the adapter when available
 
 ## Chat
 
