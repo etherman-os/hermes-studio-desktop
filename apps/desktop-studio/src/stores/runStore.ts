@@ -35,7 +35,7 @@ interface RunState {
   messages: ChatMessage[];
   abortController: AbortController | null;
   tokenUsage: TokenUsage | null;
-  sendPrompt: (prompt: string, sessionId: string, options?: { workspacePath?: string | null; mode?: string }) => Promise<void>;
+  sendPrompt: (prompt: string, sessionId: string, options?: { workspacePath?: string | null; mode?: string; model?: string; provider?: string }) => Promise<void>;
   stopRun: () => Promise<void>;
   newChat: () => void;
   appendUserMessage: (content: string) => void;
@@ -97,6 +97,8 @@ export const useRunStore = create<RunState>((set, get) => ({
         context: {
           workspace_path: options?.workspacePath ?? null,
           run_mode: options?.mode ?? "chat",
+          model: options?.model,
+          provider: options?.provider,
         },
       });
       useRunLedgerStore.getState().startRun(run.run_id, prompt, sessionId, run.status, {

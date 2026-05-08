@@ -3,21 +3,14 @@ import { useApprovalStore } from "../../stores/approvalStore";
 import { useThemeStore } from "../../stores/themeStore";
 
 const RAIL_ITEMS = [
-  { id: "runs", slot: "runs" },
-  { id: "chat", slot: "chat" },
-  { id: "board", slot: "board" },
-  { id: "sessions", slot: "sessions" },
-  { id: "artifacts", slot: "artifacts" },
-  { id: "processes", slot: "processes" },
-  { id: "delegations", slot: "delegations" },
-  { id: "cron", slot: "cron" },
-  { id: "checkpoints", slot: "checkpoints" },
-  { id: "worktrees", slot: "worktrees" },
-  { id: "context", slot: "context" },
-  { id: "approvals", slot: "approvals" },
-  { id: "logs", slot: "logs" },
-  { id: "theme_gallery", slot: "theme_gallery" },
-  { id: "settings", slot: "settings" },
+  { id: "runs", slot: "runs", tooltip: "Runs & History" },
+  { id: "chat", slot: "chat", tooltip: "Chat" },
+  { id: "board", slot: "board", tooltip: "Board" },
+  { id: "sessions", slot: "sessions", tooltip: "Sessions" },
+  { id: "processes", slot: "processes", tooltip: "Processes" },
+  { id: "git", slot: "checkpoints", tooltip: "Git" },
+  { id: "logs", slot: "logs", tooltip: "Logs" },
+  { id: "settings", slot: "settings", tooltip: "Settings" },
 ];
 
 export function LeftRail() {
@@ -32,11 +25,15 @@ export function LeftRail() {
   const label = useThemeStore((s) => s.label);
 
   function handleClick(id: string) {
-    if (["runs", "chat", "board", "sessions", "artifacts", "processes", "delegations", "cron", "checkpoints", "worktrees"].includes(id)) {
-      setActiveTab(id);
-    }
     if (id === "logs") {
       setBottomTab("logs");
+    } else if (id === "git") {
+      setActiveTab("checkpoints");
+      setSidebar("checkpoints");
+      showSidebar();
+      return;
+    } else {
+      setActiveTab(id);
     }
     setSidebar(id);
     showSidebar();
@@ -45,18 +42,19 @@ export function LeftRail() {
   return (
     <nav className="rail" role="navigation" aria-label="Main navigation">
       {RAIL_ITEMS.map((item) => {
-        const isActive = sidebarSection === item.id || activeTab === item.id;
+        const isActive = sidebarSection === item.id || activeTab === item.id ||
+          (item.id === "git" && (sidebarSection === "checkpoints" || sidebarSection === "worktrees" || activeTab === "checkpoints" || activeTab === "worktrees"));
         return (
           <button
             key={item.id}
             className={`rail-icon ${isActive ? "active" : ""}`}
             onClick={() => handleClick(item.id)}
-            aria-label={label(item.slot)}
+            aria-label={item.tooltip}
             aria-current={isActive ? "page" : undefined}
-            data-tooltip={label(item.slot)}
+            data-tooltip={item.tooltip}
           >
             {icon(item.slot)}
-            {item.id === "approvals" && pendingApprovals > 0 && (
+            {item.id === "settings" && pendingApprovals > 0 && (
               <span className="rail-badge" aria-label={`${pendingApprovals} pending approvals`}>{pendingApprovals}</span>
             )}
           </button>

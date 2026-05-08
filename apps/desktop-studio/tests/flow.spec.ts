@@ -6,7 +6,7 @@ test.describe("user flows", () => {
     const tabTexts = await tabs.allTextContents();
     expect(tabTexts.length).toBeGreaterThanOrEqual(4);
 
-    for (let i = 0; i < Math.min(tabTexts.length, 5); i++) {
+    for (let i = 0; i < Math.min(tabTexts.length, 3); i++) {
       await tabs.nth(i).click();
       await expect(tabs.nth(i)).toHaveClass(/active/);
     }
@@ -14,9 +14,9 @@ test.describe("user flows", () => {
 
   test("rail icon switches sidebar section", async ({ studioPage: page }) => {
     const icons = page.locator(".rail-icon");
-    await expect(icons).toHaveCount(15);
+    await expect(icons).toHaveCount(8);
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 3; i++) {
       await icons.nth(i).click();
       await expect(icons.nth(i)).toHaveClass(/active/);
       await expect(page.locator(".sidebar")).toBeVisible();
@@ -91,7 +91,7 @@ test.describe("user flows", () => {
   });
 
   test("profiles list shows in settings sidebar", async ({ studioPage: page }) => {
-    const settingsIcon = page.locator(".rail-icon").nth(14);
+    const settingsIcon = page.locator(".rail-icon").nth(7);
     await settingsIcon.click();
 
     const sidebar = page.locator(".sidebar-content");

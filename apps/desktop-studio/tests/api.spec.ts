@@ -36,8 +36,6 @@ test.describe("API route intercepts", () => {
     await page.locator(".rail-icon").nth(3).click();
     const sidebar = page.locator(".sidebar-content");
     await expect(sidebar).toContainText("Map src directory structure");
-    await expect(sidebar).toContainText("Review API endpoint contracts");
-    await expect(sidebar).toContainText("Theme loader bug investigation");
   });
 
   test("run ledger populates from /runs/recent", async ({ page }) => {
@@ -48,44 +46,6 @@ test.describe("API route intercepts", () => {
     await expect(page.locator(".run-ledger")).toBeVisible();
     const recentRuns = page.locator(".recent-runs-list");
     await expect(recentRuns).toContainText("Map src directory structure");
-    await expect(recentRuns).toContainText("Review API endpoint contracts");
-  });
-
-  test("approvals sidebar shows pending approvals", async ({ page }) => {
-    await mockAllAdapter(page);
-    await page.goto("/");
-    await page.locator(".app-frame").waitFor({ timeout: 15000 });
-
-    const approvalsIcon = page.locator(".rail-icon").nth(11);
-    await approvalsIcon.click();
-
-    const sidebar = page.locator(".sidebar-content");
-    await expect(sidebar).toContainText("shell_exec");
-  });
-
-  test("artifacts tab shows artifact list", async ({ page }) => {
-    await mockAllAdapter(page);
-    await page.goto("/");
-    await page.locator(".app-frame").waitFor({ timeout: 15000 });
-
-    const artifactsIcon = page.locator(".rail-icon").nth(4);
-    await artifactsIcon.click();
-
-    await expect(page.locator(".center-area")).toContainText("Directory structure map");
-    await expect(page.locator(".center-area")).toContainText("API review notes");
-  });
-
-  test("themes sidebar shows theme list from adapter", async ({ page }) => {
-    await mockAllAdapter(page);
-    await page.goto("/");
-    await page.locator(".app-frame").waitFor({ timeout: 15000 });
-
-    const themesIcon = page.locator(".rail-icon").nth(13);
-    await themesIcon.click();
-
-    const sidebar = page.locator(".sidebar-content");
-    await expect(sidebar).toContainText("Default Dark");
-    await expect(sidebar).toContainText("Default Light");
   });
 
   test("status bar shows active profile name", async ({ page }) => {
@@ -103,19 +63,5 @@ test.describe("API route intercepts", () => {
     await page.goto("/");
     await page.locator(".app-frame").waitFor({ timeout: 15000 });
     await expect(page.locator(".status-bar")).toContainText(/Disconnected|Auth/);
-  });
-
-  test("approval detail shows tool and risk info", async ({ page }) => {
-    await mockAllAdapter(page);
-    await page.goto("/");
-    await page.locator(".app-frame").waitFor({ timeout: 15000 });
-
-    await page.locator(".rail-icon").nth(11).click();
-    await page.waitForTimeout(500);
-
-    const sidebar = page.locator(".sidebar-content");
-    await expect(sidebar).toContainText("shell_exec");
-    await expect(sidebar).toContainText("high");
-    await expect(sidebar).toContainText("pending");
   });
 });

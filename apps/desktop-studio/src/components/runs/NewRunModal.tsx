@@ -5,6 +5,7 @@ import { useRunStore } from "../../stores/runStore";
 import { useSessionStore } from "../../stores/sessionStore";
 import { useProfileStore } from "../../stores/profileStore";
 import { useLayoutStore } from "../../stores/layoutStore";
+import { useModelStore } from "../../stores/modelStore";
 import * as api from "../../api/studioClient";
 
 export function NewRunModal() {
@@ -20,19 +21,29 @@ export function NewRunModal() {
   const sessions = useSessionStore((s) => s.sessions);
   const activeProfile = useProfileStore((s) => s.activeProfile);
   const setActiveTab = useLayoutStore((s) => s.setActiveTab);
+  const config = useModelStore((s) => s.config);
+  const availableModels = useModelStore((s) => s.availableModels);
+  const loadConfig = useModelStore((s) => s.loadConfig);
   const [prompt, setPrompt] = React.useState("");
   const [workspacePath, setWorkspacePath] = React.useState(selectedWorkspace ?? "");
   const [sessionId, setSessionId] = React.useState(activeSessionId ?? "default");
   const [mode, setMode] = React.useState("chat");
   const [linkedCard, setLinkedCard] = React.useState("");
-  const [model, setModel] = React.useState<api.ModelConfig | null>(null);
+  const [selectedModel, setSelectedModel] = React.useState("");
+  const [selectedProvider, setSelectedProvider] = React.useState("");
 
   React.useEffect(() => {
     if (!open) return;
     setWorkspacePath(selectedWorkspace ?? "");
     setSessionId(activeSessionId ?? "default");
-    api.getModelConfig().then(setModel).catch(() => setModel(null));
-  }, [open, selectedWorkspace, activeSessionId]);
+    loadConfig();
+  }, [open, selectedWorkspace, activeSessionId, loadConfig]);
+
+  React.useEffect(() => {
+    if (!open || !config) return;
+    setSelectedModel(config.model);
+    setSelectedProvider(config.provider);
+  }, [open, config]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -54,8 +65,18 @@ export function NewRunModal() {
     close();
     setActiveTab("chat");
     setPrompt("");
-    await sendPrompt(text, sessionId || "default", { workspacePath: workspace, mode });
+    await sendPrompt(text, sessionId || "default", {
+      workspacePath: workspace,
+      mode,
+      model: selectedModel || undefined,
+      provider: selectedProvider || undefined,
+    });
   }
+
+  const providers = [...new Set(availableModels.map((m) => m.provider))];
+  const modelsForProvider = selectedProvider
+    ? availableModels.filter((m) => m.provider === selectedProvider)
+    : availableModels;
 
   return (
     <div className="modal-backdrop" onClick={close} role="dialog" aria-modal="true" aria-label="New run">
@@ -114,8 +135,35 @@ export function NewRunModal() {
             <label className="field-label">Profile</label>
             <div className="readonly-field">{activeProfile?.name ?? "unknown"}</div>
 
-            <label className="field-label">Model/provider</label>
-            <div className="readonly-field">{model ? `${model.provider} / ${model.model}` : "unavailable"}</div>
+            <label className="field-label" htmlFor="new-run-provider">Provider</label>
+            <select
+              id="new-run-provider"
+              className="studio-select"
+              value={selectedProvider}
+              onChange={(e) => {
+                setSelectedProvider(e.target.value);
+                const firstModel = availableModels.find((m) => m.provider === e.target.value);
+                setSelectedModel(firstModel?.id ?? "");
+              }}
+            >
+              <option value="">{config?.provider ?? "Select provider"}</option>
+              {providers.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+
+            <label className="field-label" htmlFor="new-run-model">Model</label>
+            <select
+              id="new-run-model"
+              className="studio-select"
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+            >
+              <option value="">{config?.model ?? "Select model"}</option>
+              {modelsForProvider.map((m) => (
+                <option key={m.id} value={m.id}>{m.name || m.id}</option>
+              ))}
+            </select>
 
             <label className="field-label" htmlFor="new-run-card">Linked Kanban card</label>
             <input

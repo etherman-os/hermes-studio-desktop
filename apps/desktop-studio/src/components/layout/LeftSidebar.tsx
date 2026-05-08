@@ -7,11 +7,8 @@ import { useAdapterStore } from "../../stores/adapterStore";
 import { useRunLedgerStore } from "../../stores/runLedgerStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useUiStore } from "../../stores/uiStore";
-import { useToolPackStore } from "../../stores/toolPackStore";
 import { ApprovalCenter } from "../approvals/ApprovalCenter";
 import { ContextInspector } from "../context/ContextInspector";
-import { DelegationPanel } from "../delegation/DelegationPanel";
-import { CronPanel } from "../cron/CronPanel";
 import { RuntimeStatus } from "../runtime/RuntimeStatus";
 import { LoadingSkeleton } from "../Skeleton";
 
@@ -29,16 +26,15 @@ export function LeftSidebar() {
         {section === "board" && <BoardSection />}
         {section === "sessions" && <SessionsList />}
         {section === "artifacts" && <ArtifactsSection />}
-        {section === "delegations" && <DelegationsSection />}
-        {section === "cron" && <CronSection />}
+        {section === "checkpoints" && <GitSection />}
+        {section === "worktrees" && <GitSection />}
         {section === "context" && <ContextSection />}
         {section === "approvals" && <ApprovalsSection />}
         {section === "logs" && <LogsSection />}
         {section === "profiles" && <ProfilesList />}
-        {section === "search" && <SearchSection />}
         {section === "theme_gallery" && <ThemeGallerySection />}
         {section === "settings" && <SettingsSection />}
-        {!["runs", "chat", "board", "sessions", "artifacts", "delegations", "cron", "context", "approvals", "logs", "profiles", "search", "theme_gallery", "settings"].includes(section) && (
+        {!["runs", "chat", "board", "sessions", "artifacts", "checkpoints", "worktrees", "context", "approvals", "logs", "profiles", "theme_gallery", "settings"].includes(section) && (
           <div className="empty-state">
             <div className="empty-state-icon" aria-hidden="true">{icon(section)}</div>
             <div className="empty-state-text">{label(section)}</div>
@@ -127,18 +123,13 @@ function ArtifactsSection() {
   );
 }
 
-function DelegationsSection() {
+function GitSection() {
+  const setActiveTab = useLayoutStore((s) => s.setActiveTab);
   return (
-    <div className="sidebar-embedded" style={{ height: "100%" }}>
-      <DelegationPanel />
-    </div>
-  );
-}
-
-function CronSection() {
-  return (
-    <div className="sidebar-embedded" style={{ height: "100%" }}>
-      <CronPanel />
+    <div className="sidebar-stack">
+      <button className="sidebar-item active" onClick={() => setActiveTab("checkpoints")}>Checkpoints</button>
+      <button className="sidebar-item" onClick={() => setActiveTab("worktrees")}>Worktrees</button>
+      <div className="sidebar-note">Git checkpoints and worktrees for managing code changes during runs.</div>
     </div>
   );
 }
@@ -159,74 +150,13 @@ function ApprovalsSection() {
   );
 }
 
-function ExtensionsSection() {
-  const packs = useToolPackStore((s) => s.packs);
-  const loading = useToolPackStore((s) => s.loading);
-  const loadPacks = useToolPackStore((s) => s.loadPacks);
-  const enablePack = useToolPackStore((s) => s.enablePack);
-  const disablePack = useToolPackStore((s) => s.disablePack);
-  const setActiveTab = useLayoutStore((s) => s.setActiveTab);
-
-  React.useEffect(() => {
-    loadPacks();
-  }, [loadPacks]);
-
-  const enabledCount = packs.filter((p) => p.enabled).length;
-
-  return (
-    <div className="sidebar-stack">
-      <button className="primary-button sidebar-primary" onClick={() => setActiveTab("extensions")}>
-        Manage Extensions
-      </button>
-      <div className="sidebar-note">
-        {packs.length} pack{packs.length !== 1 ? "s" : ""} installed, {enabledCount} enabled
-      </div>
-      {loading && packs.length === 0 && <LoadingSkeleton lines={3} />}
-      {packs.map((pack) => (
-        <div key={pack.id} className="sidebar-item-row">
-          <button
-            className={`sidebar-item ${pack.enabled ? "active" : ""}`}
-            onClick={() => setActiveTab("extensions")}
-            title={pack.description}
-          >
-            <span style={{ opacity: pack.trusted ? 1 : 0.6 }}>{pack.enabled ? "E" : "e"}</span>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-              {pack.name}
-            </span>
-            <span style={{ fontSize: "10px", color: "var(--app-text-muted)", flexShrink: 0 }}>
-              {pack.commands.length}
-            </span>
-          </button>
-          <label
-            className="pack-toggle-mini"
-            onClick={(e) => e.stopPropagation()}
-            aria-label={`${pack.enabled ? "Disable" : "Enable"} ${pack.name}`}
-          >
-            <input
-              type="checkbox"
-              checked={pack.enabled}
-              onChange={() => (pack.enabled ? disablePack(pack.id) : enablePack(pack.id))}
-              disabled={!pack.valid || !pack.compatible}
-            />
-          </label>
-        </div>
-      ))}
-      {packs.length === 0 && !loading && (
-        <div style={{ padding: "var(--app-spacing-md)", color: "var(--app-text-muted)", fontSize: "var(--app-font-size-sm)", textAlign: "center" }}>
-          No tool packs installed
-        </div>
-      )}
-    </div>
-  );
-}
-
 function LogsSection() {
   const setBottomTab = useLayoutStore((s) => s.setBottomTab);
   return (
     <div className="sidebar-stack">
-      {["activity", "tools", "logs", "adapter_diagnostics"].map((tab) => (
+      {["activity", "logs"].map((tab) => (
         <button key={tab} className="sidebar-item" onClick={() => setBottomTab(tab)}>
-          {tab.replaceAll("_", " ")}
+          {tab}
         </button>
       ))}
     </div>
@@ -314,18 +244,6 @@ function ProfilesList() {
         </button>
       ))}
     </>
-  );
-}
-
-function SearchSection() {
-  return (
-    <div style={{ padding: "var(--app-spacing-sm)" }}>
-      <input
-        className="composer-input"
-        placeholder="Search sessions..."
-        style={{ width: "100%" }}
-      />
-    </div>
   );
 }
 

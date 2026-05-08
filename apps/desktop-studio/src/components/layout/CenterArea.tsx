@@ -15,7 +15,6 @@ const TABS = [
   { id: "chat", slot: "chat" },
   { id: "board", slot: "board" },
   { id: "sessions", slot: "sessions" },
-  { id: "artifacts", slot: "artifacts" },
   { id: "processes", slot: "processes" },
   { id: "checkpoints", slot: "checkpoints" },
   { id: "worktrees", slot: "worktrees" },
@@ -26,7 +25,6 @@ const COMPONENT_MAP: Record<string, React.ComponentType> = {
   chat: ChatSurface,
   board: KanbanBoard,
   sessions: SessionsPanel,
-  artifacts: ArtifactShelf,
   processes: ProcessCockpit,
   checkpoints: CheckpointTimeline,
   worktrees: WorktreeLauncher,
@@ -38,7 +36,6 @@ export function CenterArea() {
   const label = useThemeStore((s) => s.label);
   const [visitedTabs] = React.useState(() => new Set<string>(["runs"]));
 
-  // Track visited tabs for lazy mounting
   if (!visitedTabs.has(activeTab)) {
     visitedTabs.add(activeTab);
   }

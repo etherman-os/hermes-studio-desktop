@@ -362,6 +362,17 @@ export async function getModelConfig() {
   return request<ModelConfig>("/studio/model-config");
 }
 
+export async function updateModelConfig(input: { provider?: string; model?: string; base_url?: string; temperature?: number }) {
+  return request<ModelConfig>("/studio/model-config", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listAvailableModels() {
+  return request<{ models: { id: string; name: string; provider: string }[] }>("/studio/model-config/models");
+}
+
 export async function getThemes() {
   return request<ThemesResponse>("/studio/themes");
 }

@@ -2,11 +2,9 @@ import React from "react";
 import { useThemeStore } from "../../stores/themeStore";
 import { useAdapterStore } from "../../stores/adapterStore";
 import { useRunLedgerStore, type RunRecord } from "../../stores/runLedgerStore";
-import { ApprovalCenter } from "../approvals/ApprovalCenter";
+import { useModelStore } from "../../stores/modelStore";
 import { RuntimeStatus } from "../runtime/RuntimeStatus";
 import { LoadingSkeleton } from "../Skeleton";
-import { mockMemory } from "../../fixtures/mockData";
-import * as api from "../../api/studioClient";
 
 export function RightPanel() {
   const label = useThemeStore((s) => s.label);
@@ -22,22 +20,6 @@ export function RightPanel() {
       <SelectedRunSection run={run} label={label} />
       <ModelSection connected={connected} backendMode={backendMode} label={label} icon={icon} />
       <ToolsSection run={run} />
-      <div className="right-section">
-        <div className="right-section-title">{label("approvals")}</div>
-        <ApprovalCenter compact />
-      </div>
-      <div className="right-section">
-        <div className="right-section-title">{label("memory")} {icon("memory")}</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--app-spacing-xs)" }}>
-          {mockMemory.map((m) => (
-            <div key={m.key} style={{ fontSize: "var(--app-font-size-sm)" }}>
-              <span style={{ color: "var(--app-text-muted)" }}>{m.key}:</span>{" "}
-              <span style={{ color: "var(--app-text-secondary)" }}>{m.value}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      <ContextSection />
       <div className="right-section runtime-right-section">
         <RuntimeStatus compact />
       </div>
@@ -94,53 +76,42 @@ function ToolsSection({ run }: { run: RunRecord | null }) {
   );
 }
 
-function ContextSection() {
-  return (
-    <div className="right-section">
-      <div className="right-section-title">Context</div>
-      <div className="inspector-list">
-        <div className="inspector-row"><span>SOUL.md</span><span>not indexed</span></div>
-        <div className="inspector-row"><span>AGENTS.md</span><span>not indexed</span></div>
-        <div className="inspector-row"><span>@ references</span><span>future</span></div>
-      </div>
-    </div>
-  );
-}
-
 function ModelSection({ connected, backendMode, label, icon }: { connected: boolean; backendMode: string; label: (s: string) => string; icon: (s: string) => string }) {
-  const [config, setConfig] = React.useState<api.ModelConfig | null>(null);
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  const loadConfig = React.useCallback(async () => {
-    if (!connected) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await api.getModelConfig();
-      setConfig(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load config");
-    } finally {
-      setLoading(false);
-    }
-  }, [connected]);
+  const config = useModelStore((s) => s.config);
+  const availableModels = useModelStore((s) => s.availableModels);
+  const selectedModel = useModelStore((s) => s.selectedModel);
+  const selectedProvider = useModelStore((s) => s.selectedProvider);
+  const loading = useModelStore((s) => s.loading);
+  const saving = useModelStore((s) => s.saving);
+  const error = useModelStore((s) => s.error);
+  const loadConfig = useModelStore((s) => s.loadConfig);
+  const selectModel = useModelStore((s) => s.selectModel);
+  const selectProvider = useModelStore((s) => s.selectProvider);
+  const applySelection = useModelStore((s) => s.applySelection);
 
   React.useEffect(() => {
-    loadConfig();
-  }, [loadConfig]);
+    if (connected) loadConfig();
+  }, [connected, loadConfig]);
+
+  const providers = [...new Set(availableModels.map((m) => m.provider))];
+  const modelsForProvider = selectedProvider
+    ? availableModels.filter((m) => m.provider === selectedProvider)
+    : availableModels;
+
+  const hasChanges = (selectedModel && selectedModel !== config?.model) ||
+    (selectedProvider && selectedProvider !== config?.provider);
 
   return (
     <div className="right-section">
       <div className="right-section-title" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span>{icon("inspector")} Model</span>
         <button
-          onClick={loadConfig}
+          onClick={() => loadConfig()}
           disabled={loading || !connected}
           style={{ background: "transparent", border: "none", color: "var(--app-text-muted)", cursor: "pointer", fontSize: "11px", padding: "0 4px" }}
           title="Refresh model config"
         >
-          ↻
+          {loading ? "..." : "↻"}
         </button>
       </div>
 
@@ -150,51 +121,98 @@ function ModelSection({ connected, backendMode, label, icon }: { connected: bool
         </div>
       )}
 
-      {connected && loading && (
-        <LoadingSkeleton lines={3} />
-      )}
+      {connected && loading && <LoadingSkeleton lines={3} />}
 
       {connected && error && (
         <div style={{ fontSize: "var(--app-font-size-sm)", color: "var(--app-danger)" }}>{error}</div>
       )}
 
       {connected && config && !loading && (
-        <dl className="right-panel-info">
-          <dt>Provider</dt>
-          <dd>{config.provider}</dd>
-          <dt>Model</dt>
-          <dd>{config.model}</dd>
-          {config.base_url && (
-            <>
-              <dt>Base URL</dt>
-              <dd>{config.base_url}</dd>
-            </>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--app-spacing-xs)" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+            <label style={{ fontSize: "10px", color: "var(--app-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Provider</label>
+            <select
+              value={selectedProvider ?? config.provider}
+              onChange={(e) => {
+                selectProvider(e.target.value);
+                const firstModel = availableModels.find((m) => m.provider === e.target.value);
+                selectModel(firstModel?.id ?? "");
+              }}
+              style={{
+                background: "var(--app-surface)",
+                color: "var(--app-text)",
+                border: "1px solid var(--app-border)",
+                borderRadius: "var(--app-radius-sm)",
+                padding: "4px 6px",
+                fontSize: "var(--app-font-size-sm)",
+              }}
+            >
+              <option value={config.provider}>{config.provider}</option>
+              {providers.filter((p) => p !== config.provider).map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+            <label style={{ fontSize: "10px", color: "var(--app-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Model</label>
+            <select
+              value={selectedModel ?? config.model}
+              onChange={(e) => selectModel(e.target.value)}
+              style={{
+                background: "var(--app-surface)",
+                color: "var(--app-text)",
+                border: "1px solid var(--app-border)",
+                borderRadius: "var(--app-radius-sm)",
+                padding: "4px 6px",
+                fontSize: "var(--app-font-size-sm)",
+              }}
+            >
+              <option value={config.model}>{config.model}</option>
+              {modelsForProvider.filter((m) => m.id !== config.model).map((m) => (
+                <option key={m.id} value={m.id}>{m.name || m.id}</option>
+              ))}
+            </select>
+          </div>
+
+          {hasChanges && (
+            <button
+              onClick={() => void applySelection()}
+              disabled={saving}
+              style={{
+                background: "var(--app-accent)",
+                color: "#fff",
+                border: "none",
+                borderRadius: "var(--app-radius-sm)",
+                padding: "4px 8px",
+                fontSize: "var(--app-font-size-sm)",
+                cursor: saving ? "default" : "pointer",
+                marginTop: "var(--app-spacing-xs)",
+              }}
+            >
+              {saving ? "Applying..." : "Apply Model Change"}
+            </button>
           )}
-          <dt>API Key</dt>
-          <dd>{config.api_key_configured ? `Yes (${config.api_key_source ?? "configured"})` : "Not configured"}</dd>
-          {config.temperature != null && (
-            <>
-              <dt>Temperature</dt>
-              <dd>{config.temperature}</dd>
-            </>
-          )}
-          {config.context_window != null && (
-            <>
-              <dt>Context</dt>
-              <dd>{config.context_window.toLocaleString()}</dd>
-            </>
-          )}
-          {config.available_model_count != null && config.available_model_count > 0 && (
-            <>
-              <dt>Models</dt>
-              <dd>{config.available_model_count} available</dd>
-            </>
-          )}
-          <dt>Config Source</dt>
-          <dd>{config.config_source}</dd>
-          <dt>Backend</dt>
-          <dd>{backendMode}</dd>
-        </dl>
+
+          <dl className="right-panel-info" style={{ marginTop: "var(--app-spacing-xs)" }}>
+            <dt>API Key</dt>
+            <dd>{config.api_key_configured ? `Yes (${config.api_key_source ?? "configured"})` : "Not configured"}</dd>
+            {config.temperature != null && (
+              <>
+                <dt>Temperature</dt>
+                <dd>{config.temperature}</dd>
+              </>
+            )}
+            {config.context_window != null && (
+              <>
+                <dt>Context</dt>
+                <dd>{config.context_window.toLocaleString()}</dd>
+              </>
+            )}
+            <dt>Backend</dt>
+            <dd>{backendMode}</dd>
+          </dl>
+        </div>
       )}
 
       {connected && config?.warnings && config.warnings.length > 0 && (

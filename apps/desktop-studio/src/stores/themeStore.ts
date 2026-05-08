@@ -18,7 +18,7 @@ const DEFAULT_LABELS: Record<string, string> = {
   memory: "Memory",
   activity: "Activity",
   diagnostics: "Diagnostics",
-  adapter_diagnostics: "Adapter Diagnostics",
+  adapter_diagnostics: "Diagnostics",
   inspector: "Inspector",
   command_palette: "Command Palette",
   settings: "Settings",
@@ -29,8 +29,10 @@ const DEFAULT_LABELS: Record<string, string> = {
   extensions: "Extensions",
   checkpoints: "Checkpoints",
   worktrees: "Worktrees",
+  git: "Git",
   delegations: "Delegations",
   cron: "Scheduled",
+  automation: "Automation",
 };
 
 const DEFAULT_ICONS: Record<string, string> = {

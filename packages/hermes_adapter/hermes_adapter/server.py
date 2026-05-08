@@ -13,6 +13,7 @@ from typing import Any
 import uvicorn
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from hermes_adapter.events import is_terminal_event, normalize_hermes_event
@@ -355,6 +356,16 @@ def create_app(enable_legacy_shell_routes: bool | None = None) -> FastAPI:
         version="0.1.0",
         lifespan=_lifespan,
     )
+    
+    # CORS middleware for Tauri dev server
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:1420", "http://127.0.0.1:1420", "tauri://localhost"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    
     application.add_exception_handler(HTTPException, _http_exception_handler)
     application.add_exception_handler(RequestValidationError, _validation_exception_handler)
     application.include_router(studio_router)

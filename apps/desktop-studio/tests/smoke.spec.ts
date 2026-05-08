@@ -7,14 +7,14 @@ test.describe("smoke", () => {
 
   test("top bar is visible with app title", async ({ studioPage: page }) => {
     await expect(page.locator(".top-bar")).toBeVisible();
-    await expect(page.locator(".app-mark")).toContainText("Hermes Desktop Studio");
+    await expect(page.locator(".app-mark")).toContainText("Hermes Studio");
   });
 
   test("left rail renders all navigation icons", async ({ studioPage: page }) => {
     const rail = page.locator(".rail");
     await expect(rail).toBeVisible();
     const icons = rail.locator(".rail-icon");
-    await expect(icons).toHaveCount(15);
+    await expect(icons).toHaveCount(8);
   });
 
   test("center area renders with tabs", async ({ studioPage: page }) => {
@@ -29,7 +29,7 @@ test.describe("smoke", () => {
   });
 
   test("status bar shows adapter connected", async ({ studioPage: page }) => {
-    await expect(page.locator(".status-bar")).toContainText("Adapter: Connected");
+    await expect(page.locator(".status-bar")).toContainText("Connected");
   });
 
   test("no vite error overlay", async ({ studioPage: page }) => {

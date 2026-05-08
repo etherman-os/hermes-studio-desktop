@@ -68,9 +68,18 @@ export const useAdapterStore = create<AdapterState>((set, get) => ({
   },
 
   checkConnection: async () => {
+    const { checking } = get();
+    if (checking) return false;
+
     set({ checking: true });
     try {
-      const auth = await api.initializeAdapterAuth();
+      const auth = await Promise.race([
+        api.initializeAdapterAuth(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Auth timeout")), 5000)
+        ),
+      ]);
+
       if (!auth.authenticated) {
         const message = auth.error ?? "Adapter auth token is unavailable";
         set({
@@ -88,12 +97,17 @@ export const useAdapterStore = create<AdapterState>((set, get) => ({
           fallbackReason: message,
           lastCheckedAt: new Date().toISOString(),
         });
-        // Start polling on auth failure (adapter may come up later)
         get().startPolling();
         return false;
       }
 
-      const health = await api.checkAdapterHealthDetailed();
+      const health = await Promise.race([
+        api.checkAdapterHealthDetailed(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Health check timeout")), 5000)
+        ),
+      ]);
+
       const bs = health.backend_status;
       const storage = health.storage;
       set({
@@ -111,7 +125,6 @@ export const useAdapterStore = create<AdapterState>((set, get) => ({
         fallbackReason: bs?.fallback_reason ?? null,
         lastCheckedAt: new Date().toISOString(),
       });
-      // Stop polling on successful connection
       get().stopPolling();
       return true;
     } catch (err) {
@@ -131,7 +144,6 @@ export const useAdapterStore = create<AdapterState>((set, get) => ({
         fallbackReason: message,
         lastCheckedAt: new Date().toISOString(),
       });
-      // Start polling on connection failure
       get().startPolling();
       return false;
     }

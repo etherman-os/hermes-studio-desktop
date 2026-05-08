@@ -12,6 +12,7 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useNativeStore } from "../../stores/nativeStore";
 import { useProcessStore } from "../../stores/processStore";
 import { useToolPackStore } from "../../stores/toolPackStore";
+import { useModelStore } from "../../stores/modelStore";
 import { LeftRail } from "./LeftRail";
 import { LeftSidebar } from "./LeftSidebar";
 import { CenterArea } from "./CenterArea";
@@ -30,36 +31,35 @@ export function AppFrame() {
   const showBottom = useLayoutStore((s) => s.showBottomPanel);
   const openPalette = useUiStore((s) => s.openCommandPalette);
   const openNewRun = useUiStore((s) => s.openNewRun);
-  const checkConnection = useAdapterStore((s) => s.checkConnection);
-  const loadSessions = useSessionStore((s) => s.loadFromAdapter);
-  const loadProfiles = useProfileStore((s) => s.loadProfiles);
-  const loadLogs = useLogStore((s) => s.loadRecent);
-  const loadRecentRuns = useRunLedgerStore((s) => s.loadRecentRuns);
-  const loadPendingApprovals = useApprovalStore((s) => s.loadPendingApprovals);
-  const initTheme = useThemeStore((s) => s.initTheme);
-  const loadThemes = useThemeStore((s) => s.loadThemes);
-  const loadWorkspace = useWorkspaceStore((s) => s.load);
-  const initNative = useNativeStore((s) => s.init);
-  const loadProcesses = useProcessStore((s) => s.loadProcesses);
-  const loadToolPacks = useToolPackStore((s) => s.loadPacks);
+  const initialized = React.useRef(false);
 
   React.useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
+    const { load: loadWorkspace } = useWorkspaceStore.getState();
+    const { initTheme } = useThemeStore.getState();
+    const { init: initNative } = useNativeStore.getState();
+    const { checkConnection } = useAdapterStore.getState();
+
     loadWorkspace();
     initTheme();
     initNative();
-    checkConnection().then((ok) => {
+
+    void checkConnection().then((ok) => {
       if (ok) {
-        loadSessions();
-        loadProfiles();
-        loadLogs();
-        loadThemes();
-        loadRecentRuns();
-        loadPendingApprovals();
-        loadProcesses();
-        loadToolPacks();
+        void useSessionStore.getState().loadFromAdapter();
+        void useProfileStore.getState().loadProfiles();
+        void useLogStore.getState().loadRecent();
+        void useThemeStore.getState().loadThemes();
+        void useRunLedgerStore.getState().loadRecentRuns();
+        void useApprovalStore.getState().loadPendingApprovals();
+        void useProcessStore.getState().loadProcesses();
+        void useToolPackStore.getState().loadPacks();
+        void useModelStore.getState().loadConfig();
       }
     });
-  }, [loadWorkspace, initTheme, initNative, checkConnection, loadSessions, loadProfiles, loadLogs, loadThemes, loadRecentRuns, loadPendingApprovals, loadProcesses, loadToolPacks]);
+  }, []);
 
   React.useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {

@@ -3,8 +3,6 @@ import { useLayoutStore } from "../../stores/layoutStore";
 import { useThemeStore } from "../../stores/themeStore";
 import { useLogStore } from "../../stores/logStore";
 import { useRunLedgerStore } from "../../stores/runLedgerStore";
-import { useDelegationStore } from "../../stores/delegationStore";
-import { useCronStore } from "../../stores/cronStore";
 import { RuntimeStatus } from "../runtime/RuntimeStatus";
 
 export function BottomPanel() {
@@ -12,7 +10,7 @@ export function BottomPanel() {
   const setBottomTab = useLayoutStore((s) => s.setBottomTab);
   const label = useThemeStore((s) => s.label);
 
-  const bottomTabs = ["activity", "tools", "delegations", "cron", "logs", "adapter_diagnostics"] as const;
+  const bottomTabs = ["activity", "logs", "diagnostics"] as const;
 
   function handleTabKeyDown(e: React.KeyboardEvent, idx: number) {
     if (e.key === "ArrowRight") {
@@ -41,17 +39,14 @@ export function BottomPanel() {
             onClick={() => setBottomTab(tab)}
             onKeyDown={(e) => handleTabKeyDown(e, idx)}
           >
-            {label(tab)}
+            {label(tab === "diagnostics" ? "adapter_diagnostics" : tab)}
           </button>
         ))}
       </div>
       <div className="bottom-content selectable" role="tabpanel" id={`bottom-panel-${bottomTab}`} aria-labelledby={`bottom-tab-${bottomTab}`}>
         {bottomTab === "activity" && <ActivityContent />}
-        {bottomTab === "tools" && <ToolEventsContent />}
-        {bottomTab === "delegations" && <DelegationsContent />}
-        {bottomTab === "cron" && <CronContent />}
         {bottomTab === "logs" && <LogsContent />}
-        {bottomTab === "adapter_diagnostics" && <AdapterDiagnosticsContent />}
+        {bottomTab === "diagnostics" && <AdapterDiagnosticsContent />}
       </div>
     </div>
   );
@@ -70,7 +65,7 @@ function ActivityContent() {
       {events.map(({ run, event }) => (
         <div key={event.id} className="log-line">
           <span className="timestamp">{formatTime(event.timestamp)}</span>
-          <span style={{ color: "var(--app-text-muted)" }}>{run.runId}</span>{" "}
+          <span style={{ color: "var(--app-text-muted)" }}>{run.runId.slice(0, 8)}</span>{" "}
           <span style={{ color: "var(--app-text-secondary)" }}>{event.type}</span>
         </div>
       ))}
@@ -95,7 +90,7 @@ function LogsContent() {
 
   React.useEffect(() => {
     loadRecent(selectedSource);
-  }, []);
+  }, [loadRecent, selectedSource]);
 
   React.useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -171,110 +166,9 @@ function LogsContent() {
   );
 }
 
-function ToolEventsContent() {
-  const runs = useRunLedgerStore((s) => s.runs);
-  const tools = runs
-    .flatMap((run) => run.events.map((event) => ({ run, event })))
-    .filter(({ event }) => event.type.startsWith("tool."))
-    .slice(-80)
-    .reverse();
-
-  if (tools.length === 0) {
-    return <div className="panel-note">Tool start, progress, and completion events will appear here.</div>;
-  }
-
-  return (
-    <>
-      {tools.map(({ run, event }) => (
-        <div key={event.id} className="log-line">
-          <span className="timestamp">{formatTime(event.timestamp)}</span>
-          <span>{run.runId}</span>{" "}
-          <span className={event.type === "tool.completed" ? "level-info" : "level-warn"}>{event.type}</span>{" "}
-          <span>{String(event.payload.tool ?? "tool")}</span>
-        </div>
-      ))}
-    </>
-  );
-}
-
 function AdapterDiagnosticsContent() {
   return (
     <RuntimeStatus />
-  );
-}
-
-function DelegationsContent() {
-  const delegations = useDelegationStore((s) => s.delegations);
-  const loading = useDelegationStore((s) => s.loading);
-  const loadDelegations = useDelegationStore((s) => s.loadDelegations);
-
-  React.useEffect(() => {
-    loadDelegations();
-  }, []);
-
-  if (loading && delegations.length === 0) {
-    return <div className="panel-note" role="status">Loading delegations...</div>;
-  }
-
-  if (delegations.length === 0) {
-    return <div className="panel-note">No sub-agent delegations found. Delegations appear when a run spawns child tasks.</div>;
-  }
-
-  return (
-    <>
-      {delegations.map((d) => (
-        <div key={d.id} className="log-line">
-          <span className="timestamp">{formatTime(d.started_at)}</span>
-          <span className={`mini-status status-${d.status === "unknown" ? "idle" : d.status}`} />
-          <span style={{ color: "var(--app-text-muted)" }}>{d.parent_run_id.slice(0, 12)}...</span>
-          <span style={{ color: "var(--app-text-muted)" }}>→</span>
-          <span style={{ color: "var(--app-text-secondary)" }}>{d.child_run_id.slice(0, 12)}...</span>
-          <span style={{ color: "var(--app-text-muted)", marginLeft: "auto" }}>{d.tool_name}</span>
-        </div>
-      ))}
-    </>
-  );
-}
-
-function CronContent() {
-  const jobs = useCronStore((s) => s.jobs);
-  const loading = useCronStore((s) => s.loading);
-  const loadJobs = useCronStore((s) => s.loadJobs);
-
-  React.useEffect(() => {
-    loadJobs();
-  }, []);
-
-  if (loading && jobs.length === 0) {
-    return <div className="panel-note" role="status">Loading cron jobs...</div>;
-  }
-
-  if (jobs.length === 0) {
-    return <div className="panel-note">No scheduled cron jobs found. Jobs defined in ~/.hermes/cron/ will appear here.</div>;
-  }
-
-  return (
-    <>
-      {jobs.map((job) => (
-        <div key={job.id} className="log-line">
-          <span className="timestamp">{job.last_run ? formatTime(job.last_run) : "—"}</span>
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: job.status === "active" ? "var(--app-ok)" : job.status === "error" ? "var(--app-danger)" : "var(--app-text-muted)",
-              display: "inline-block",
-            }}
-          />
-          <span style={{ fontWeight: 600 }}>{job.name}</span>
-          <span style={{ color: "var(--app-text-muted)" }}>{job.schedule_human}</span>
-          {job.next_run && (
-            <span style={{ color: "var(--app-text-muted)", marginLeft: "auto" }}>next: {formatTime(job.next_run)}</span>
-          )}
-        </div>
-      ))}
-    </>
   );
 }
 
