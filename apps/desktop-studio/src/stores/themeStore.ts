@@ -77,7 +77,7 @@ function resolveThemeId(mode: ThemeMode, themes: Record<string, ThemePack>): str
   const effective = mode === "system" ? getSystemTheme() : mode;
   // Try to find a matching light/dark theme
   const candidates = effective === "light"
-    ? ["default-light", "light"]
+    ? ["default-light", "minimal-light", "light"]
     : ["default-dark", "dark"];
   for (const id of candidates) {
     if (themes[id]) return id;

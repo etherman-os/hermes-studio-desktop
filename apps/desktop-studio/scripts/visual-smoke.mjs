@@ -11,13 +11,13 @@ const appRoot = path.resolve(scriptDir, "..");
 const repoRoot = path.resolve(appRoot, "../..");
 const artifactDir = path.join(repoRoot, "artifacts", "visual-smoke");
 const browserArg = process.argv.find((arg) => arg.startsWith("--browser="));
-const browserName = browserArg?.split("=")[1] ?? "firefox";
+const browserName = browserArg?.split("=")[1] ?? "chromium";
 
 class VisualSmokeSkip extends Error {}
 class VisualSmokeFailure extends Error {}
 
-if (browserName !== "firefox") {
-  console.error(`[visual-smoke] Unsupported browser "${browserName}". This smoke runner currently supports firefox.`);
+if (!["chromium", "firefox", "webkit"].includes(browserName)) {
+  console.error(`[visual-smoke] Unsupported browser "${browserName}". Use chromium, firefox, or webkit.`);
   process.exit(1);
 }
 
@@ -97,23 +97,26 @@ async function stopServer(server) {
   });
 }
 
-async function launchFirefox(firefox) {
-  const explicitPath = process.env.PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH;
+async function launchBrowser(playwrightBrowsers) {
+  const browserType = playwrightBrowsers[browserName];
+  const envKey = `PLAYWRIGHT_${browserName.toUpperCase()}_EXECUTABLE_PATH`;
+  const explicitPath = process.env[envKey] ?? (browserName === "firefox" ? process.env.PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH : undefined);
 
   if (explicitPath) {
     try {
-      return await firefox.launch({ headless: true, executablePath: explicitPath, timeout: 15000 });
+      return await browserType.launch({ headless: true, executablePath: explicitPath, timeout: 15000 });
     } catch (error) {
-      fail(`Firefox launch failed for PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH=${explicitPath}: ${error instanceof Error ? error.message : String(error)}`);
+      fail(`${browserName} launch failed for ${envKey}=${explicitPath}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   try {
-    return await firefox.launch({ headless: true, timeout: 15000 });
+    return await browserType.launch({ headless: true, timeout: 15000 });
   } catch (firstError) {
-    const systemFirefox = ["/usr/bin/firefox", "/snap/bin/firefox"].find((candidate) => fs.existsSync(candidate));
-    const systemHint = systemFirefox ? ` System Firefox was found at ${systemFirefox}; try it explicitly with PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH=${systemFirefox}.` : "";
-    skip(`Playwright Firefox is not available. ${firstError instanceof Error ? firstError.message : String(firstError)}${systemHint}`);
+    const systemCandidates = browserName === "firefox" ? ["/usr/bin/firefox", "/snap/bin/firefox"] : [];
+    const systemBrowser = systemCandidates.find((candidate) => fs.existsSync(candidate));
+    const systemHint = systemBrowser ? ` System ${browserName} was found at ${systemBrowser}; try it explicitly with ${envKey}=${systemBrowser}.` : "";
+    skip(`Playwright ${browserName} is not available. ${firstError instanceof Error ? firstError.message : String(firstError)}${systemHint}`);
   }
 }
 
@@ -136,20 +139,21 @@ async function run() {
       await waitForUrl(url, 5000);
     }
 
-    const { firefox } = await import("@playwright/test");
-    browser = await launchFirefox(firefox);
+    const playwrightBrowsers = await import("@playwright/test");
+    browser = await launchBrowser(playwrightBrowsers);
     const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
 
     await page.goto(url, { waitUntil: "networkidle" });
     await page.locator(".app-frame").waitFor({ timeout: 10000 });
     await page.locator(".rail").waitFor();
     await page.locator(".center-area").waitFor();
+    await page.locator(".splash-screen").waitFor({ state: "detached", timeout: 5000 });
 
-    for (const label of ["Runs", "Chat", "Board", "Sessions", "Artifacts", "Context", "Logs", "Themes", "Settings"]) {
-      await page.locator(`.rail-icon[title="${label}"]`).first().waitFor({ timeout: 5000 });
+    for (const label of ["Runs & History", "Chat", "Board", "Sessions", "Artifacts", "Context Inspector", "Logs", "Themes", "Settings"]) {
+      await page.getByRole("button", { name: label }).first().waitFor({ timeout: 5000 });
     }
 
-    await page.getByRole("button", { name: "Run Ledger" }).waitFor({ timeout: 5000 });
+    await page.getByRole("tab", { name: "Run Ledger" }).waitFor({ timeout: 5000 });
 
     if (await page.locator("vite-error-overlay").count()) {
       fail("Vite error overlay is visible.");
@@ -166,7 +170,7 @@ async function run() {
     const screenshotPath = path.join(artifactDir, "home.png");
     await page.screenshot({ path: screenshotPath, fullPage: false });
     log(`Screenshot written to ${path.relative(repoRoot, screenshotPath)}`);
-    log("Firefox visual smoke passed.");
+    log(`${browserName} visual smoke passed.`);
   } catch (error) {
     if (error instanceof VisualSmokeSkip) {
       console.warn(`[visual-smoke] SKIP: ${error.message}`);

@@ -25,6 +25,7 @@ export function CommandPalette() {
   const setActiveTab = useLayoutStore((s) => s.setActiveTab);
   const setSidebar = useLayoutStore((s) => s.setSidebarSection);
   const setBottomTab = useLayoutStore((s) => s.setBottomTab);
+  const showSidebar = useLayoutStore((s) => s.showSidebar);
   const openNewRun = useUiStore((s) => s.openNewRun);
   const openWorkspacePicker = useUiStore((s) => s.openWorkspacePicker);
   const refreshRuntime = useAdapterStore((s) => s.checkConnection);
@@ -54,13 +55,17 @@ export function CommandPalette() {
     { id: "open-chat", label: "Open Chat", icon: "C", shortcut: "Ctrl+2", action: () => { setActiveTab("chat"); setSidebar("chat"); close(); } },
     { id: "open-board", label: "Open Board", icon: "B", shortcut: "Ctrl+3", action: () => { setActiveTab("board"); setSidebar("board"); close(); } },
     { id: "open-sessions", label: "Open Sessions", icon: "S", action: () => { setActiveTab("sessions"); setSidebar("sessions"); close(); } },
-    { id: "open-artifacts", label: "Open Artifacts", icon: "A", action: () => { setActiveTab("artifacts"); setSidebar("artifacts"); close(); } },
-    { id: "open-approvals", label: "Open Approval Center", icon: "!", action: () => { setSidebar("approvals"); close(); } },
-    { id: "show-logs", label: "Show Logs", icon: "L", action: () => { setBottomTab("logs"); setSidebar("logs"); close(); } },
+    { id: "open-artifacts", label: "Open Artifacts", icon: "A", action: () => { setActiveTab("artifacts"); setSidebar("artifacts"); showSidebar(); close(); } },
+    { id: "open-context", label: "Open Context Inspector", icon: "@", action: () => { setActiveTab("context"); setSidebar("context"); showSidebar(); close(); } },
+    { id: "open-approvals", label: "Open Approval Center", icon: "!", action: () => { setActiveTab("approvals"); setSidebar("approvals"); showSidebar(); close(); } },
+    { id: "open-extensions", label: "Open Extensions", icon: "X", action: () => { setActiveTab("extensions"); setSidebar("extensions"); showSidebar(); close(); } },
+    { id: "open-delegations", label: "Open Delegations", icon: "D", action: () => { setActiveTab("delegations"); setSidebar("delegations"); showSidebar(); close(); } },
+    { id: "open-cron", label: "Open Scheduled Jobs", icon: "T", action: () => { setActiveTab("cron"); setSidebar("cron"); showSidebar(); close(); } },
+    { id: "show-logs", label: "Show Logs", icon: "L", action: () => { setBottomTab("logs"); setSidebar("logs"); showSidebar(); close(); } },
     { id: "show-diagnostics", label: "Show Adapter Diagnostics", icon: "D", action: () => { setBottomTab("adapter_diagnostics"); close(); } },
     { id: "refresh-runtime", label: "Refresh Adapter Status", icon: "R", action: () => { void refreshRuntime(); close(); } },
-    { id: "switch-theme", label: "Switch Theme", icon: "#", action: () => { setSidebar("theme_gallery"); close(); } },
-    { id: "open-settings", label: "Open Settings", icon: "*", action: () => { setSidebar("settings"); close(); } },
+    { id: "switch-theme", label: "Switch Theme", icon: "#", action: () => { setSidebar("theme_gallery"); showSidebar(); close(); } },
+    { id: "open-settings", label: "Open Settings", icon: "*", action: () => { setSidebar("settings"); showSidebar(); close(); } },
     { id: "toggle-right", label: "Toggle Right Panel", icon: "I", action: () => { toggleRight(); close(); } },
     { id: "toggle-bottom", label: "Toggle Bottom Panel", icon: "_", action: () => { toggleBottom(); close(); } },
     ...themeCommands,

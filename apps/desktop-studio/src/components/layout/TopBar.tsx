@@ -20,11 +20,11 @@ export function TopBar() {
       <div className="top-bar-left">
         <div className="app-mark">Hermes Studio</div>
         <button className="topbar-button primary" onClick={openNewRun} title="Ctrl+Shift+N" aria-label="Create new run">+ New Run</button>
-        <button className="topbar-button" onClick={openWorkspacePicker} aria-label="Select workspace">
-          <span className="topbar-value">{selectedWorkspace ?? "Select workspace"}</span>
-        </button>
       </div>
       <div className="top-bar-right">
+        <button className="topbar-button workspace-button" onClick={openWorkspacePicker} aria-label="Select workspace">
+          <span className="topbar-value">{selectedWorkspace ?? "Select workspace"}</span>
+        </button>
         <span className={`runtime-chip ${connected ? "ok" : "danger"}`} role="status">
           {activeProfile?.name ?? "No profile"}
         </span>

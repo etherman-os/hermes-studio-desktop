@@ -29,6 +29,25 @@ class MockBackend(StudioBackend):
         self._active_runs: dict[str, dict[str, Any]] = {}
         self._run_cancelled: set[str] = set()
         self._theme_repo = ThemeRepository()
+        self._model_config: dict[str, Any] = {
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-20250514",
+            "base_url": None,
+            "api_key_configured": True,
+            "api_key_source": ".env",
+            "config_source": "mock",
+            "temperature": 0.7,
+            "max_tokens": 4096,
+            "context_window": 200000,
+            "capabilities_available": True,
+            "available_models": [
+                {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "provider": "anthropic"},
+                {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai"},
+                {"id": "hermes-3-llama-3.1-70b", "name": "Hermes 3 70B", "provider": "nous"},
+            ],
+            "available_model_count": 3,
+            "warnings": [],
+        }
 
     async def health(self) -> dict[str, Any]:
         return {
@@ -48,8 +67,8 @@ class MockBackend(StudioBackend):
             "recent_sessions": self._sessions(),
             "active_theme": self._theme_repo.get_theme_info(self._theme_repo.get_active_theme_id()),
             "available_models": [
-                {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "provider": "Anthropic"},
-                {"id": "gpt-4o", "name": "GPT-4o", "provider": "OpenAI"},
+                {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "provider": "anthropic"},
+                {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai"},
             ],
             "display": {"language": "en", "timezone": None, "theme": None},
         }
@@ -248,25 +267,31 @@ class MockBackend(StudioBackend):
         return {"config": cfg}
 
     async def get_model_config(self) -> dict[str, Any]:
-        return {
-            "provider": "anthropic",
-            "model": "claude-sonnet-4-20250514",
-            "base_url": None,
-            "api_key_configured": True,
-            "api_key_source": ".env",
-            "config_source": "config.yaml",
-            "temperature": 0.7,
-            "max_tokens": 4096,
-            "context_window": 200000,
-            "capabilities_available": True,
-            "available_models": [
-                {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4"},
-                {"id": "gpt-4o", "name": "GPT-4o"},
-                {"id": "hermes-3-llama-3.1-70b", "name": "Hermes 3 70B"},
-            ],
-            "available_model_count": 3,
-            "warnings": [],
-        }
+        return dict(self._model_config)
+
+    async def list_available_models(self) -> list[dict[str, Any]]:
+        models = self._model_config["available_models"]
+        return [dict(model) for model in models]
+
+    async def patch_model_config(self, updates: dict[str, Any]) -> dict[str, Any]:
+        allowed_keys = {"provider", "model", "base_url", "temperature", "max_tokens", "context_window"}
+        unknown_keys = sorted(set(updates) - allowed_keys)
+        if unknown_keys:
+            raise ValueError(f"Unsupported model config keys: {', '.join(unknown_keys)}")
+
+        if "provider" in updates and updates["provider"] is not None and not isinstance(updates["provider"], str):
+            raise ValueError("provider must be a string")
+        if "model" in updates and updates["model"] is not None and not isinstance(updates["model"], str):
+            raise ValueError("model must be a string")
+        if "base_url" in updates and updates["base_url"] is not None and not isinstance(updates["base_url"], str):
+            raise ValueError("base_url must be a string or null")
+        for key in ("temperature", "max_tokens", "context_window"):
+            if key in updates and updates[key] is not None and not isinstance(updates[key], (int, float)):
+                raise ValueError(f"{key} must be numeric")
+
+        for key, value in updates.items():
+            self._model_config[key] = value
+        return await self.get_model_config()
 
     def _sessions(self) -> list[dict[str, Any]]:
         return [

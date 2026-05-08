@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from hermes_adapter.process_manager import (
     ManagedProcess,
     ProcessManager,
     ProcessStatus,
-    TEMPLATES,
     get_process_manager,
 )
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { useLayoutStore } from "../../stores/layoutStore";
+import { SIDEBAR_SECTIONS, useLayoutStore } from "../../stores/layoutStore";
 import { useThemeStore } from "../../stores/themeStore";
 import { useSessionStore } from "../../stores/sessionStore";
 import { useProfileStore } from "../../stores/profileStore";
@@ -9,6 +9,9 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useUiStore } from "../../stores/uiStore";
 import { ApprovalCenter } from "../approvals/ApprovalCenter";
 import { ContextInspector } from "../context/ContextInspector";
+import { CronPanel } from "../cron/CronPanel";
+import { DelegationPanel } from "../delegation/DelegationPanel";
+import { ExtensionsPanel } from "../extensions/ExtensionsPanel";
 import { RuntimeStatus } from "../runtime/RuntimeStatus";
 import { LoadingSkeleton } from "../Skeleton";
 
@@ -30,11 +33,14 @@ export function LeftSidebar() {
         {section === "worktrees" && <GitSection />}
         {section === "context" && <ContextSection />}
         {section === "approvals" && <ApprovalsSection />}
+        {section === "extensions" && <ExtensionsSection />}
+        {section === "delegations" && <DelegationsSection />}
+        {section === "cron" && <CronSection />}
         {section === "logs" && <LogsSection />}
         {section === "profiles" && <ProfilesList />}
         {section === "theme_gallery" && <ThemeGallerySection />}
         {section === "settings" && <SettingsSection />}
-        {!["runs", "chat", "board", "sessions", "artifacts", "checkpoints", "worktrees", "context", "approvals", "logs", "profiles", "theme_gallery", "settings"].includes(section) && (
+        {!SIDEBAR_SECTIONS.includes(section) && (
           <div className="empty-state">
             <div className="empty-state-icon" aria-hidden="true">{icon(section)}</div>
             <div className="empty-state-text">{label(section)}</div>
@@ -146,6 +152,30 @@ function ApprovalsSection() {
   return (
     <div className="sidebar-embedded">
       <ApprovalCenter />
+    </div>
+  );
+}
+
+function ExtensionsSection() {
+  return (
+    <div className="sidebar-embedded">
+      <ExtensionsPanel />
+    </div>
+  );
+}
+
+function DelegationsSection() {
+  return (
+    <div className="sidebar-embedded">
+      <DelegationPanel />
+    </div>
+  );
+}
+
+function CronSection() {
+  return (
+    <div className="sidebar-embedded">
+      <CronPanel />
     </div>
   );
 }

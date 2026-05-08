@@ -68,11 +68,13 @@ fn open_preview_window(
         return Ok(label.to_string());
     }
 
-    let escaped_url = url.replace('\\', "\\\\").replace('\'', "\\'");
-    let init_script = format!(
-        "window.__PREVIEW_INITIAL_URL = '{}';",
-        escaped_url
-    );
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err("Preview windows only support http and https URLs".to_string());
+    }
+
+    let encoded_url = serde_json::to_string(&url)
+        .map_err(|e| format!("Failed to encode preview URL: {e}"))?;
+    let init_script = format!("window.__PREVIEW_INITIAL_URL = {encoded_url};");
 
     let _window = WebviewWindowBuilder::new(&app, label, WebviewUrl::App("/".into()))
         .title(&window_title)

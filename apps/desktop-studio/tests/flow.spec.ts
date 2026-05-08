@@ -14,7 +14,7 @@ test.describe("user flows", () => {
 
   test("rail icon switches sidebar section", async ({ studioPage: page }) => {
     const icons = page.locator(".rail-icon");
-    await expect(icons).toHaveCount(8);
+    await expect(icons).toHaveCount(15);
 
     for (let i = 0; i < 3; i++) {
       await icons.nth(i).click();
@@ -91,7 +91,7 @@ test.describe("user flows", () => {
   });
 
   test("profiles list shows in settings sidebar", async ({ studioPage: page }) => {
-    const settingsIcon = page.locator(".rail-icon").nth(7);
+    const settingsIcon = page.getByRole("button", { name: "Settings" });
     await settingsIcon.click();
 
     const sidebar = page.locator(".sidebar-content");

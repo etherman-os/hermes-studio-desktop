@@ -9,9 +9,9 @@ import os
 import re
 import subprocess
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, TypeVar
 
 import httpx
 
@@ -27,6 +27,7 @@ from hermes_adapter.theme_repository import ThemeRepository
 
 logger = logging.getLogger("hermes_adapter.hermes_backend")
 _debug = get_debug_events()
+_T = TypeVar("_T")
 
 
 # ---------------------------------------------------------------------------
@@ -72,12 +73,12 @@ _circuit = _CircuitBreaker()
 
 
 async def _retry_with_backoff(
-    func,
-    *args,
+    func: Callable[..., Awaitable[_T]],
+    *args: Any,
     max_retries: int = 3,
     base_delay: float = 0.5,
-    **kwargs,
-) -> Any:
+    **kwargs: Any,
+) -> _T:
     """Retry an async function with exponential backoff."""
     last_exc: Exception | None = None
     for attempt in range(max_retries + 1):
@@ -89,7 +90,9 @@ async def _retry_with_backoff(
                 delay = base_delay * (2 ** attempt)
                 logger.warning("Retry %d/%d after %.1fs: %s", attempt + 1, max_retries, delay, exc)
                 await asyncio.sleep(delay)
-    raise last_exc  # type: ignore[misc]
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("retry failed without an exception")
 
 
 def _redact(s: str) -> str:
@@ -130,6 +133,36 @@ def _sse_event(
         run_id=run_id,
         session_id=session_id,
     )
+
+
+def _provider_name(value: Any) -> str | None:
+    if isinstance(value, str) and value:
+        return value
+    if isinstance(value, dict):
+        for key in ("id", "name", "provider"):
+            candidate = value.get(key)
+            if isinstance(candidate, str) and candidate:
+                return candidate
+    return None
+
+
+def _normalize_available_model(raw: Any, fallback_provider: str) -> dict[str, str] | None:
+    if isinstance(raw, str):
+        return {"id": raw, "name": raw, "provider": fallback_provider or "unknown"}
+    if not isinstance(raw, dict):
+        return None
+
+    model_id = raw.get("id", raw.get("model", raw.get("name")))
+    if not isinstance(model_id, str) or not model_id:
+        return None
+
+    name = raw.get("name", model_id)
+    provider = raw.get("provider", raw.get("provider_id", raw.get("owned_by", fallback_provider)))
+    return {
+        "id": model_id,
+        "name": str(name) if name else model_id,
+        "provider": _provider_name(provider) or fallback_provider or "unknown",
+    }
 
 
 def _source_from(raw: dict[str, Any]) -> StudioEventSource:
@@ -1012,6 +1045,16 @@ class HermesBackend(StudioBackend):
     async def patch_config(self, key: str, value: Any) -> dict[str, Any]:
         raise ValueError("Config mutation not supported in Hermes backend mode")
 
+    async def patch_model_config(self, updates: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "status": "not_implemented",
+            "message": (
+                "Model config mutation is not supported in Hermes backend mode because "
+                "Studio will not write Hermes config files directly."
+            ),
+            "updates": updates,
+        }
+
     async def get_model_config(self) -> dict[str, Any]:
         """Return model/provider config from config.yaml + .env + Hermes API."""
         base_config = self._config_repo.get_model_config() if self._config_repo else {
@@ -1048,9 +1091,24 @@ class HermesBackend(StudioBackend):
                 if data is not None:
                     models = data.get("data", data.get("models", []))
                     if isinstance(models, list):
-                        available_models = [{"id": m.get("id", ""), "name": m.get("name", m.get("id", ""))} for m in models if isinstance(m, dict)]
+                        provider = str(base_config.get("provider") or "unknown")
+                        available_models = [
+                            normalized
+                            for raw_model in models
+                            if (normalized := _normalize_available_model(raw_model, provider))
+                        ]
             except Exception:
                 pass
+
+        if not available_models:
+            config_models = base_config.get("available_models", [])
+            if isinstance(config_models, list):
+                provider = str(base_config.get("provider") or "unknown")
+                available_models = [
+                    normalized
+                    for raw_model in config_models
+                    if (normalized := _normalize_available_model(raw_model, provider))
+                ]
 
         base_config["capabilities_available"] = len(capabilities) > 0
         base_config["capabilities"] = capabilities

@@ -14,7 +14,7 @@ test.describe("smoke", () => {
     const rail = page.locator(".rail");
     await expect(rail).toBeVisible();
     const icons = rail.locator(".rail-icon");
-    await expect(icons).toHaveCount(8);
+    await expect(icons).toHaveCount(15);
   });
 
   test("center area renders with tabs", async ({ studioPage: page }) => {

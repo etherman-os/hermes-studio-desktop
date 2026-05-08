@@ -356,7 +356,7 @@ def create_app(enable_legacy_shell_routes: bool | None = None) -> FastAPI:
         version="0.1.0",
         lifespan=_lifespan,
     )
-    
+
     # CORS middleware for Tauri dev server
     application.add_middleware(
         CORSMiddleware,
@@ -365,7 +365,7 @@ def create_app(enable_legacy_shell_routes: bool | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     application.add_exception_handler(HTTPException, _http_exception_handler)
     application.add_exception_handler(RequestValidationError, _validation_exception_handler)
     application.include_router(studio_router)

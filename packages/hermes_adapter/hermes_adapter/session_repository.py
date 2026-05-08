@@ -346,6 +346,8 @@ class SessionRepository:
 
             if not session_col or not role_col or not content_col:
                 return []
+            if not self._messages_table:
+                return []
 
             safe_msg_table = _validate_sql_identifier(self._messages_table, "table")
             safe_session_col = _validate_sql_identifier(session_col, "column")

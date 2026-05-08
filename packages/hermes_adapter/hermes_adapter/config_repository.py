@@ -20,7 +20,7 @@ import stat
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml  # type: ignore[import-untyped]
 
@@ -93,6 +93,37 @@ def _is_api_key_configured(env_path: Path, key_patterns: list[str]) -> bool:
     except Exception:
         pass
     return False
+
+
+def _provider_name(value: Any) -> str | None:
+    if isinstance(value, str) and value:
+        return value
+    if isinstance(value, dict):
+        for key in ("id", "name", "provider"):
+            candidate = value.get(key)
+            if isinstance(candidate, str) and candidate:
+                return candidate
+    return None
+
+
+def _normalize_model_option(raw: Any, fallback_provider: str = "unknown") -> dict[str, str] | None:
+    """Normalize a config/API model option without exposing provider secrets."""
+    if isinstance(raw, str):
+        return {"id": raw, "name": raw, "provider": fallback_provider or "unknown"}
+    if not isinstance(raw, dict):
+        return None
+
+    model_id = raw.get("id", raw.get("model", raw.get("name")))
+    if not isinstance(model_id, str) or not model_id:
+        return None
+
+    name = raw.get("name", model_id)
+    provider = raw.get("provider", raw.get("provider_id", raw.get("owned_by", fallback_provider)))
+    return {
+        "id": model_id,
+        "name": str(name) if name else model_id,
+        "provider": _provider_name(provider) or fallback_provider or "unknown",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +356,8 @@ class ConfigRepository:
         max_tokens = self._config.get("max_tokens", self._config.get("max-tokens"))
         context_window = self._config.get("context_window", self._config.get("context-window"))
 
+        available_models = self.get_available_models(provider=str(provider) if provider else "unknown")
+
         return {
             "provider": str(provider) if provider else "unknown",
             "model": str(model) if model else "unknown",
@@ -335,8 +368,30 @@ class ConfigRepository:
             "temperature": temperature,
             "max_tokens": max_tokens,
             "context_window": context_window,
+            "available_models": available_models,
+            "available_model_count": len(available_models),
             "warnings": list(self._warnings),
         }
+
+    def get_available_models(self, provider: str = "unknown") -> list[dict[str, str]]:
+        """Return model options declared in config.yaml, normalized with provider metadata."""
+        candidates = self._config.get("available_models", self._config.get("models", []))
+        if isinstance(candidates, dict):
+            models: list[dict[str, str]] = []
+            for provider_id, provider_models in candidates.items():
+                if isinstance(provider_models, list):
+                    for raw_model in provider_models:
+                        normalized = _normalize_model_option(raw_model, str(provider_id))
+                        if normalized:
+                            models.append(normalized)
+            return models
+        if not isinstance(candidates, list):
+            return []
+        return [
+            normalized
+            for raw_model in candidates
+            if (normalized := _normalize_model_option(raw_model, provider))
+        ]
 
     def get_provider_status(self) -> dict[str, Any]:
         """Return provider status summary."""
@@ -365,7 +420,7 @@ class ConfigRepository:
         """Async wrapper that caches model config reads."""
         cached = await self._cache.get("model_config")
         if cached is not None:
-            return cached
+            return cast(dict[str, Any], cached)
         result = self.get_model_config()
         await self._cache.set("model_config", result)
         return result
@@ -374,7 +429,7 @@ class ConfigRepository:
         """Async wrapper that caches provider status reads."""
         cached = await self._cache.get("provider_status")
         if cached is not None:
-            return cached
+            return cast(dict[str, Any], cached)
         result = self.get_provider_status()
         await self._cache.set("provider_status", result)
         return result

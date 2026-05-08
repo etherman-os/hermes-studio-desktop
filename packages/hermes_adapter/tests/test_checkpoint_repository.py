@@ -5,7 +5,11 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from hermes_adapter.checkpoint_repository import CheckpointRepository, _is_checkpoint_commit, _parse_shortstat
+from hermes_adapter.checkpoint_repository import (
+    CheckpointRepository,
+    _is_checkpoint_commit,
+    _parse_shortstat,
+)
 
 
 def _make_git_repo(path: Path) -> None:

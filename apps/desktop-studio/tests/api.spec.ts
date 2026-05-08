@@ -22,6 +22,7 @@ test.describe("API route intercepts", () => {
   });
 
   test("app renders in disconnected state without adapter mock", async ({ page }) => {
+    await page.route(`${BASE}/studio/health`, (route) => route.abort());
     await page.goto("/");
     await page.locator(".app-frame").waitFor({ timeout: 15000 });
     await expect(page.locator(".app-frame")).toBeVisible();

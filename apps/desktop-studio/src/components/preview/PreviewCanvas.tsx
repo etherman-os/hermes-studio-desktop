@@ -17,6 +17,22 @@ function captureConsole(
   };
 }
 
+function normalizePreviewUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const withProtocol =
+    trimmed.startsWith("http://") || trimmed.startsWith("https://")
+      ? trimmed
+      : `https://${trimmed}`;
+  try {
+    const url = new URL(withProtocol);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function PreviewCanvas() {
   const currentUrl = usePreviewStore((s) => s.currentUrl);
   const consoleLogs = usePreviewStore((s) => s.consoleLogs);
@@ -31,14 +47,18 @@ export function PreviewCanvas() {
   React.useEffect(() => {
     const initial = (window as unknown as Record<string, unknown>).__PREVIEW_INITIAL_URL;
     if (typeof initial === "string" && initial.length > 0) {
-      setInputUrl(initial);
-      setCurrentUrl(initial);
+      const normalized = normalizePreviewUrl(initial);
+      if (normalized) {
+        setInputUrl(normalized);
+        setCurrentUrl(normalized);
+      }
     }
   }, [setCurrentUrl]);
 
   React.useEffect(() => {
     const unlisten = listen<string>("preview:navigate", (event) => {
-      const url = event.payload;
+      const url = normalizePreviewUrl(event.payload);
+      if (!url) return;
       setInputUrl(url);
       setCurrentUrl(url);
     });
@@ -72,12 +92,15 @@ export function PreviewCanvas() {
 
   function handleNavigate(e: React.FormEvent) {
     e.preventDefault();
-    const trimmed = inputUrl.trim();
-    if (!trimmed) return;
-    const url =
-      trimmed.startsWith("http://") || trimmed.startsWith("https://")
-        ? trimmed
-        : `https://${trimmed}`;
+    const url = normalizePreviewUrl(inputUrl);
+    if (!url) {
+      addConsoleLog({
+        level: "warn",
+        message: "Preview only supports http and https URLs.",
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
     setCurrentUrl(url);
     setInputUrl(url);
   }
@@ -225,7 +248,7 @@ export function PreviewCanvas() {
               ref={iframeRef}
               src={currentUrl}
               title="Preview"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+              sandbox="allow-scripts allow-forms allow-popups"
               style={{
                 width: "100%",
                 height: "100%",

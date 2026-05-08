@@ -130,3 +130,44 @@ class TestConfigRepository:
         assert config["provider"] == "glm"
         assert config["model"] == "glm-4.5"
         assert config["base_url"] == "https://api.example.test/v1"
+
+    def test_available_models_include_provider(self, tmp_path: Path) -> None:
+        home = tmp_path / ".hermes"
+        home.mkdir()
+        (home / "config.yaml").write_text(
+            "provider: anthropic\n"
+            "model: claude-sonnet-4-20250514\n"
+            "available_models:\n"
+            "  - id: claude-sonnet-4-20250514\n"
+            "    name: Claude Sonnet 4\n"
+            "  - id: gpt-4o\n"
+            "    name: GPT-4o\n"
+            "    provider: openai\n"
+        )
+
+        repo = ConfigRepository(home)
+        config = repo.get_model_config()
+
+        assert config["available_model_count"] == 2
+        assert config["available_models"][0]["provider"] == "anthropic"
+        assert config["available_models"][1]["provider"] == "openai"
+
+    def test_available_models_grouped_by_provider(self, tmp_path: Path) -> None:
+        home = tmp_path / ".hermes"
+        home.mkdir()
+        (home / "config.yaml").write_text(
+            "models:\n"
+            "  openai:\n"
+            "    - gpt-4o\n"
+            "  anthropic:\n"
+            "    - id: claude-sonnet-4-20250514\n"
+            "      name: Claude Sonnet 4\n"
+        )
+
+        repo = ConfigRepository(home)
+        models = repo.get_available_models()
+
+        assert models == [
+            {"id": "gpt-4o", "name": "gpt-4o", "provider": "openai"},
+            {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "provider": "anthropic"},
+        ]

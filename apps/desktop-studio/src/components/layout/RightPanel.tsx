@@ -130,8 +130,14 @@ function ModelSection({ connected, backendMode, label, icon }: { connected: bool
       {connected && config && !loading && (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--app-spacing-xs)" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-            <label style={{ fontSize: "10px", color: "var(--app-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Provider</label>
+            <label
+              htmlFor="model-provider-select"
+              style={{ fontSize: "10px", color: "var(--app-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}
+            >
+              Provider
+            </label>
             <select
+              id="model-provider-select"
               value={selectedProvider ?? config.provider}
               onChange={(e) => {
                 selectProvider(e.target.value);
@@ -155,8 +161,14 @@ function ModelSection({ connected, backendMode, label, icon }: { connected: bool
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-            <label style={{ fontSize: "10px", color: "var(--app-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Model</label>
+            <label
+              htmlFor="model-select"
+              style={{ fontSize: "10px", color: "var(--app-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}
+            >
+              Model
+            </label>
             <select
+              id="model-select"
               value={selectedModel ?? config.model}
               onChange={(e) => selectModel(e.target.value)}
               style={{

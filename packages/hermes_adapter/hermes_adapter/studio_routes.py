@@ -514,6 +514,44 @@ async def get_model_config(_token: None = Depends(require_token)) -> dict[str, A
     return await backend.get_model_config()
 
 
+@router.patch("/model-config")
+async def patch_model_config(body: dict[str, Any], _token: None = Depends(require_token)) -> dict[str, Any]:
+    backend = await _get_backend()
+    if not body:
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("invalid_request", "At least one model config field is required"),
+        )
+    try:
+        result = await backend.patch_model_config(body)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("model_config_error", str(e)),
+        ) from e
+
+    if result.get("status") == "not_implemented":
+        raise HTTPException(
+            status_code=501,
+            detail=_error_detail(
+                "not_implemented",
+                result.get("message", "Model config mutation is not supported by this backend"),
+                source="adapter",
+                hint=(
+                    "Hermes config files are read-only through Studio until Hermes exposes a safe "
+                    "public API or CLI for model config mutation."
+                ),
+            ),
+        )
+    return result
+
+
+@router.get("/model-config/models")
+async def list_available_models(_token: None = Depends(require_token)) -> dict[str, Any]:
+    backend = await _get_backend()
+    return {"models": await backend.list_available_models()}
+
+
 # ---------------------------------------------------------------------------
 # Themes
 # ---------------------------------------------------------------------------

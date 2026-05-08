@@ -14,7 +14,7 @@ import time
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 MAX_LOG_LINES = 2000
 
 
-class ProcessStatus(str, Enum):
+class ProcessStatus(StrEnum):
     RUNNING = "running"
     STOPPED = "stopped"
     ERROR = "error"
@@ -53,7 +53,7 @@ TEMPLATES: dict[str, ProcessTemplate] = {
     ),
     "test-runner": ProcessTemplate(
         name="Test Runner",
-        command="pnpm run test:e2e",
+        command="pnpm --filter @hermes-desktop-studio/desktop-studio test:e2e",
         description="Runs end-to-end tests",
     ),
     "build": ProcessTemplate(

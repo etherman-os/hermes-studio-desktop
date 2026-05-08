@@ -1,7 +1,7 @@
 {
   "identifier": "default",
   "description": "Default capabilities for Hermes Desktop Studio",
-  "windows": ["main", "preview"],
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "opener:default",

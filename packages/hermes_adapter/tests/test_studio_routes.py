@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from hermes_adapter import studio_routes
+from hermes_adapter.mock_backend import MockBackend
 from hermes_adapter.security import set_auth_token
 from hermes_adapter.server import create_app
 
@@ -309,6 +311,70 @@ class TestConfig:
         assert resp.status_code == 200
         data = resp.json()
         assert data["config"]["test_key"] == "test_value"
+
+
+class TestModelConfig:
+    def test_get_model_config_includes_provider_on_available_models(self, client: TestClient) -> None:
+        resp = client.get("/studio/model-config", headers=HEADERS)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["available_models"]
+        assert all("provider" in model for model in data["available_models"])
+
+    def test_list_available_models(self, client: TestClient) -> None:
+        resp = client.get("/studio/model-config/models", headers=HEADERS)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "models" in data
+        assert {"id", "name", "provider"} <= set(data["models"][0])
+
+    def test_patch_model_config_updates_mock_backend(self, client: TestClient) -> None:
+        resp = client.patch(
+            "/studio/model-config",
+            headers=HEADERS,
+            json={"provider": "openai", "model": "gpt-4o", "temperature": 0.3},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["provider"] == "openai"
+        assert data["model"] == "gpt-4o"
+        assert data["temperature"] == 0.3
+
+    def test_patch_model_config_rejects_unknown_keys(self, client: TestClient) -> None:
+        resp = client.patch(
+            "/studio/model-config",
+            headers=HEADERS,
+            json={"api_key": "sk-secret"},
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "model_config_error"
+
+    def test_patch_model_config_returns_501_when_backend_has_no_safe_write_path(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class ReadOnlyModelBackend(MockBackend):
+            async def patch_model_config(self, updates: dict[str, object]) -> dict[str, object]:
+                return {"status": "not_implemented", "message": "No safe public API for model config mutation"}
+
+        monkeypatch.setattr(studio_routes, "_backend", ReadOnlyModelBackend())
+        monkeypatch.setattr(studio_routes, "_backend_status", {"backend_mode": "hermes", "active_backend": "hermes"})
+
+        resp = client.patch(
+            "/studio/model-config",
+            headers=HEADERS,
+            json={"model": "gpt-4o"},
+        )
+
+        assert resp.status_code == 501
+        error = resp.json()["error"]
+        assert error["code"] == "not_implemented"
+        assert error["hint"]
 
 
 class TestLogs:

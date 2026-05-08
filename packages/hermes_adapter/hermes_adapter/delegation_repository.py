@@ -136,8 +136,8 @@ class DelegationRepository:
                 }
         except ValueError:
             raise
-        except Exception:
-            raise ValueError(f"Delegation '{delegation_id}' not found")
+        except Exception as exc:
+            raise ValueError(f"Delegation '{delegation_id}' not found") from exc
 
     def _scan_delegations(self, conn: sqlite3.Connection, limit: int) -> list[dict[str, Any]]:
         """Scan run_events for delegation tool invocations."""

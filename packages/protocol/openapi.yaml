@@ -599,6 +599,47 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ModelConfig"
+    patch:
+      summary: Safely update model/provider config
+      description: Mock backend applies updates. Hermes backend does not write Hermes config files directly and returns 501 until Hermes exposes a safe public API or CLI.
+      operationId: updateModelConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModelConfigPatch"
+      responses:
+        "200":
+          description: Model/provider config updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelConfig"
+        "400":
+          description: Invalid model config update
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          description: Backend has no safe public model config write path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/model-config/models:
+    get:
+      summary: List available model options
+      operationId: listAvailableModels
+      responses:
+        "200":
+          description: Available model options with provider metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelList"
 
   /studio/themes:
     get:
@@ -2505,12 +2546,7 @@ components:
         available_models:
           type: array
           items:
-            type: object
-            properties:
-              id:
-                type: string
-              name:
-                type: string
+            $ref: "#/components/schemas/ModelOption"
         available_model_count:
           type: integer
         warnings:
@@ -2522,6 +2558,49 @@ components:
         - model
         - api_key_configured
         - config_source
+
+    ModelConfigPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        provider:
+          type: string
+        model:
+          type: string
+        base_url:
+          type: string
+          nullable: true
+        temperature:
+          type: number
+        max_tokens:
+          type: integer
+        context_window:
+          type: integer
+      minProperties: 1
+
+    ModelList:
+      type: object
+      properties:
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelOption"
+      required:
+        - models
+
+    ModelOption:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        provider:
+          type: string
+      required:
+        - id
+        - name
+        - provider
 
     ThemeInfo:
       type: object

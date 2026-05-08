@@ -132,6 +132,20 @@ class StudioBackend(ABC):
             "warnings": ["Model config not available in this backend"],
         }
 
+    async def list_available_models(self) -> list[dict[str, Any]]:
+        """Return available model options with provider metadata."""
+        config = await self.get_model_config()
+        models = config.get("available_models", [])
+        return models if isinstance(models, list) else []
+
+    async def patch_model_config(self, updates: dict[str, Any]) -> dict[str, Any]:
+        """Safely update model/provider config if the backend owns a write path."""
+        return {
+            "status": "not_implemented",
+            "message": "Model config mutation is not supported by this backend",
+            "updates": updates,
+        }
+
     @abstractmethod
     async def patch_config(self, key: str, value: Any) -> dict[str, Any]:
         """Update a config key. Returns updated config."""

@@ -1,14 +1,29 @@
-import { useLayoutStore } from "../../stores/layoutStore";
+import { type CenterTab, type SidebarSection, useLayoutStore } from "../../stores/layoutStore";
 import { useApprovalStore } from "../../stores/approvalStore";
 import { useThemeStore } from "../../stores/themeStore";
 
-const RAIL_ITEMS = [
+type RailItem = {
+  id: SidebarSection | "git";
+  slot: string;
+  tooltip: string;
+  tab?: CenterTab;
+  section?: SidebarSection;
+};
+
+const RAIL_ITEMS: RailItem[] = [
   { id: "runs", slot: "runs", tooltip: "Runs & History" },
   { id: "chat", slot: "chat", tooltip: "Chat" },
   { id: "board", slot: "board", tooltip: "Board" },
   { id: "sessions", slot: "sessions", tooltip: "Sessions" },
+  { id: "artifacts", slot: "artifacts", tooltip: "Artifacts" },
   { id: "processes", slot: "processes", tooltip: "Processes" },
-  { id: "git", slot: "checkpoints", tooltip: "Git" },
+  { id: "context", slot: "context", tooltip: "Context Inspector" },
+  { id: "approvals", slot: "approvals", tooltip: "Approvals" },
+  { id: "git", slot: "checkpoints", tooltip: "Git", tab: "checkpoints", section: "checkpoints" },
+  { id: "extensions", slot: "extensions", tooltip: "Extensions" },
+  { id: "delegations", slot: "delegations", tooltip: "Delegations" },
+  { id: "cron", slot: "cron", tooltip: "Scheduled Jobs" },
+  { id: "theme_gallery", slot: "theme_gallery", tooltip: "Themes" },
   { id: "logs", slot: "logs", tooltip: "Logs" },
   { id: "settings", slot: "settings", tooltip: "Settings" },
 ];
@@ -24,18 +39,18 @@ export function LeftRail() {
   const icon = useThemeStore((s) => s.icon);
   const label = useThemeStore((s) => s.label);
 
-  function handleClick(id: string) {
-    if (id === "logs") {
+  function handleClick(item: RailItem) {
+    if (item.id === "logs") {
       setBottomTab("logs");
-    } else if (id === "git") {
-      setActiveTab("checkpoints");
-      setSidebar("checkpoints");
-      showSidebar();
-      return;
-    } else {
-      setActiveTab(id);
+    } else if (item.tab) {
+      setActiveTab(item.tab);
+    } else if (item.id === "settings") {
+      setBottomTab("diagnostics");
+    } else if (item.id !== "profiles" && item.id !== "theme_gallery") {
+      setActiveTab(item.id);
     }
-    setSidebar(id);
+    const section = item.section ?? (item.id === "git" ? "checkpoints" : item.id);
+    setSidebar(section);
     showSidebar();
   }
 
@@ -48,10 +63,11 @@ export function LeftRail() {
           <button
             key={item.id}
             className={`rail-icon ${isActive ? "active" : ""}`}
-            onClick={() => handleClick(item.id)}
+            onClick={() => handleClick(item)}
             aria-label={item.tooltip}
             aria-current={isActive ? "page" : undefined}
             data-tooltip={item.tooltip}
+            title={item.tooltip}
           >
             {icon(item.slot)}
             {item.id === "settings" && pendingApprovals > 0 && (
