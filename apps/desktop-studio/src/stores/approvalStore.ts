@@ -28,6 +28,8 @@ interface ApprovalState {
   loadApprovalDetail: (approvalId: string) => Promise<void>;
   loadApprovalsForRun: (runId: string) => Promise<void>;
   loadApprovalsForSession: (sessionId: string) => Promise<void>;
+  approveApproval: (approvalId: string) => Promise<void>;
+  denyApproval: (approvalId: string) => Promise<void>;
   recordEvent: (event: StudioEvent) => void;
   setFilter: (filter: ApprovalFilter) => void;
   clearActionMessage: () => void;
@@ -234,6 +236,40 @@ export const useApprovalStore = create<ApprovalState>((set, get) => ({
       if (data.approvals[0]) await get().loadApprovalDetail(data.approvals[0].id);
     } catch (err) {
       set({ loading: false, error: messageFromError(err, "Session approvals unavailable") });
+    }
+  },
+
+  approveApproval: async (approvalId) => {
+    set({ saving: true, error: null, actionMessage: null });
+    try {
+      const approval = await api.approveApproval(approvalId);
+      set((state) => ({
+        saving: false,
+        actionMessage: `Approved ${approvalId}`,
+        selectedApproval: approval,
+        selectedApprovalId: approval.id,
+        approvals: upsertApproval(state.approvals, approval),
+        pending: state.pending.filter((item) => item.id !== approval.id),
+      }));
+    } catch (err) {
+      set({ saving: false, error: messageFromError(err, "Approval failed") });
+    }
+  },
+
+  denyApproval: async (approvalId) => {
+    set({ saving: true, error: null, actionMessage: null });
+    try {
+      const approval = await api.denyApproval(approvalId);
+      set((state) => ({
+        saving: false,
+        actionMessage: `Denied ${approvalId}`,
+        selectedApproval: approval,
+        selectedApprovalId: approval.id,
+        approvals: upsertApproval(state.approvals, approval),
+        pending: state.pending.filter((item) => item.id !== approval.id),
+      }));
+    } catch (err) {
+      set({ saving: false, error: messageFromError(err, "Denial failed") });
     }
   },
 

@@ -1,11 +1,8 @@
 import { create } from "zustand";
 import * as api from "../api/studioClient";
+import { useHermesInventoryStore } from "./hermesInventoryStore";
 
-interface ModelOption {
-  id: string;
-  name: string;
-  provider?: string;
-}
+type ModelOption = api.HermesModel;
 
 interface ModelState {
   config: api.ModelConfig | null;
@@ -47,6 +44,15 @@ export const useModelStore = create<ModelState>((set, get) => ({
         }
       }
 
+      if (models.length === 0) {
+        try {
+          await useHermesInventoryStore.getState().loadInventory();
+          models = useHermesInventoryStore.getState().models;
+        } catch {
+          // Non-fatal
+        }
+      }
+
       set({
         config,
         loading: false,
@@ -67,10 +73,17 @@ export const useModelStore = create<ModelState>((set, get) => ({
       const data = await api.listAvailableModels();
       set({ availableModels: data.models });
     } catch {
-      // Non-fatal, use config.available_models if available
+      // Non-fatal, use config.available_models or local Hermes inventory if available
       const config = get().config;
       if (config?.available_models?.length) {
         set({ availableModels: config.available_models });
+        return;
+      }
+      try {
+        await useHermesInventoryStore.getState().loadInventory();
+        set({ availableModels: useHermesInventoryStore.getState().models });
+      } catch {
+        // Keep previous state.
       }
     }
   },

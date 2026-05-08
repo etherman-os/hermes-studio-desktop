@@ -68,4 +68,5 @@ def _isolate_studio_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
 def _isolate_studio_storage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep tests from reading or writing the user's Studio storage."""
     monkeypatch.setenv("HERMES_STUDIO_HOME", str(tmp_path / "studio-home"))
+    monkeypatch.setenv("HERMES_STUDIO_HERMES_HOME", str(tmp_path / ".hermes"))
     monkeypatch.delenv("HERMES_STUDIO_DB_PATH", raising=False)

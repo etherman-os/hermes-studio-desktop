@@ -28,9 +28,7 @@ def _get_hermes_home() -> Path:
     for var in _HERMES_HOME_VARS:
         val = os.environ.get(var)
         if val:
-            p = Path(val).expanduser()
-            if p.exists():
-                return p
+            return Path(val).expanduser()
     return Path.home() / ".hermes"
 
 

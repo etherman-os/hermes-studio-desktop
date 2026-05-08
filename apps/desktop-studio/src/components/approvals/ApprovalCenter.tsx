@@ -55,12 +55,15 @@ export function ApprovalCenter({ compact = false }: ApprovalCenterProps) {
   const selectedApprovalId = useApprovalStore((s) => s.selectedApprovalId);
   const filter = useApprovalStore((s) => s.filter);
   const loading = useApprovalStore((s) => s.loading);
+  const saving = useApprovalStore((s) => s.saving);
   const error = useApprovalStore((s) => s.error);
   const actionMessage = useApprovalStore((s) => s.actionMessage);
   const loadApprovals = useApprovalStore((s) => s.loadApprovals);
   const loadPendingApprovals = useApprovalStore((s) => s.loadPendingApprovals);
   const loadApprovalDetail = useApprovalStore((s) => s.loadApprovalDetail);
   const setFilter = useApprovalStore((s) => s.setFilter);
+  const approveApproval = useApprovalStore((s) => s.approveApproval);
+  const denyApproval = useApprovalStore((s) => s.denyApproval);
   const clearActionMessage = useApprovalStore((s) => s.clearActionMessage);
   const setActiveTab = useLayoutStore((s) => s.setActiveTab);
   const setActiveSession = useSessionStore((s) => s.setActiveSession);
@@ -119,7 +122,7 @@ export function ApprovalCenter({ compact = false }: ApprovalCenterProps) {
       )}
 
       <div className="approval-readonly-note" role="note">
-        Approval response is not wired yet. This view is read-only and does not bypass Hermes approval mechanisms.
+        Decisions are sent to Hermes when the local runtime exposes approval response support; Studio records the audit trail locally.
       </div>
 
       {!compact && (
@@ -211,6 +214,24 @@ export function ApprovalCenter({ compact = false }: ApprovalCenterProps) {
                 </dl>
                 {selected.reason && <div className="panel-note">Reason: {selected.reason}</div>}
                 <div className="approval-actions">
+                  {selected.status === "pending" && (
+                    <>
+                      <button
+                        className="primary-button"
+                        onClick={() => void approveApproval(selected.id)}
+                        disabled={saving}
+                      >
+                        {saving ? "Sending" : "Approve"}
+                      </button>
+                      <button
+                        className="tool-button danger"
+                        onClick={() => void denyApproval(selected.id)}
+                        disabled={saving}
+                      >
+                        Deny
+                      </button>
+                    </>
+                  )}
                   <button className="tool-button" onClick={() => openRun(selected.run_id)} disabled={!selected.run_id}>Open Run</button>
                   <button className="tool-button" onClick={() => openSession(selected.session_id)} disabled={!selected.session_id}>Open Session</button>
                   <button className="tool-button" onClick={() => void inspectContext(selected)} disabled={!selected.run_id && !selected.session_id}>

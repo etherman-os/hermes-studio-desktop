@@ -12,6 +12,8 @@ vi.mock("../api/studioClient", async () => {
     getApproval: vi.fn(),
     getRunApprovals: vi.fn(),
     getSessionApprovals: vi.fn(),
+    approveApproval: vi.fn(),
+    denyApproval: vi.fn(),
   };
 });
 
@@ -96,6 +98,22 @@ describe("approvalStore", () => {
 
     expect(api.getRunApprovals).toHaveBeenCalledWith("run-1");
     expect(useApprovalStore.getState().approvals[0].run_id).toBe("run-1");
+  });
+
+  it("approves a pending approval", async () => {
+    vi.mocked(api.approveApproval).mockResolvedValue({
+      ...detail,
+      status: "approved",
+      decision: "approved",
+      decided_at: "2026-05-07T00:01:00Z",
+    });
+    useApprovalStore.setState({ pending: [approval], approvals: [approval] });
+
+    await useApprovalStore.getState().approveApproval("approval-1");
+
+    expect(api.approveApproval).toHaveBeenCalledWith("approval-1");
+    expect(useApprovalStore.getState().pending).toEqual([]);
+    expect(useApprovalStore.getState().approvals[0].status).toBe("approved");
   });
 
   it("records live requested and resolved events", () => {

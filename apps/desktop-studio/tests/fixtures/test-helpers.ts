@@ -117,6 +117,29 @@ export async function mockModelConfig(page: Page) {
   await page.route(`${BASE}/studio/model-config`, (route) => jsonRoute(route, mock.MODEL_CONFIG));
 }
 
+export async function mockHermesInventory(page: Page) {
+  await page.route(`${BASE}/studio/hermes/inventory`, (route) => jsonRoute(route, mock.HERMES_INVENTORY));
+  await page.route(`${BASE}/studio/hermes/providers`, (route) =>
+    jsonRoute(route, { providers: mock.HERMES_INVENTORY.providers, total: mock.HERMES_INVENTORY.providers.length }),
+  );
+  await page.route(`${BASE}/studio/hermes/models*`, (route) =>
+    jsonRoute(route, {
+      models: mock.HERMES_INVENTORY.models,
+      total: mock.HERMES_INVENTORY.models.length,
+      summary: mock.HERMES_INVENTORY.summary,
+    }),
+  );
+  await page.route(`${BASE}/studio/hermes/skills`, (route) =>
+    jsonRoute(route, { skills: mock.HERMES_INVENTORY.skills, total: mock.HERMES_INVENTORY.skills.length, summary: mock.HERMES_INVENTORY.summary }),
+  );
+  await page.route(`${BASE}/studio/hermes/mcp-servers`, (route) =>
+    jsonRoute(route, { mcp_servers: mock.HERMES_INVENTORY.mcp_servers, total: mock.HERMES_INVENTORY.mcp_servers.length, summary: mock.HERMES_INVENTORY.summary }),
+  );
+  await page.route(`${BASE}/studio/hermes/toolsets`, (route) =>
+    jsonRoute(route, { toolsets: mock.HERMES_INVENTORY.toolsets, total: mock.HERMES_INVENTORY.toolsets.length, summary: mock.HERMES_INVENTORY.summary }),
+  );
+}
+
 export async function mockKanban(page: Page) {
   await page.route(`${BASE}/studio/kanban/boards`, (route) => jsonRoute(route, mock.KANBAN_BOARDS));
   await page.route(`${BASE}/studio/kanban/boards/default`, (route) => jsonRoute(route, mock.KANBAN_BOARD));
@@ -176,6 +199,7 @@ export async function mockAllAdapter(page: Page) {
   await mockThemes(page);
   await mockConfig(page);
   await mockModelConfig(page);
+  await mockHermesInventory(page);
   await mockKanban(page);
   await mockProcesses(page);
   await mockRunEvents(page);

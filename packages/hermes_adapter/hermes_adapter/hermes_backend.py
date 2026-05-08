@@ -165,6 +165,25 @@ def _normalize_available_model(raw: Any, fallback_provider: str) -> dict[str, st
     }
 
 
+def _merge_available_models(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for group in groups:
+        for model in group:
+            model_id = model.get("id")
+            provider = model.get("provider")
+            if not isinstance(model_id, str) or not model_id:
+                continue
+            if not isinstance(provider, str) or not provider:
+                provider = "unknown"
+            key = (provider, model_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(model)
+    return merged
+
+
 def _source_from(raw: dict[str, Any]) -> StudioEventSource:
     source = raw.get("source")
     if source == "adapter":
@@ -643,8 +662,14 @@ class HermesBackend(StudioBackend):
         # Get logs status
         log_status = self._log_repo.get_status() if self._log_repo else {"available": False}
 
-        # Get model config
+        # Get model config and local model catalog
         model_config = self._config_repo.get_model_config() if self._config_repo else {"provider": "unknown", "model": "unknown"}
+        try:
+            from hermes_adapter.hermes_inventory_repository import HermesInventoryRepository
+
+            available_models = HermesInventoryRepository(self._hermes_home).list_models()
+        except Exception:
+            available_models = []
 
         # Get display/i18n config
         display_config = self._config_repo.get_display_config() if self._config_repo else {"language": "en"}
@@ -656,7 +681,7 @@ class HermesBackend(StudioBackend):
             "capabilities": capabilities,
             "recent_sessions": recent_sessions,
             "active_theme": None,
-            "available_models": [],
+            "available_models": available_models,
             "session_source": session_status,
             "profiles_available": profile_status.get("available", False),
             "profile_count": profile_status.get("profile_count", 0),
@@ -786,15 +811,43 @@ class HermesBackend(StudioBackend):
             return {"X-Hermes-Session-Key": key}
         return {}
 
-    async def start_run(self, session_id: str, prompt: str, profile: str | None = None) -> dict[str, Any]:
+    async def start_run(
+        self,
+        session_id: str,
+        prompt: str,
+        profile: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         if not await self._check_hermes():
             return {"run_id": "", "status": "failed", "error": f"Hermes not reachable: {self._last_error}"}
 
-        async def _do_start() -> dict[str, Any]:
+        def _run_options() -> dict[str, Any]:
+            if not isinstance(context, dict):
+                return {}
+            options: dict[str, Any] = {}
+            for source_key, target_key in (
+                ("workspace_path", "workspace_path"),
+                ("mode", "mode"),
+                ("run_mode", "mode"),
+                ("model", "model"),
+                ("provider", "provider"),
+                ("skills", "skills"),
+                ("toolsets", "toolsets"),
+            ):
+                value = context.get(source_key)
+                if value not in (None, "", [], {}):
+                    options[target_key] = value
+            return options
+
+        async def _do_start(include_options: bool = True) -> dict[str, Any]:
             payload: dict[str, Any] = {
                 "session_id": session_id,
                 "input": prompt,
             }
+            if profile:
+                payload["profile"] = profile
+            if include_options:
+                payload.update(_run_options())
             resp = await self._client.post(
                 f"{self._base_url}/v1/runs",
                 headers={
@@ -805,6 +858,9 @@ class HermesBackend(StudioBackend):
                 json=payload,
                 timeout=10.0,
             )
+            if include_options and resp.status_code in {400, 422} and len(payload) > 2:
+                logger.warning("Hermes rejected Studio run options; retrying with minimal run payload")
+                return await _do_start(include_options=False)
             resp.raise_for_status()
             data = resp.json()
             return {
@@ -1109,6 +1165,17 @@ class HermesBackend(StudioBackend):
                     for raw_model in config_models
                     if (normalized := _normalize_available_model(raw_model, provider))
                 ]
+
+        try:
+            from hermes_adapter.hermes_inventory_repository import HermesInventoryRepository
+
+            local_models = HermesInventoryRepository(self._hermes_home).list_models()
+        except Exception as exc:
+            warnings = base_config.get("warnings")
+            if isinstance(warnings, list):
+                warnings.append(f"Local Hermes model inventory unavailable: {exc}")
+        else:
+            available_models = _merge_available_models(available_models, local_models)
 
         base_config["capabilities_available"] = len(capabilities) > 0
         base_config["capabilities"] = capabilities

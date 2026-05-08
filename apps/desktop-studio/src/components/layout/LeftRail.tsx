@@ -1,31 +1,49 @@
+import {
+  Activity,
+  Boxes,
+  CalendarClock,
+  Columns3,
+  Cpu,
+  FileText,
+  GitBranch,
+  History,
+  MessageSquare,
+  Package,
+  Palette,
+  Puzzle,
+  Search,
+  Settings,
+  ShieldCheck,
+  type LucideIcon,
+} from "lucide-react";
 import { type CenterTab, type SidebarSection, useLayoutStore } from "../../stores/layoutStore";
 import { useApprovalStore } from "../../stores/approvalStore";
-import { useThemeStore } from "../../stores/themeStore";
 
 type RailItem = {
   id: SidebarSection | "git";
   slot: string;
   tooltip: string;
+  icon: LucideIcon;
   tab?: CenterTab;
   section?: SidebarSection;
 };
 
 const RAIL_ITEMS: RailItem[] = [
-  { id: "runs", slot: "runs", tooltip: "Runs & History" },
-  { id: "chat", slot: "chat", tooltip: "Chat" },
-  { id: "board", slot: "board", tooltip: "Board" },
-  { id: "sessions", slot: "sessions", tooltip: "Sessions" },
-  { id: "artifacts", slot: "artifacts", tooltip: "Artifacts" },
-  { id: "processes", slot: "processes", tooltip: "Processes" },
-  { id: "context", slot: "context", tooltip: "Context Inspector" },
-  { id: "approvals", slot: "approvals", tooltip: "Approvals" },
-  { id: "git", slot: "checkpoints", tooltip: "Git", tab: "checkpoints", section: "checkpoints" },
-  { id: "extensions", slot: "extensions", tooltip: "Extensions" },
-  { id: "delegations", slot: "delegations", tooltip: "Delegations" },
-  { id: "cron", slot: "cron", tooltip: "Scheduled Jobs" },
-  { id: "theme_gallery", slot: "theme_gallery", tooltip: "Themes" },
-  { id: "logs", slot: "logs", tooltip: "Logs" },
-  { id: "settings", slot: "settings", tooltip: "Settings" },
+  { id: "runs", slot: "runs", tooltip: "Runs & History", icon: Activity },
+  { id: "chat", slot: "chat", tooltip: "Chat", icon: MessageSquare },
+  { id: "board", slot: "board", tooltip: "Board", icon: Columns3 },
+  { id: "sessions", slot: "sessions", tooltip: "Sessions", icon: History },
+  { id: "artifacts", slot: "artifacts", tooltip: "Artifacts", icon: Package },
+  { id: "processes", slot: "processes", tooltip: "Processes", icon: Cpu },
+  { id: "context", slot: "context", tooltip: "Context Inspector", icon: Search },
+  { id: "approvals", slot: "approvals", tooltip: "Approvals", icon: ShieldCheck },
+  { id: "git", slot: "checkpoints", tooltip: "Git", icon: GitBranch, tab: "checkpoints", section: "checkpoints" },
+  { id: "extensions", slot: "extensions", tooltip: "Hermes Arsenal", icon: Puzzle },
+  { id: "delegations", slot: "delegations", tooltip: "Delegations", icon: Boxes },
+  { id: "cron", slot: "cron", tooltip: "Scheduled Jobs", icon: CalendarClock },
+  { id: "theme_gallery", slot: "theme_gallery", tooltip: "Themes", icon: Palette },
+  { id: "logs", slot: "logs", tooltip: "Logs", icon: FileText },
+  { id: "settings", slot: "settings", tooltip: "Settings", icon: Settings },
 ];
 
 export function LeftRail() {
@@ -36,8 +54,6 @@ export function LeftRail() {
   const sidebarSection = useLayoutStore((s) => s.sidebarSection);
   const activeTab = useLayoutStore((s) => s.activeTab);
   const pendingApprovals = useApprovalStore((s) => s.pending.length);
-  const icon = useThemeStore((s) => s.icon);
-  const label = useThemeStore((s) => s.label);
 
   function handleClick(item: RailItem) {
     if (item.id === "logs") {
@@ -59,6 +75,7 @@ export function LeftRail() {
       {RAIL_ITEMS.map((item) => {
         const isActive = sidebarSection === item.id || activeTab === item.id ||
           (item.id === "git" && (sidebarSection === "checkpoints" || sidebarSection === "worktrees" || activeTab === "checkpoints" || activeTab === "worktrees"));
+        const Icon = item.icon;
         return (
           <button
             key={item.id}
@@ -69,8 +86,8 @@ export function LeftRail() {
             data-tooltip={item.tooltip}
             title={item.tooltip}
           >
-            {icon(item.slot)}
-            {item.id === "settings" && pendingApprovals > 0 && (
+            <Icon size={18} strokeWidth={2} aria-hidden="true" />
+            {item.id === "approvals" && pendingApprovals > 0 && (
               <span className="rail-badge" aria-label={`${pendingApprovals} pending approvals`}>{pendingApprovals}</span>
             )}
           </button>

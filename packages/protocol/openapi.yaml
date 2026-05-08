@@ -641,6 +641,93 @@ paths:
               schema:
                 $ref: "#/components/schemas/ModelList"
 
+  /studio/hermes/inventory:
+    get:
+      summary: Read local Hermes capability inventory
+      operationId: getHermesInventory
+      responses:
+        "200":
+          description: Local Hermes provider, model, skill, MCP, and toolset inventory
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesInventory"
+
+  /studio/hermes/providers:
+    get:
+      summary: List local Hermes providers
+      operationId: listHermesProviders
+      responses:
+        "200":
+          description: Local Hermes provider catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesProviderList"
+
+  /studio/hermes/models:
+    get:
+      summary: List local Hermes models
+      operationId: listHermesModels
+      parameters:
+        - name: provider
+          in: query
+          schema:
+            type: string
+        - name: query
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5000
+      responses:
+        "200":
+          description: Local Hermes model catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesModelList"
+
+  /studio/hermes/skills:
+    get:
+      summary: List local Hermes skills
+      operationId: listHermesSkills
+      responses:
+        "200":
+          description: Installed, bundled, and optional Hermes skills
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesSkillList"
+
+  /studio/hermes/mcp-servers:
+    get:
+      summary: List configured Hermes MCP servers
+      operationId: listHermesMcpServers
+      responses:
+        "200":
+          description: Configured local MCP servers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesMcpServerList"
+
+  /studio/hermes/toolsets:
+    get:
+      summary: List configured Hermes toolsets
+      operationId: listHermesToolsets
+      responses:
+        "200":
+          description: Platform, plugin, and MCP toolsets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesToolsetList"
+
   /studio/themes:
     get:
       summary: List installed themes
@@ -2597,10 +2684,350 @@ components:
           type: string
         provider:
           type: string
+        provider_name:
+          type: string
+        family:
+          type: string
+          nullable: true
+        context_window:
+          type: integer
+          nullable: true
+        output_limit:
+          type: integer
+          nullable: true
+        reasoning:
+          type: boolean
+          nullable: true
+        tool_call:
+          type: boolean
+          nullable: true
+        structured_output:
+          type: boolean
+          nullable: true
+        attachments:
+          type: boolean
+          nullable: true
+        open_weights:
+          type: boolean
+          nullable: true
+        input_modalities:
+          type: array
+          items:
+            type: string
+        output_modalities:
+          type: array
+          items:
+            type: string
+        input_cost:
+          type: number
+          nullable: true
+        output_cost:
+          type: number
+          nullable: true
+        release_date:
+          type: string
+          nullable: true
+        last_updated:
+          type: string
+          nullable: true
+        source:
+          type: string
       required:
         - id
         - name
         - provider
+
+    HermesInventory:
+      type: object
+      properties:
+        summary:
+          $ref: "#/components/schemas/HermesInventorySummary"
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/HermesProvider"
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelOption"
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/HermesSkill"
+        mcp_servers:
+          type: array
+          items:
+            $ref: "#/components/schemas/HermesMcpServer"
+        toolsets:
+          type: array
+          items:
+            $ref: "#/components/schemas/HermesToolset"
+      required:
+        - summary
+        - providers
+        - models
+        - skills
+        - mcp_servers
+        - toolsets
+
+    HermesInventorySummary:
+      type: object
+      properties:
+        hermes_home:
+          type: string
+        config_available:
+          type: boolean
+        active_provider:
+          type: string
+          nullable: true
+        active_model:
+          type: string
+          nullable: true
+        provider_count:
+          type: integer
+        configured_provider_count:
+          type: integer
+        model_count:
+          type: integer
+        skill_count:
+          type: integer
+        installed_skill_count:
+          type: integer
+        mcp_server_count:
+          type: integer
+        toolset_count:
+          type: integer
+      required:
+        - hermes_home
+        - config_available
+        - provider_count
+        - configured_provider_count
+        - model_count
+        - skill_count
+        - installed_skill_count
+        - mcp_server_count
+        - toolset_count
+
+    HermesProvider:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        api_base_url:
+          type: string
+          nullable: true
+        doc_url:
+          type: string
+          nullable: true
+        npm_package:
+          type: string
+          nullable: true
+        env_keys:
+          type: array
+          items:
+            type: string
+        model_count:
+          type: integer
+        configured:
+          type: boolean
+        active:
+          type: boolean
+        source:
+          type: string
+      required:
+        - id
+        - name
+        - env_keys
+        - model_count
+        - configured
+        - active
+        - source
+
+    HermesProviderList:
+      type: object
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/HermesProvider"
+        total:
+          type: integer
+        summary:
+          $ref: "#/components/schemas/HermesInventorySummary"
+      required:
+        - providers
+        - total
+        - summary
+
+    HermesModelList:
+      type: object
+      properties:
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelOption"
+        total:
+          type: integer
+        summary:
+          $ref: "#/components/schemas/HermesInventorySummary"
+      required:
+        - models
+        - total
+        - summary
+
+    HermesSkill:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        version:
+          type: string
+          nullable: true
+        author:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        related_skills:
+          type: array
+          items:
+            type: string
+        prerequisites:
+          type: object
+          additionalProperties: true
+        source:
+          type: string
+        installed:
+          type: boolean
+        path:
+          type: string
+        size_bytes:
+          type: integer
+        updated_at:
+          type: string
+      required:
+        - id
+        - name
+        - title
+        - description
+        - category
+        - tags
+        - related_skills
+        - prerequisites
+        - source
+        - installed
+        - path
+        - size_bytes
+        - updated_at
+
+    HermesSkillList:
+      type: object
+      properties:
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/HermesSkill"
+        total:
+          type: integer
+        summary:
+          $ref: "#/components/schemas/HermesInventorySummary"
+      required:
+        - skills
+        - total
+        - summary
+
+    HermesMcpServer:
+      type: object
+      properties:
+        id:
+          type: string
+        command:
+          type: string
+          nullable: true
+        args:
+          type: array
+          items: {}
+        env_keys:
+          type: array
+          items:
+            type: string
+        env_configured:
+          type: boolean
+        enabled:
+          type: boolean
+        source:
+          type: string
+      required:
+        - id
+        - args
+        - env_keys
+        - env_configured
+        - enabled
+        - source
+
+    HermesMcpServerList:
+      type: object
+      properties:
+        mcp_servers:
+          type: array
+          items:
+            $ref: "#/components/schemas/HermesMcpServer"
+        total:
+          type: integer
+        summary:
+          $ref: "#/components/schemas/HermesInventorySummary"
+      required:
+        - mcp_servers
+        - total
+        - summary
+
+    HermesToolset:
+      type: object
+      properties:
+        id:
+          type: string
+        platform:
+          type: string
+        kind:
+          type: string
+        enabled:
+          type: boolean
+        source:
+          type: string
+      required:
+        - id
+        - platform
+        - kind
+        - enabled
+        - source
+
+    HermesToolsetList:
+      type: object
+      properties:
+        toolsets:
+          type: array
+          items:
+            $ref: "#/components/schemas/HermesToolset"
+        total:
+          type: integer
+        summary:
+          $ref: "#/components/schemas/HermesInventorySummary"
+      required:
+        - toolsets
+        - total
+        - summary
 
     ThemeInfo:
       type: object

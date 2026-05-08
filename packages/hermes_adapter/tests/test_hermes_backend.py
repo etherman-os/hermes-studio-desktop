@@ -224,7 +224,7 @@ class TestHermesBackend:
                 return httpx.Response(200, json={"status": "ok", "platform": "hermes-agent"})
             assert request.url.path == "/v1/runs"
             body = json.loads(request.content.decode("utf-8"))
-            assert body == {"session_id": "s-1", "input": "hello"}
+            assert body == {"session_id": "s-1", "input": "hello", "profile": "ignored"}
             return httpx.Response(202, json={"run_id": "run-1", "status": "started"})
 
         backend = HermesBackend("http://hermes.test")

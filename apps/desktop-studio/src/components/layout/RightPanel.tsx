@@ -222,7 +222,7 @@ function ModelSection({ connected, backendMode, label, icon }: { connected: bool
               </>
             )}
             <dt>Backend</dt>
-            <dd>{backendMode}</dd>
+            <dd>{backendMode === "mock" ? "Studio" : backendMode}</dd>
           </dl>
         </div>
       )}
@@ -230,7 +230,7 @@ function ModelSection({ connected, backendMode, label, icon }: { connected: bool
       {connected && config?.warnings && config.warnings.length > 0 && (
         <div style={{ marginTop: "var(--app-spacing-xs)" }}>
           {config.warnings.map((w, i) => (
-            <div key={i} style={{ fontSize: "10px", color: "var(--app-warn)" }}>⚠ {w}</div>
+            <div key={i} style={{ fontSize: "10px", color: "var(--app-warn)" }}>Warning: {w}</div>
           ))}
         </div>
       )}

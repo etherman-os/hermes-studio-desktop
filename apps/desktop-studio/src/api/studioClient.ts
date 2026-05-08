@@ -353,7 +353,7 @@ export interface ModelConfig {
   max_tokens?: number;
   context_window?: number;
   capabilities_available?: boolean;
-  available_models?: { id: string; name: string }[];
+  available_models?: HermesModel[];
   available_model_count?: number;
   warnings?: string[];
 }
@@ -370,7 +370,116 @@ export async function updateModelConfig(input: { provider?: string; model?: stri
 }
 
 export async function listAvailableModels() {
-  return request<{ models: { id: string; name: string; provider: string }[] }>("/studio/model-config/models");
+  return request<{ models: HermesModel[] }>("/studio/model-config/models");
+}
+
+export interface HermesInventorySummary {
+  hermes_home: string;
+  config_available: boolean;
+  active_provider?: string | null;
+  active_model?: string | null;
+  provider_count: number;
+  configured_provider_count: number;
+  model_count: number;
+  skill_count: number;
+  installed_skill_count: number;
+  mcp_server_count: number;
+  toolset_count: number;
+}
+
+export interface HermesProvider {
+  id: string;
+  name: string;
+  api_base_url?: string | null;
+  doc_url?: string | null;
+  npm_package?: string | null;
+  env_keys: string[];
+  model_count: number;
+  configured: boolean;
+  active: boolean;
+  source: string;
+}
+
+export interface HermesModel {
+  id: string;
+  name: string;
+  provider: string;
+  provider_name?: string;
+  family?: string | null;
+  context_window?: number | null;
+  output_limit?: number | null;
+  reasoning?: boolean | null;
+  tool_call?: boolean | null;
+  structured_output?: boolean | null;
+  attachments?: boolean | null;
+  open_weights?: boolean | null;
+  input_modalities?: string[];
+  output_modalities?: string[];
+  input_cost?: number | null;
+  output_cost?: number | null;
+  release_date?: string | null;
+  last_updated?: string | null;
+  source?: string;
+}
+
+export interface HermesSkill {
+  id: string;
+  name: string;
+  title: string;
+  description: string;
+  category: string;
+  version?: string | null;
+  author?: string | null;
+  tags: string[];
+  related_skills: string[];
+  prerequisites: Record<string, unknown>;
+  source: "installed" | "bundled" | "optional" | string;
+  installed: boolean;
+  path: string;
+  size_bytes: number;
+  updated_at: string;
+}
+
+export interface HermesMcpServer {
+  id: string;
+  command?: string | null;
+  args: unknown[];
+  env_keys: string[];
+  env_configured: boolean;
+  enabled: boolean;
+  source: string;
+}
+
+export interface HermesToolset {
+  id: string;
+  platform: string;
+  kind: string;
+  enabled: boolean;
+  source: string;
+}
+
+export interface HermesInventoryResponse {
+  summary: HermesInventorySummary;
+  providers: HermesProvider[];
+  models: HermesModel[];
+  skills: HermesSkill[];
+  mcp_servers: HermesMcpServer[];
+  toolsets: HermesToolset[];
+}
+
+export async function getHermesInventory() {
+  return request<HermesInventoryResponse>("/studio/hermes/inventory");
+}
+
+export async function getHermesModels(params?: { provider?: string; query?: string; limit?: number }) {
+  const search = new URLSearchParams();
+  if (params?.provider) search.set("provider", params.provider);
+  if (params?.query) search.set("query", params.query);
+  if (params?.limit) search.set("limit", String(params.limit));
+  const qs = search.toString();
+  return request<{ models: HermesModel[]; total: number; summary: HermesInventorySummary }>(
+    `/studio/hermes/models${qs ? `?${qs}` : ""}`,
+  );
 }
 
 export async function getThemes() {

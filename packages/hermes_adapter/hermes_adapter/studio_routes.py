@@ -20,6 +20,7 @@ from hermes_adapter.checkpoint_repository import CheckpointRepository
 from hermes_adapter.context_repository import ContextRepository
 from hermes_adapter.cron_repository import CronRepository
 from hermes_adapter.delegation_repository import DelegationRepository
+from hermes_adapter.hermes_inventory_repository import HermesInventoryRepository
 from hermes_adapter.process_manager import get_process_manager
 from hermes_adapter.run_ledger_repository import RunLedgerRepository
 from hermes_adapter.security import require_token
@@ -214,6 +215,86 @@ async def bootstrap(_token: None = Depends(require_token)) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Local Hermes Inventory
+# ---------------------------------------------------------------------------
+
+
+def _inventory_http_error(error: Exception) -> HTTPException:
+    return HTTPException(
+        status_code=500,
+        detail=_error_detail(
+            "hermes_inventory_error",
+            str(error),
+            source="studio",
+            retryable=True,
+        ),
+    )
+
+
+@router.get("/hermes/inventory")
+async def get_hermes_inventory(_token: None = Depends(require_token)) -> dict[str, Any]:
+    try:
+        return HermesInventoryRepository().inventory()
+    except Exception as e:
+        raise _inventory_http_error(e) from e
+
+
+@router.get("/hermes/providers")
+async def list_hermes_providers(_token: None = Depends(require_token)) -> dict[str, Any]:
+    try:
+        repo = HermesInventoryRepository()
+        providers = repo.list_providers()
+        return {"providers": providers, "total": len(providers), "summary": repo.summary()}
+    except Exception as e:
+        raise _inventory_http_error(e) from e
+
+
+@router.get("/hermes/models")
+async def list_hermes_models(
+    provider: str | None = Query(None, description="Provider id filter"),
+    query: str | None = Query(None, description="Case-insensitive model search"),
+    limit: int | None = Query(None, ge=1, le=5000, description="Optional result limit"),
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    try:
+        repo = HermesInventoryRepository()
+        models = repo.list_models(provider=provider, query=query, limit=limit)
+        return {"models": models, "total": len(models), "summary": repo.summary()}
+    except Exception as e:
+        raise _inventory_http_error(e) from e
+
+
+@router.get("/hermes/skills")
+async def list_hermes_skills(_token: None = Depends(require_token)) -> dict[str, Any]:
+    try:
+        repo = HermesInventoryRepository()
+        skills = repo.list_skills()
+        return {"skills": skills, "total": len(skills), "summary": repo.summary()}
+    except Exception as e:
+        raise _inventory_http_error(e) from e
+
+
+@router.get("/hermes/mcp-servers")
+async def list_hermes_mcp_servers(_token: None = Depends(require_token)) -> dict[str, Any]:
+    try:
+        repo = HermesInventoryRepository()
+        servers = repo.list_mcp_servers()
+        return {"mcp_servers": servers, "total": len(servers), "summary": repo.summary()}
+    except Exception as e:
+        raise _inventory_http_error(e) from e
+
+
+@router.get("/hermes/toolsets")
+async def list_hermes_toolsets(_token: None = Depends(require_token)) -> dict[str, Any]:
+    try:
+        repo = HermesInventoryRepository()
+        toolsets = repo.list_toolsets()
+        return {"toolsets": toolsets, "total": len(toolsets), "summary": repo.summary()}
+    except Exception as e:
+        raise _inventory_http_error(e) from e
+
+
+# ---------------------------------------------------------------------------
 # Profiles
 # ---------------------------------------------------------------------------
 
@@ -383,7 +464,7 @@ async def start_run(body: dict[str, Any], _token: None = Depends(require_token))
     workspace_path = body.get("workspace_path")
     if not workspace_path and isinstance(context, dict):
         workspace_path = context.get("workspace_path")
-    result = await backend.start_run(session_id, prompt, profile)
+    result = await backend.start_run(session_id, prompt, profile, context if isinstance(context, dict) else None)
     if result.get("status") == "failed":
         raise HTTPException(
             status_code=502,

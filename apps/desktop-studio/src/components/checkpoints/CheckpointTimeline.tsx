@@ -155,15 +155,6 @@ export function CheckpointTimeline() {
                 <dt>HEAD</dt>
                 <dd>{selected.is_head ? "Yes" : "No"}</dd>
               </dl>
-              <div className="checkpoint-actions">
-                <button
-                  className="tool-button"
-                  disabled
-                  title="Restore is not available in v1"
-                >
-                  Restore (v1: read-only)
-                </button>
-              </div>
               {diffLoading && <div className="workbench-empty compact">Loading diff...</div>}
               {diff && !diffLoading && (
                 <>

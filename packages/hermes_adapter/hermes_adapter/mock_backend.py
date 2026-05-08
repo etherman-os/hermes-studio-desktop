@@ -29,9 +29,24 @@ class MockBackend(StudioBackend):
         self._active_runs: dict[str, dict[str, Any]] = {}
         self._run_cancelled: set[str] = set()
         self._theme_repo = ThemeRepository()
+        local_models: list[dict[str, Any]] = []
+        local_provider = "anthropic"
+        local_model = "claude-sonnet-4-20250514"
+        try:
+            from hermes_adapter.hermes_inventory_repository import HermesInventoryRepository
+
+            inventory = HermesInventoryRepository()
+            local_models = inventory.list_models()
+            summary = inventory.summary()
+            if isinstance(summary.get("active_provider"), str):
+                local_provider = summary["active_provider"]
+            if isinstance(summary.get("active_model"), str):
+                local_model = summary["active_model"]
+        except Exception:
+            local_models = []
         self._model_config: dict[str, Any] = {
-            "provider": "anthropic",
-            "model": "claude-sonnet-4-20250514",
+            "provider": local_provider,
+            "model": local_model,
             "base_url": None,
             "api_key_configured": True,
             "api_key_source": ".env",
@@ -40,12 +55,12 @@ class MockBackend(StudioBackend):
             "max_tokens": 4096,
             "context_window": 200000,
             "capabilities_available": True,
-            "available_models": [
+            "available_models": local_models or [
                 {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "provider": "anthropic"},
                 {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai"},
                 {"id": "hermes-3-llama-3.1-70b", "name": "Hermes 3 70B", "provider": "nous"},
             ],
-            "available_model_count": 3,
+            "available_model_count": len(local_models) if local_models else 3,
             "warnings": [],
         }
 
@@ -66,10 +81,7 @@ class MockBackend(StudioBackend):
             "capabilities": ["chat", "tools", "files", "approval", "streaming"],
             "recent_sessions": self._sessions(),
             "active_theme": self._theme_repo.get_theme_info(self._theme_repo.get_active_theme_id()),
-            "available_models": [
-                {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "provider": "anthropic"},
-                {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai"},
-            ],
+            "available_models": self._model_config["available_models"],
             "display": {"language": "en", "timezone": None, "theme": None},
         }
 
@@ -114,12 +126,19 @@ class MockBackend(StudioBackend):
                 }
         raise ValueError(f"Session '{session_id}' not found")
 
-    async def start_run(self, session_id: str, prompt: str, profile: str | None = None) -> dict[str, Any]:
+    async def start_run(
+        self,
+        session_id: str,
+        prompt: str,
+        profile: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         run_id = f"run_{uuid.uuid4().hex[:12]}"
         self._active_runs[run_id] = {
             "run_id": run_id,
             "session_id": session_id,
             "prompt": prompt,
+            "context": context or {},
             "status": "started",
             "created_at": _now_iso(),
         }

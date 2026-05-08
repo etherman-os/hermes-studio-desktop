@@ -31,7 +31,9 @@ export function StatusBar() {
 
   let backendLabel = backendMode;
   if (backendMode === "auto") {
-    backendLabel = hermesConnected ? "Hermes" : "Mock";
+    backendLabel = hermesConnected ? "Hermes" : "Studio";
+  } else if (backendMode === "mock") {
+    backendLabel = "Studio";
   }
 
   const profileName = activeProfile?.name ?? "unknown";

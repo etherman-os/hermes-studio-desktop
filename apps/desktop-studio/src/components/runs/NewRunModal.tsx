@@ -6,7 +6,7 @@ import { useSessionStore } from "../../stores/sessionStore";
 import { useProfileStore } from "../../stores/profileStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useModelStore } from "../../stores/modelStore";
-import * as api from "../../api/studioClient";
+import { useHermesInventoryStore } from "../../stores/hermesInventoryStore";
 
 export function NewRunModal() {
   const open = useUiStore((s) => s.newRunOpen);
@@ -24,6 +24,9 @@ export function NewRunModal() {
   const config = useModelStore((s) => s.config);
   const availableModels = useModelStore((s) => s.availableModels);
   const loadConfig = useModelStore((s) => s.loadConfig);
+  const skills = useHermesInventoryStore((s) => s.skills);
+  const toolsets = useHermesInventoryStore((s) => s.toolsets);
+  const loadInventory = useHermesInventoryStore((s) => s.loadInventory);
   const [prompt, setPrompt] = React.useState("");
   const [workspacePath, setWorkspacePath] = React.useState(selectedWorkspace ?? "");
   const [sessionId, setSessionId] = React.useState(activeSessionId ?? "default");
@@ -31,13 +34,16 @@ export function NewRunModal() {
   const [linkedCard, setLinkedCard] = React.useState("");
   const [selectedModel, setSelectedModel] = React.useState("");
   const [selectedProvider, setSelectedProvider] = React.useState("");
+  const [selectedSkills, setSelectedSkills] = React.useState<string[]>([]);
+  const [selectedToolsets, setSelectedToolsets] = React.useState<string[]>([]);
 
   React.useEffect(() => {
     if (!open) return;
     setWorkspacePath(selectedWorkspace ?? "");
     setSessionId(activeSessionId ?? "default");
     loadConfig();
-  }, [open, selectedWorkspace, activeSessionId, loadConfig]);
+    loadInventory();
+  }, [open, selectedWorkspace, activeSessionId, loadConfig, loadInventory]);
 
   React.useEffect(() => {
     if (!open || !config) return;
@@ -70,6 +76,8 @@ export function NewRunModal() {
       mode,
       model: selectedModel || undefined,
       provider: selectedProvider || undefined,
+      skills: selectedSkills.length ? selectedSkills : undefined,
+      toolsets: selectedToolsets.length ? selectedToolsets : undefined,
     });
   }
 
@@ -77,6 +85,22 @@ export function NewRunModal() {
   const modelsForProvider = selectedProvider
     ? availableModels.filter((m) => m.provider === selectedProvider)
     : availableModels;
+  const installedSkills = skills.filter((skill) => skill.installed).slice(0, 14);
+  const runToolsets = toolsets
+    .filter((toolset) => toolset.platform === "cli" || toolset.kind === "mcp")
+    .slice(0, 18);
+
+  function toggleSkill(skillId: string) {
+    setSelectedSkills((current) => current.includes(skillId)
+      ? current.filter((item) => item !== skillId)
+      : [...current, skillId]);
+  }
+
+  function toggleToolset(toolsetId: string) {
+    setSelectedToolsets((current) => current.includes(toolsetId)
+      ? current.filter((item) => item !== toolsetId)
+      : [...current, toolsetId]);
+  }
 
   return (
     <div className="modal-backdrop" onClick={close} role="dialog" aria-modal="true" aria-label="New run">
@@ -114,7 +138,7 @@ export function NewRunModal() {
               />
               <button className="tool-button" onClick={openWorkspacePicker}>Select</button>
             </div>
-            <div className="field-help">Stored as Studio run metadata. Hermes cwd forwarding waits for verified runtime support.</div>
+            <div className="field-help">Forwarded to Hermes as run context and stored in the Studio ledger.</div>
 
             <label className="field-label" htmlFor="new-run-mode">Run mode</label>
             <select id="new-run-mode" className="studio-select" value={mode} onChange={(event) => setMode(event.target.value)}>
@@ -161,9 +185,49 @@ export function NewRunModal() {
             >
               <option value="">{config?.model ?? "Select model"}</option>
               {modelsForProvider.map((m) => (
-                <option key={m.id} value={m.id}>{m.name || m.id}</option>
+                <option key={`${m.provider}:${m.id}`} value={m.id}>{m.name || m.id}</option>
               ))}
             </select>
+            <div className="field-help">
+              {availableModels.length.toLocaleString()} local Hermes model{availableModels.length !== 1 ? "s" : ""} detected.
+            </div>
+
+            {installedSkills.length > 0 && (
+              <>
+                <label className="field-label">Preload skills</label>
+                <div className="selector-chip-grid">
+                  {installedSkills.map((skill) => (
+                    <button
+                      key={skill.id}
+                      type="button"
+                      className={`selector-chip ${selectedSkills.includes(skill.id) ? "active" : ""}`}
+                      onClick={() => toggleSkill(skill.id)}
+                      title={skill.description || skill.title}
+                    >
+                      {skill.name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {runToolsets.length > 0 && (
+              <>
+                <label className="field-label">Toolsets</label>
+                <div className="selector-chip-grid">
+                  {runToolsets.map((toolset) => (
+                    <button
+                      key={`${toolset.platform}:${toolset.id}`}
+                      type="button"
+                      className={`selector-chip ${selectedToolsets.includes(toolset.id) ? "active" : ""}`}
+                      onClick={() => toggleToolset(toolset.id)}
+                    >
+                      {toolset.id}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
 
             <label className="field-label" htmlFor="new-run-card">Linked Kanban card</label>
             <input

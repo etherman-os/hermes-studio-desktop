@@ -75,7 +75,7 @@ export function ChatSurface() {
             <span>Status {ledgerRun?.status ?? (isStreaming ? "running" : "idle")}</span>
             <span>Session {activeSessionId ?? "none"}</span>
             <span>Workspace {selectedWorkspace ?? "none"}</span>
-            {mockActive && <span className="runtime-chip warn">Mock data</span>}
+            {mockActive && <span className="runtime-chip warn">Studio simulation</span>}
           </div>
         </div>
         <div className="chat-run-actions">

@@ -1,6 +1,10 @@
 import React from "react";
 import { useArtifactStore } from "../../stores/artifactStore";
 import { useLayoutStore } from "../../stores/layoutStore";
+import { useRunStore } from "../../stores/runStore";
+import { useSessionStore } from "../../stores/sessionStore";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { useHermesInventoryStore } from "../../stores/hermesInventoryStore";
 import { PreviewLauncher } from "../preview/PreviewLauncher";
 
 function isPreviewable(artifact: { type?: string; content_url?: string | null; content_text?: string | null }) {
@@ -12,6 +16,39 @@ function isPreviewable(artifact: { type?: string; content_url?: string | null; c
 function artifactPreviewUrl(artifact: { content_url?: string | null; content_text?: string | null; type?: string }) {
   if (artifact.content_url) return artifact.content_url;
   return "";
+}
+
+function artifactTarget(artifact: { id: string; file_path?: string | null; content_url?: string | null }) {
+  return artifact.content_url || artifact.file_path || artifact.id;
+}
+
+function clickablePreviewDoc(content: string) {
+  const bridge = `
+<script>
+(() => {
+  function selectorFor(el) {
+    if (!el || !el.tagName) return "unknown";
+    const tag = el.tagName.toLowerCase();
+    if (el.id) return tag + "#" + el.id;
+    const cls = String(el.className || "").trim().split(/\\s+/).filter(Boolean).slice(0, 2).join(".");
+    return cls ? tag + "." + cls : tag;
+  }
+  document.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const target = event.target;
+    window.parent.postMessage({
+      type: "hermes:artifact-element-selected",
+      selector: selectorFor(target),
+      text: String(target && target.textContent || "").trim().slice(0, 160)
+    }, "*");
+  }, true);
+})();
+</script>`;
+  if (content.includes("</body>")) {
+    return content.replace("</body>", `${bridge}</body>`);
+  }
+  return `${content}${bridge}`;
 }
 
 export function ArtifactShelf() {
@@ -27,10 +64,71 @@ export function ArtifactShelf() {
   const setFilterType = useArtifactStore((s) => s.setFilterType);
   const setSearch = useArtifactStore((s) => s.setSearch);
   const setActiveTab = useLayoutStore((s) => s.setActiveTab);
+  const sendPrompt = useRunStore((s) => s.sendPrompt);
+  const activeSessionId = useSessionStore((s) => s.activeSessionId);
+  const selectedWorkspace = useWorkspaceStore((s) => s.selectedWorkspace);
+  const skills = useHermesInventoryStore((s) => s.skills);
+  const toolsets = useHermesInventoryStore((s) => s.toolsets);
+  const [visualPrompt, setVisualPrompt] = React.useState("");
 
   React.useEffect(() => {
     loadArtifacts();
   }, [loadArtifacts]);
+
+  React.useEffect(() => {
+    function handlePreviewMessage(event: MessageEvent) {
+      const data = event.data as { type?: string; selector?: string; text?: string };
+      if (data?.type !== "hermes:artifact-element-selected") return;
+      const text = data.text ? ` Text: "${data.text}"` : "";
+      setVisualPrompt(`Update ${data.selector ?? "the selected element"}.${text}`);
+    }
+    window.addEventListener("message", handlePreviewMessage);
+    return () => window.removeEventListener("message", handlePreviewMessage);
+  }, []);
+
+  const designSkillIds = skills
+    .filter((skill) => skill.installed && (
+      skill.id.includes("creative/claude-design")
+      || skill.id.includes("creative/popular-web-designs")
+      || skill.id.includes("web-development")
+    ))
+    .slice(0, 3)
+    .map((skill) => skill.id);
+  const designToolsets = toolsets
+    .filter((toolset) => ["browser", "web", "file", "vision"].includes(toolset.id) || toolset.kind === "mcp")
+    .slice(0, 6)
+    .map((toolset) => toolset.id);
+
+  function sendArtifactPrompt(kind: "visual-edit" | "variants" | "browser-check") {
+    if (!selectedArtifact) return;
+    const target = artifactTarget(selectedArtifact);
+    const excerpt = selectedArtifact.content_text?.slice(0, 1600) ?? "";
+    const instruction = kind === "visual-edit"
+      ? visualPrompt.trim()
+      : kind === "variants"
+        ? "Create three production-quality visual variants, compare them, and preserve a reversible artifact history."
+        : "Run a browser-in-the-loop inspection, capture visual issues, and propose concrete fixes.";
+    if (!instruction) return;
+    setActiveTab("chat");
+    void sendPrompt(
+      [
+        `Hermes Artifact Studio request: ${kind}`,
+        `Artifact: ${selectedArtifact.title} (${selectedArtifact.id})`,
+        `Target: ${target}`,
+        selectedArtifact.description ? `Description: ${selectedArtifact.description}` : "",
+        excerpt ? `Current artifact excerpt:\n${excerpt}` : "",
+        `Instruction:\n${instruction}`,
+      ].filter(Boolean).join("\n\n"),
+      activeSessionId ?? "default",
+      {
+        workspacePath: selectedWorkspace,
+        mode: "design",
+        skills: designSkillIds,
+        toolsets: designToolsets,
+      },
+    );
+    if (kind === "visual-edit") setVisualPrompt("");
+  }
 
   return (
     <div className="run-ledger">
@@ -161,6 +259,40 @@ export function ArtifactShelf() {
                   />
                 </div>
               )}
+              {selectedArtifact.type === "html" && selectedArtifact.content_text && (
+                <div className="artifact-inline-preview">
+                  <iframe
+                    title={`${selectedArtifact.title} preview`}
+                    srcDoc={clickablePreviewDoc(selectedArtifact.content_text)}
+                    sandbox="allow-scripts allow-forms"
+                  />
+                </div>
+              )}
+              <div className="artifact-design-panel">
+                <div className="inventory-section-title">Design actions</div>
+                <textarea
+                  className="studio-textarea artifact-design-textarea"
+                  value={visualPrompt}
+                  onChange={(event) => setVisualPrompt(event.target.value)}
+                  placeholder="Targeted visual edit..."
+                  aria-label="Targeted visual edit prompt"
+                />
+                <div className="artifact-design-actions">
+                  <button
+                    className="primary-button"
+                    disabled={!visualPrompt.trim()}
+                    onClick={() => sendArtifactPrompt("visual-edit")}
+                  >
+                    Visual Edit
+                  </button>
+                  <button className="tool-button" onClick={() => sendArtifactPrompt("variants")}>
+                    A/B Variants
+                  </button>
+                  <button className="tool-button" onClick={() => sendArtifactPrompt("browser-check")}>
+                    Browser Check
+                  </button>
+                </div>
+              </div>
               {selectedArtifact.content_text && (
                 <pre className="event-payload">{selectedArtifact.content_text.slice(0, 4000)}</pre>
               )}

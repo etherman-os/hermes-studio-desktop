@@ -52,7 +52,7 @@ export function RuntimeStatus({ compact = false }: RuntimeStatusProps) {
         <div>
           <div className="workbench-eyebrow">Runtime</div>
           <div className="runtime-title">
-            {mockActive && "Mock backend"}
+            {mockActive && "Studio simulation backend"}
             {hermesActive && hermesConnected && "Connected to Hermes"}
             {hermesActive && !hermesConnected && "Hermes unreachable"}
             {!mockActive && !hermesActive && "Runtime status"}
@@ -65,7 +65,7 @@ export function RuntimeStatus({ compact = false }: RuntimeStatusProps) {
 
       {mockActive && (
         <div className="runtime-warning">
-          Mock backend is active. Chat, sessions, and runs may use fake development data unless Auto resolves to Hermes.
+          Studio simulation is active. Local Hermes inventory is still read from this machine; live runs switch to Hermes when Auto resolves the Hermes gateway.
         </div>
       )}
       {fallbackReason && (

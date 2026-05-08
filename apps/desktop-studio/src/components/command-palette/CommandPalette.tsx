@@ -26,6 +26,7 @@ export function CommandPalette() {
   const setSidebar = useLayoutStore((s) => s.setSidebarSection);
   const setBottomTab = useLayoutStore((s) => s.setBottomTab);
   const showSidebar = useLayoutStore((s) => s.showSidebar);
+  const resetPanelSizes = useLayoutStore((s) => s.resetPanelSizes);
   const openNewRun = useUiStore((s) => s.openNewRun);
   const openWorkspacePicker = useUiStore((s) => s.openWorkspacePicker);
   const refreshRuntime = useAdapterStore((s) => s.checkConnection);
@@ -58,7 +59,7 @@ export function CommandPalette() {
     { id: "open-artifacts", label: "Open Artifacts", icon: "A", action: () => { setActiveTab("artifacts"); setSidebar("artifacts"); showSidebar(); close(); } },
     { id: "open-context", label: "Open Context Inspector", icon: "@", action: () => { setActiveTab("context"); setSidebar("context"); showSidebar(); close(); } },
     { id: "open-approvals", label: "Open Approval Center", icon: "!", action: () => { setActiveTab("approvals"); setSidebar("approvals"); showSidebar(); close(); } },
-    { id: "open-extensions", label: "Open Extensions", icon: "X", action: () => { setActiveTab("extensions"); setSidebar("extensions"); showSidebar(); close(); } },
+    { id: "open-extensions", label: "Open Hermes Arsenal", icon: "X", action: () => { setActiveTab("extensions"); setSidebar("extensions"); showSidebar(); close(); } },
     { id: "open-delegations", label: "Open Delegations", icon: "D", action: () => { setActiveTab("delegations"); setSidebar("delegations"); showSidebar(); close(); } },
     { id: "open-cron", label: "Open Scheduled Jobs", icon: "T", action: () => { setActiveTab("cron"); setSidebar("cron"); showSidebar(); close(); } },
     { id: "show-logs", label: "Show Logs", icon: "L", action: () => { setBottomTab("logs"); setSidebar("logs"); showSidebar(); close(); } },
@@ -68,6 +69,7 @@ export function CommandPalette() {
     { id: "open-settings", label: "Open Settings", icon: "*", action: () => { setSidebar("settings"); showSidebar(); close(); } },
     { id: "toggle-right", label: "Toggle Right Panel", icon: "I", action: () => { toggleRight(); close(); } },
     { id: "toggle-bottom", label: "Toggle Bottom Panel", icon: "_", action: () => { toggleBottom(); close(); } },
+    { id: "reset-layout", label: "Reset Studio Layout", icon: "=", action: () => { resetPanelSizes(); close(); } },
     ...themeCommands,
   ];
 

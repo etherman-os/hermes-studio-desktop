@@ -53,7 +53,13 @@ class StudioBackend(ABC):
         ...
 
     @abstractmethod
-    async def start_run(self, session_id: str, prompt: str, profile: str | None = None) -> dict[str, Any]:
+    async def start_run(
+        self,
+        session_id: str,
+        prompt: str,
+        profile: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Start a new run. Returns {run_id, status}."""
         ...
 

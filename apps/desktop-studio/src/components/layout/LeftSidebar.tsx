@@ -112,7 +112,7 @@ function BoardSection() {
   return (
     <div className="sidebar-stack">
       <button className="sidebar-item active" onClick={() => setActiveTab("board")}>Run Board</button>
-      <div className="sidebar-note">Board cards persist in Studio storage and can link to runs or sessions. Movement uses explicit controls; drag-and-drop remains future work.</div>
+      <div className="sidebar-note">Board cards persist in Studio storage, link to runs or sessions, and move through explicit stage controls.</div>
     </div>
   );
 }

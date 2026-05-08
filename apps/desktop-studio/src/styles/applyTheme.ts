@@ -26,10 +26,22 @@ const ALL_THEME_VARS = [
 export function applyThemeToDOM(theme: ThemePack) {
   const root = document.documentElement;
   const p = theme.palette ?? {};
+  const themeId = theme.meta.id;
 
   for (const cssVar of ALL_THEME_VARS) {
     root.style.removeProperty(cssVar);
   }
+
+  root.dataset.themeId = themeId;
+  root.dataset.themeWorld = themeId.includes("minecraft")
+    ? "block"
+    : themeId.includes("lotr")
+      ? "archive"
+      : themeId.includes("minions")
+        ? "lab"
+        : themeId.includes("light")
+          ? "paper"
+          : "studio";
 
   const mapping: Record<string, string | undefined> = {
     "--app-bg": p.bg,

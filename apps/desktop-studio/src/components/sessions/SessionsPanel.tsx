@@ -154,7 +154,7 @@ export function SessionsPanel() {
         </div>
 
         <div style={{ padding: "var(--app-spacing-xs) var(--app-spacing-sm)", fontSize: "10px", color: "var(--app-text-muted)" }}>
-          {filtered.length} sessions · {sessionSource === "hermes_state_db" ? "Hermes" : sessionSource === "mock" ? "Mock" : "Unknown"}
+          {filtered.length} sessions · {sessionSource === "hermes_state_db" ? "Hermes" : sessionSource === "mock" ? "Studio" : "Unknown"}
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "var(--app-spacing-xs)" }} role="listbox" aria-label="Sessions">
