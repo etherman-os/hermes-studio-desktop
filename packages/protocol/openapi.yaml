@@ -1191,7 +1191,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Artifact"
+                $ref: "#/components/schemas/ArtifactDetail"
         "400":
           description: Invalid or unsafe artifact input
           content:
@@ -1243,7 +1243,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Artifact"
+                $ref: "#/components/schemas/ArtifactDetail"
         "400":
           description: Invalid or unsafe artifact input
           content:
@@ -1252,6 +1252,184 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Artifact not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/artifacts/{artifact_id}/revisions:
+    get:
+      summary: List artifact revisions
+      description: Returns Studio-owned revision snapshots for an artifact. Revisions are stored in studio.db and never in Hermes state.db.
+      operationId: listArtifactRevisions
+      parameters:
+        - name: artifact_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Artifact revision summaries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRevisionListResponse"
+        "404":
+          description: Artifact not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/artifacts/{artifact_id}/revert:
+    post:
+      summary: Revert artifact to a revision
+      description: Restores artifact content and metadata from a stored Studio-owned revision and records a new revision for the revert result.
+      operationId: revertArtifact
+      parameters:
+        - name: artifact_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArtifactRevertRequest"
+      responses:
+        "200":
+          description: Reverted artifact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDetail"
+        "400":
+          description: Invalid revision input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Artifact or revision not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/artifacts/{artifact_id}/variant-groups:
+    get:
+      summary: List artifact variant groups
+      description: Returns Studio-owned A/B variant groups for an artifact.
+      operationId: listArtifactVariantGroups
+      parameters:
+        - name: artifact_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Artifact variant groups
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactVariantGroupListResponse"
+        "404":
+          description: Artifact not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Create artifact variant group
+      description: Creates a persisted comparison group with a baseline source snapshot and optional candidate variants.
+      operationId: createArtifactVariantGroup
+      parameters:
+        - name: artifact_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArtifactVariantGroupCreateRequest"
+      responses:
+        "200":
+          description: Created variant group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactVariantGroup"
+        "400":
+          description: Invalid variant input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/artifact-variant-groups/{group_id}/variants:
+    post:
+      summary: Add artifact variant
+      description: Adds a candidate variant to a Studio-owned comparison group.
+      operationId: addArtifactVariant
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArtifactVariantCreateRequest"
+      responses:
+        "200":
+          description: Updated variant group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactVariantGroup"
+        "400":
+          description: Invalid variant input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /studio/artifact-variant-groups/{group_id}/apply:
+    post:
+      summary: Apply artifact variant
+      description: Applies a candidate variant to its source artifact, stores a new revision, and marks the variant group winner.
+      operationId: applyArtifactVariant
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArtifactVariantApplyRequest"
+      responses:
+        "200":
+          description: Updated source artifact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactDetail"
+        "400":
+          description: Invalid apply input
           content:
             application/json:
               schema:
@@ -3472,6 +3650,14 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/ArtifactEvent"
+            revisions:
+              type: array
+              items:
+                $ref: "#/components/schemas/ArtifactRevision"
+            variant_groups:
+              type: array
+              items:
+                $ref: "#/components/schemas/ArtifactVariantGroup"
 
     ArtifactEvent:
       type: object
@@ -3494,6 +3680,179 @@ components:
         - type
         - payload
         - created_at
+
+    ArtifactRevision:
+      type: object
+      properties:
+        id:
+          type: string
+        artifact_id:
+          type: string
+        version:
+          type: integer
+        title:
+          type: string
+        type:
+          $ref: "#/components/schemas/ArtifactType"
+        description:
+          type: string
+          nullable: true
+        file_path:
+          type: string
+          nullable: true
+        file_name:
+          type: string
+          nullable: true
+        mime_type:
+          type: string
+          nullable: true
+        size_bytes:
+          type: integer
+          nullable: true
+        source:
+          type: string
+        event_type:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        has_content:
+          type: boolean
+        content_text:
+          type: string
+          nullable: true
+      required:
+        - id
+        - artifact_id
+        - version
+        - title
+        - type
+        - source
+        - event_type
+        - created_at
+        - has_content
+
+    ArtifactRevisionListResponse:
+      type: object
+      properties:
+        artifact_id:
+          type: string
+        revisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArtifactRevision"
+        total:
+          type: integer
+      required:
+        - artifact_id
+        - revisions
+        - total
+
+    ArtifactVariant:
+      type: object
+      properties:
+        id:
+          type: string
+        group_id:
+          type: string
+        label:
+          type: string
+        title:
+          type: string
+        file_path:
+          type: string
+          nullable: true
+        file_name:
+          type: string
+          nullable: true
+        mime_type:
+          type: string
+          nullable: true
+        size_bytes:
+          type: integer
+          nullable: true
+        rationale:
+          type: string
+          nullable: true
+        score:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        has_content:
+          type: boolean
+        content_text:
+          type: string
+          nullable: true
+      required:
+        - id
+        - group_id
+        - label
+        - title
+        - created_at
+        - updated_at
+        - has_content
+
+    ArtifactVariantGroup:
+      type: object
+      properties:
+        id:
+          type: string
+        source_artifact_id:
+          type: string
+        title:
+          type: string
+        brief:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            - draft
+            - ready
+            - applied
+            - archived
+        winner_variant_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        variants:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArtifactVariant"
+      required:
+        - id
+        - source_artifact_id
+        - title
+        - status
+        - created_at
+        - updated_at
+        - variants
+
+    ArtifactVariantGroupListResponse:
+      type: object
+      properties:
+        artifact_id:
+          type: string
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArtifactVariantGroup"
+        total:
+          type: integer
+      required:
+        - artifact_id
+        - groups
+        - total
 
     ArtifactListResponse:
       type: object
@@ -3580,6 +3939,85 @@ components:
           nullable: true
         source:
           type: string
+      additionalProperties: false
+
+    ArtifactRevertRequest:
+      type: object
+      properties:
+        version:
+          type: integer
+          minimum: 1
+      required:
+        - version
+      additionalProperties: false
+
+    ArtifactVariantCreateRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          maxLength: 40
+        title:
+          type: string
+          maxLength: 200
+        content_text:
+          type: string
+          maxLength: 200000
+          nullable: true
+        file_path:
+          type: string
+          maxLength: 2000
+          nullable: true
+        mime_type:
+          type: string
+          maxLength: 128
+          nullable: true
+        size_bytes:
+          type: integer
+          minimum: 0
+          nullable: true
+        rationale:
+          type: string
+          maxLength: 5000
+          nullable: true
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          nullable: true
+      additionalProperties: false
+
+    ArtifactVariantGroupCreateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        brief:
+          type: string
+          maxLength: 5000
+          nullable: true
+        status:
+          type: string
+          enum:
+            - draft
+            - ready
+            - applied
+            - archived
+        variants:
+          type: array
+          maxItems: 11
+          items:
+            $ref: "#/components/schemas/ArtifactVariantCreateRequest"
+      additionalProperties: false
+
+    ArtifactVariantApplyRequest:
+      type: object
+      properties:
+        variant_id:
+          type: string
+      required:
+        - variant_id
       additionalProperties: false
 
     ArtifactLinkRunRequest:

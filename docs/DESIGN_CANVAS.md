@@ -41,5 +41,5 @@ HTML design artifacts are shown in sandboxed iframes without script permissions.
 
 - screenshot OCR/vision extraction
 - Figma MCP metadata extraction
-- direct artifact variant comparison
+- visual diff thumbnails for artifact variant comparison
 - checkpoint-backed design revisions

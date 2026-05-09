@@ -25,6 +25,8 @@ The default local mode runs Hermes directly through CLI and does not require gat
 
 Mission Control's primary action is a local Hermes run. Presets prefill the New Run launcher with the appropriate Hermes skills, toolsets, checkpoint behavior, max-turn budget, and worktree/session flags. The adapter then maps those options to public `hermes chat --query` flags.
 
+Hermes Arsenal extends this with Capability Recipes: users can select multiple installed Hermes skills plus enabled toolsets/MCP surfaces and launch a single checkpointed local run. This keeps the full local Hermes capability set usable from desktop without editing Hermes core.
+
 Mission Control can also start the optional Hermes gateway bridge through the managed process template:
 
 ```bash

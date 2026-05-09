@@ -11,6 +11,10 @@ vi.mock("../api/studioClient", async () => {
     getArtifact: vi.fn(),
     createArtifact: vi.fn(),
     updateArtifact: vi.fn(),
+    revertArtifact: vi.fn(),
+    createArtifactVariantGroup: vi.fn(),
+    addArtifactVariant: vi.fn(),
+    applyArtifactVariant: vi.fn(),
     archiveArtifact: vi.fn(),
     runArtifactBrowserEvidence: vi.fn(),
     linkArtifactToRun: vi.fn(),
@@ -38,6 +42,19 @@ const artifact: ArtifactDetail = {
   has_content: true,
   content_text: "# Summary",
   events: [],
+  variant_groups: [],
+};
+
+const variantGroup = {
+  id: "artifact_variant_group_1",
+  source_artifact_id: "artifact_1",
+  title: "Variants",
+  brief: null,
+  status: "ready" as const,
+  winner_variant_id: null,
+  created_at: "2026-05-07T00:00:00Z",
+  updated_at: "2026-05-07T00:00:00Z",
+  variants: [],
 };
 
 function resetStore() {
@@ -91,6 +108,54 @@ describe("artifactStore", () => {
     expect(api.archiveArtifact).toHaveBeenCalledWith("artifact_1");
     expect(useArtifactStore.getState().artifacts).toEqual([]);
     expect(useArtifactStore.getState().selectedArtifact).toBeNull();
+  });
+
+  it("reverts an artifact and keeps it selected", async () => {
+    const reverted = { ...artifact, content_text: "# Previous" };
+    vi.mocked(api.revertArtifact).mockResolvedValue(reverted);
+
+    await useArtifactStore.getState().revertArtifact("artifact_1", 1);
+
+    expect(api.revertArtifact).toHaveBeenCalledWith("artifact_1", 1);
+    expect(useArtifactStore.getState().selectedArtifact?.content_text).toBe("# Previous");
+    expect(useArtifactStore.getState().actionMessage).toBe("Artifact reverted to v1");
+  });
+
+  it("creates and applies artifact variants", async () => {
+    useArtifactStore.setState({ artifacts: [artifact], selectedArtifact: artifact, selectedArtifactId: "artifact_1" });
+    vi.mocked(api.createArtifactVariantGroup).mockResolvedValue(variantGroup);
+    vi.mocked(api.addArtifactVariant).mockResolvedValue({
+      ...variantGroup,
+      variants: [
+        {
+          id: "artifact_variant_1",
+          group_id: "artifact_variant_group_1",
+          label: "A",
+          title: "Variant A",
+          file_path: null,
+          file_name: null,
+          mime_type: "text/markdown",
+          size_bytes: null,
+          rationale: null,
+          score: 90,
+          created_at: "2026-05-07T00:00:00Z",
+          updated_at: "2026-05-07T00:00:00Z",
+          has_content: true,
+          content_text: "# Variant",
+        },
+      ],
+    });
+    vi.mocked(api.applyArtifactVariant).mockResolvedValue({ ...artifact, content_text: "# Variant" });
+
+    await useArtifactStore.getState().createVariantGroup("artifact_1", { title: "Variants" });
+    await useArtifactStore.getState().addVariant("artifact_variant_group_1", { label: "A", content_text: "# Variant" });
+    await useArtifactStore.getState().applyVariant("artifact_variant_group_1", "artifact_variant_1");
+
+    expect(api.createArtifactVariantGroup).toHaveBeenCalledWith("artifact_1", { title: "Variants" });
+    expect(api.addArtifactVariant).toHaveBeenCalledWith("artifact_variant_group_1", { label: "A", content_text: "# Variant" });
+    expect(api.applyArtifactVariant).toHaveBeenCalledWith("artifact_variant_group_1", "artifact_variant_1");
+    expect(useArtifactStore.getState().selectedArtifact?.content_text).toBe("# Variant");
+    expect(useArtifactStore.getState().actionMessage).toBe("Variant applied");
   });
 
   it("captures browser evidence and selects the report", async () => {

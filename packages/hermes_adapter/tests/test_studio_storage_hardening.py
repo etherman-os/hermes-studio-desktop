@@ -91,10 +91,10 @@ class TestMigrationRollback:
 
 
 class TestAuditLogMigration:
-    def test_schema_version_8_includes_tool_packs(self, tmp_path: Path) -> None:
+    def test_schema_version_10_includes_artifact_variants(self, tmp_path: Path) -> None:
         storage = StudioStorage(data_dir=tmp_path / "data")
         status = storage.initialize()
-        assert status.schema_version == 8
+        assert status.schema_version == 10
 
         with storage.connect() as conn:
             tables = {
@@ -104,3 +104,7 @@ class TestAuditLogMigration:
                 ).fetchall()
             }
         assert "audit_log" in tables
+        assert "tool_packs" in tables
+        assert "artifact_revisions" in tables
+        assert "artifact_variant_groups" in tables
+        assert "artifact_variants" in tables

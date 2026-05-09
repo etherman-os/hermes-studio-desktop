@@ -38,7 +38,7 @@ Persistent Kanban backend calls live under `/studio/kanban/*` and use Studio-own
 
 ## Artifact Protocol
 
-Persistent Artifact Shelf calls live under `/studio/artifacts/*` and use Studio-owned `studio.db`. Artifact records can link to runs, sessions, and Kanban cards. Text content is bounded/redacted, file artifacts are metadata references only, and inline HTML/script content is not executed by Studio. Browser evidence runs through the Studio-owned Playwright runner and stores screenshot-backed reports as new artifacts.
+Persistent Artifact Shelf calls live under `/studio/artifacts/*` and use Studio-owned `studio.db`. Artifact records can link to runs, sessions, and Kanban cards. Text content is bounded/redacted, file artifacts are metadata references only, and inline HTML/script content is not executed by Studio. Browser evidence runs through the Studio-owned Playwright runner and stores screenshot-backed reports as new artifacts. Artifact revisions and A/B variant groups are Studio-owned snapshots and support revert/apply without writing to Hermes state.
 
 ## Context Protocol
 

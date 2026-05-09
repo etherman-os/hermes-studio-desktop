@@ -35,8 +35,12 @@ export function ExtensionsPanel() {
   const [tab, setTab] = React.useState<CatalogTab>("overview");
   const [skillQuery, setSkillQuery] = React.useState("");
   const [skillCategory, setSkillCategory] = React.useState("all");
+  const [recipeSkillIds, setRecipeSkillIds] = React.useState<string[]>([]);
+  const [recipeToolsetIds, setRecipeToolsetIds] = React.useState<string[]>([]);
 
   const selectedPack = packs.find((p) => p.id === selectedPackId) ?? null;
+  const selectedRecipeSkills = skills.filter((skill) => recipeSkillIds.includes(skill.id));
+  const selectedRecipeToolsets = toolsets.filter((toolset) => recipeToolsetIds.includes(toolset.id));
 
   React.useEffect(() => {
     loadPacks();
@@ -111,15 +115,50 @@ export function ExtensionsPanel() {
       )}
 
       {tab === "overview" && (
-        <HermesOverview
-          loading={inventoryLoading}
-          summary={inventorySummary}
-          providers={providers}
-          models={models}
-          skills={skills}
-          mcpServers={mcpServers}
-          toolsets={toolsets}
-        />
+        <>
+          <HermesOverview
+            loading={inventoryLoading}
+            summary={inventorySummary}
+            providers={providers}
+            models={models}
+            skills={skills}
+            mcpServers={mcpServers}
+            toolsets={toolsets}
+          />
+          <CapabilityRecipeBuilder
+            skills={skills}
+            toolsets={toolsets}
+            selectedSkillIds={recipeSkillIds}
+            selectedToolsetIds={recipeToolsetIds}
+            onToggleSkill={(skillId) => {
+              setRecipeSkillIds((current) => current.includes(skillId)
+                ? current.filter((item) => item !== skillId)
+                : [...current, skillId].slice(-8));
+            }}
+            onToggleToolset={(toolsetId) => {
+              setRecipeToolsetIds((current) => current.includes(toolsetId)
+                ? current.filter((item) => item !== toolsetId)
+                : [...current, toolsetId].slice(-12));
+            }}
+            onRun={() => openNewRun({
+              mode: "task",
+              prompt: [
+                "Use this Hermes Capability Recipe for the next local production run.",
+                selectedRecipeSkills.length
+                  ? `Skills: ${selectedRecipeSkills.map((skill) => skill.cli_name || skill.name || skill.id).join(", ")}`
+                  : "",
+                selectedRecipeToolsets.length
+                  ? `Toolsets: ${selectedRecipeToolsets.map((toolset) => toolset.id).join(", ")}`
+                  : "",
+                "Inspect the local workspace first, use the selected Hermes capabilities deliberately, keep checkpoint history enabled, and return implementation results plus verification evidence.",
+              ].filter(Boolean).join("\n\n"),
+              skills: selectedRecipeSkills.map((skill) => skill.cli_name || skill.name || skill.id),
+              toolsets: selectedRecipeToolsets.map((toolset) => toolset.id),
+              checkpoints: true,
+              maxTurns: 120,
+            })}
+          />
+        </>
       )}
 
       {tab === "skills" && (
@@ -327,6 +366,80 @@ function Metric({ value, label }: { value: number; label: string }) {
     <div className="inventory-metric">
       <strong>{value.toLocaleString()}</strong>
       <span>{label}</span>
+    </div>
+  );
+}
+
+function CapabilityRecipeBuilder({
+  skills,
+  toolsets,
+  selectedSkillIds,
+  selectedToolsetIds,
+  onToggleSkill,
+  onToggleToolset,
+  onRun,
+}: {
+  skills: HermesSkill[];
+  toolsets: ReturnType<typeof useHermesInventoryStore.getState>["toolsets"];
+  selectedSkillIds: string[];
+  selectedToolsetIds: string[];
+  onToggleSkill: (skillId: string) => void;
+  onToggleToolset: (toolsetId: string) => void;
+  onRun: () => void;
+}) {
+  const installedSkills = skills.filter((skill) => skill.installed).slice(0, 24);
+  const enabledToolsets = toolsets.filter((toolset) => toolset.enabled).slice(0, 32);
+  const hasSelection = selectedSkillIds.length > 0 || selectedToolsetIds.length > 0;
+
+  return (
+    <div className="capability-recipe">
+      <div className="artifact-section-header">
+        <div>
+          <div className="inventory-section-title">Capability Recipe</div>
+          <span>{selectedSkillIds.length} skills · {selectedToolsetIds.length} toolsets selected for a local Hermes run</span>
+        </div>
+        <button className="primary-button" type="button" disabled={!hasSelection} onClick={onRun}>
+          Launch Recipe
+        </button>
+      </div>
+      <div className="capability-recipe-columns">
+        <div>
+          <div className="pane-label">Skills</div>
+          <div className="capability-pill-grid">
+            {installedSkills.map((skill) => (
+              <button
+                key={skill.id}
+                className={`capability-pill ${selectedSkillIds.includes(skill.id) ? "active" : ""}`}
+                type="button"
+                title={skill.description || skill.title}
+                onClick={() => onToggleSkill(skill.id)}
+              >
+                <span>{skill.category}</span>
+                <strong>{skill.name}</strong>
+              </button>
+            ))}
+            {installedSkills.length === 0 && <div className="panel-note">No installed Hermes skills detected.</div>}
+          </div>
+        </div>
+        <div>
+          <div className="pane-label">Toolsets and MCP</div>
+          <div className="capability-pill-grid">
+            {enabledToolsets.map((toolset) => (
+              <button
+                key={`${toolset.platform}:${toolset.id}`}
+                className={`capability-pill compact ${selectedToolsetIds.includes(toolset.id) ? "active" : ""}`}
+                type="button"
+                title={toolset.label || toolset.source}
+                onClick={() => onToggleToolset(toolset.id)}
+              >
+                <span>{toolset.platform}</span>
+                <strong>{toolset.id}</strong>
+              </button>
+            ))}
+            {enabledToolsets.length === 0 && <div className="panel-note">No enabled Hermes toolsets detected.</div>}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

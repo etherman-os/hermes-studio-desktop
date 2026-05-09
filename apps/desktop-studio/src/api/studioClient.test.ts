@@ -199,10 +199,27 @@ describe("studioClient protocol surface", () => {
       has_content: true,
       content_text: "# Run report",
     };
+    const variantGroup = {
+      id: "artifact_variant_group_1",
+      source_artifact_id: "artifact_1",
+      title: "Variants",
+      brief: null,
+      status: "ready",
+      winner_variant_id: null,
+      created_at: "2026-05-07T00:00:00Z",
+      updated_at: "2026-05-07T00:00:00Z",
+      variants: [],
+    };
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ artifacts: [], total: 0 }))
       .mockResolvedValueOnce(jsonResponse(artifact))
       .mockResolvedValueOnce(jsonResponse(artifact))
+      .mockResolvedValueOnce(jsonResponse({ artifact_id: "artifact_1", revisions: [], total: 0 }))
+      .mockResolvedValueOnce(jsonResponse({ ...artifact, content_text: "# Previous" }))
+      .mockResolvedValueOnce(jsonResponse({ artifact_id: "artifact_1", groups: [variantGroup], total: 1 }))
+      .mockResolvedValueOnce(jsonResponse(variantGroup))
+      .mockResolvedValueOnce(jsonResponse({ ...variantGroup, variants: [{ id: "artifact_variant_1" }] }))
+      .mockResolvedValueOnce(jsonResponse({ ...artifact, content_text: "# Variant" }))
       .mockResolvedValueOnce(jsonResponse({ ...artifact, source: "browser_evidence", type: "report" }))
       .mockResolvedValueOnce(jsonResponse({ ...artifact, archived_at: "2026-05-07T00:01:00Z" }));
     vi.stubGlobal("fetch", fetchMock);
@@ -212,14 +229,28 @@ describe("studioClient protocol surface", () => {
     await api.listArtifacts({ type: "markdown", search: "run" });
     await api.createArtifact({ title: "Run report", type: "markdown", content_text: "# Run report" });
     await api.linkArtifactToRun("artifact_1", "run-1");
+    await api.listArtifactRevisions("artifact_1");
+    await api.revertArtifact("artifact_1", 1);
+    await api.listArtifactVariantGroups("artifact_1");
+    await api.createArtifactVariantGroup("artifact_1", { title: "Variants" });
+    await api.addArtifactVariant("artifact_variant_group_1", { label: "A", content_text: "# Variant" });
+    await api.applyArtifactVariant("artifact_variant_group_1", "artifact_variant_1");
     await api.runArtifactBrowserEvidence("artifact_1");
     await api.archiveArtifact("artifact_1");
 
     expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:39191/studio/artifacts?type=markdown&search=run");
     expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:39191/studio/artifacts");
     expect(fetchMock.mock.calls[2][0]).toBe("http://127.0.0.1:39191/studio/artifacts/artifact_1/link-run");
-    expect(fetchMock.mock.calls[3][0]).toBe("http://127.0.0.1:39191/studio/artifacts/artifact_1/browser-evidence");
-    expect(fetchMock.mock.calls[4][0]).toBe("http://127.0.0.1:39191/studio/artifacts/artifact_1/archive");
+    expect(fetchMock.mock.calls[3][0]).toBe("http://127.0.0.1:39191/studio/artifacts/artifact_1/revisions");
+    expect(fetchMock.mock.calls[4][0]).toBe("http://127.0.0.1:39191/studio/artifacts/artifact_1/revert");
+    expect(JSON.parse(fetchMock.mock.calls[4][1].body as string)).toEqual({ version: 1 });
+    expect(fetchMock.mock.calls[5][0]).toBe("http://127.0.0.1:39191/studio/artifacts/artifact_1/variant-groups");
+    expect(fetchMock.mock.calls[6][0]).toBe("http://127.0.0.1:39191/studio/artifacts/artifact_1/variant-groups");
+    expect(fetchMock.mock.calls[7][0]).toBe("http://127.0.0.1:39191/studio/artifact-variant-groups/artifact_variant_group_1/variants");
+    expect(fetchMock.mock.calls[8][0]).toBe("http://127.0.0.1:39191/studio/artifact-variant-groups/artifact_variant_group_1/apply");
+    expect(JSON.parse(fetchMock.mock.calls[8][1].body as string)).toEqual({ variant_id: "artifact_variant_1" });
+    expect(fetchMock.mock.calls[9][0]).toBe("http://127.0.0.1:39191/studio/artifacts/artifact_1/browser-evidence");
+    expect(fetchMock.mock.calls[10][0]).toBe("http://127.0.0.1:39191/studio/artifacts/artifact_1/archive");
   });
 
   it("uses /studio/context/* for Context Inspector calls", async () => {

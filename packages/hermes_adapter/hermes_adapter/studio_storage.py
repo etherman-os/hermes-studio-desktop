@@ -307,6 +307,67 @@ _MIGRATIONS: tuple[_Migration, ...] = (
             "CREATE INDEX IF NOT EXISTS idx_tool_packs_trusted ON tool_packs(trusted)",
         ),
     ),
+    _Migration(
+        version=9,
+        name="artifact_revisions",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS artifact_revisions (
+              id TEXT PRIMARY KEY,
+              artifact_id TEXT NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE,
+              version INTEGER NOT NULL,
+              title TEXT NOT NULL,
+              type TEXT NOT NULL,
+              description TEXT,
+              content_text TEXT,
+              file_path TEXT,
+              mime_type TEXT,
+              size_bytes INTEGER,
+              source TEXT NOT NULL,
+              event_type TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            )
+            """,
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_artifact_revisions_artifact_version ON artifact_revisions(artifact_id, version)",
+            "CREATE INDEX IF NOT EXISTS idx_artifact_revisions_artifact_created ON artifact_revisions(artifact_id, created_at)",
+        ),
+    ),
+    _Migration(
+        version=10,
+        name="artifact_variants",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS artifact_variant_groups (
+              id TEXT PRIMARY KEY,
+              source_artifact_id TEXT NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE,
+              title TEXT NOT NULL,
+              brief TEXT,
+              status TEXT NOT NULL,
+              winner_variant_id TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS artifact_variants (
+              id TEXT PRIMARY KEY,
+              group_id TEXT NOT NULL REFERENCES artifact_variant_groups(id) ON DELETE CASCADE,
+              label TEXT NOT NULL,
+              title TEXT NOT NULL,
+              content_text TEXT,
+              file_path TEXT,
+              mime_type TEXT,
+              size_bytes INTEGER,
+              rationale TEXT,
+              score INTEGER,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_artifact_variant_groups_source ON artifact_variant_groups(source_artifact_id, updated_at)",
+            "CREATE INDEX IF NOT EXISTS idx_artifact_variants_group ON artifact_variants(group_id, created_at)",
+        ),
+    ),
 )
 
 

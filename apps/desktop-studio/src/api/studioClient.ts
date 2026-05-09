@@ -10,6 +10,10 @@ import type {
   ArtifactCreateRequest,
   ArtifactDetail,
   ArtifactListResponse,
+  ArtifactRevisionListResponse,
+  ArtifactVariantCreateRequest,
+  ArtifactVariantGroupCreateRequest,
+  ArtifactVariantGroupListResponse,
   ArtifactUpdateRequest,
   ContextScope,
   ContextSnapshot,
@@ -33,7 +37,14 @@ export type {
   ArtifactCreateRequest,
   ArtifactDetail,
   ArtifactListResponse,
+  ArtifactRevision,
+  ArtifactRevisionListResponse,
   ArtifactType,
+  ArtifactVariant,
+  ArtifactVariantCreateRequest,
+  ArtifactVariantGroup,
+  ArtifactVariantGroupCreateRequest,
+  ArtifactVariantGroupListResponse,
   ArtifactUpdateRequest,
   ContextScope,
   ContextSnapshot,
@@ -715,6 +726,42 @@ export async function updateArtifact(artifactId: string, input: ArtifactUpdateRe
   return request<ArtifactDetail>(`/studio/artifacts/${artifactId}`, {
     method: "PATCH",
     body: JSON.stringify(input),
+  });
+}
+
+export async function listArtifactRevisions(artifactId: string) {
+  return request<ArtifactRevisionListResponse>(`/studio/artifacts/${artifactId}/revisions`);
+}
+
+export async function revertArtifact(artifactId: string, version: number) {
+  return request<ArtifactDetail>(`/studio/artifacts/${artifactId}/revert`, {
+    method: "POST",
+    body: JSON.stringify({ version }),
+  });
+}
+
+export async function listArtifactVariantGroups(artifactId: string) {
+  return request<ArtifactVariantGroupListResponse>(`/studio/artifacts/${artifactId}/variant-groups`);
+}
+
+export async function createArtifactVariantGroup(artifactId: string, input: ArtifactVariantGroupCreateRequest) {
+  return request<ArtifactVariantGroupListResponse["groups"][number]>(`/studio/artifacts/${artifactId}/variant-groups`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function addArtifactVariant(groupId: string, input: ArtifactVariantCreateRequest) {
+  return request<ArtifactVariantGroupListResponse["groups"][number]>(`/studio/artifact-variant-groups/${groupId}/variants`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function applyArtifactVariant(groupId: string, variantId: string) {
+  return request<ArtifactDetail>(`/studio/artifact-variant-groups/${groupId}/apply`, {
+    method: "POST",
+    body: JSON.stringify({ variant_id: variantId }),
   });
 }
 

@@ -198,7 +198,7 @@ Persistent Kanban data uses the same Studio-owned `studio.db`, never Hermes `sta
 
 ### Studio-owned Artifact Shelf
 
-Artifact Shelf data uses Studio-owned `studio.db`, never Hermes `state.db`. Artifacts can store bounded redacted text content or local file references, and can link to runs, sessions, and Kanban cards. HTML artifacts can be inspected in a sanitized sandboxed preview with scripts disabled. Artifact Studio actions can send targeted visual edits, A/B variant requests, and browser evidence plans through Hermes. See [docs/STUDIO_ARTIFACTS.md](docs/STUDIO_ARTIFACTS.md).
+Artifact Shelf data uses Studio-owned `studio.db`, never Hermes `state.db`. Artifacts can store bounded redacted text content or local file references, and can link to runs, sessions, and Kanban cards. HTML artifacts can be inspected in a sanitized sandboxed preview with scripts disabled. Artifact Studio actions can send targeted visual edits, create persisted A/B variant groups, apply winning variants through revision snapshots, and run browser evidence plans through Hermes. See [docs/STUDIO_ARTIFACTS.md](docs/STUDIO_ARTIFACTS.md).
 
 ### Context Inspector
 
@@ -280,11 +280,11 @@ Hermes Desktop Studio is actively developed as a Hermes-backed local production 
 - Chat surface with real-time SSE streaming
 - Kanban board with Studio-owned persistence
 - Design Canvas for importing HTML, JSON, screenshots notes, URLs, Figma links, and briefs, then handing them to Hermes with design skills/toolsets
-- Artifact Shelf with sanitized live preview/source editing, click-to-selector visual targeting, visual edit prompts, A/B variant requests, local Playwright browser evidence capture, video briefs, Design DNA extraction, and artifact history
+- Artifact Shelf with sanitized live preview/source editing, click-to-selector visual targeting, visual edit prompts, persisted A/B Variant Studio groups, local Playwright browser evidence capture, video briefs, Design DNA extraction, artifact revision snapshots, and one-click revert
 - Context Inspector with read-only local aggregation
 - Approval Center with pending/history visibility and local approve/deny decision flow
 - Process Management with Studio and Hermes runtime templates
-- Hermes Arsenal with local provider/model/skill/MCP/toolset inventory from the installed Hermes runtime, plus skill/toolset-to-run handoff
+- Hermes Arsenal with local provider/model/skill/MCP/toolset inventory from the installed Hermes runtime, skill/toolset-to-run handoff, and multi-skill Capability Recipes
 - Checkpoints and Worktrees for git-based timeline and branching
 - Delegations and Cron for sub-agent tracking and scheduling
 - Security hardening (secret guard, input validation, audit logging)

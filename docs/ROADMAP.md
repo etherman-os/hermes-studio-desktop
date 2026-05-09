@@ -9,18 +9,18 @@
 - [x] Hermes v0.13 local CLI discovery, including `checkpoints`, chat flag support, and checkpoint store status
 - [x] Local run presets for implement, review, debug, design polish, browser verification, multi-agent orchestration, Kanban swarm planning, video generation, and Studio memory extraction
 - [x] New Run handoff maps Studio options to Hermes CLI flags: provider/model, skills, toolsets, checkpoints, max turns, worktree, and session id
-- [x] Hermes Arsenal skill/toolset cards can prefill a local Hermes run
+- [x] Hermes Arsenal skill/toolset cards and multi-skill Capability Recipes can prefill a local Hermes run
 - [x] Experimental SSH backend mode for VPS Hermes control through remote CLI
 - [x] Local CLI run output streams into Studio while gateway/API remains optional for richer structured event telemetry
 - [x] Process Cockpit includes Hermes runtime templates for gateway, doctor, tools summary, MCP list, skills check, checkpoints status, and Kanban watch/stats
 - [x] Design Canvas imports HTML, screenshot notes, local URLs/file paths, Figma URLs, JSON specs, and markdown briefs into Studio artifacts
-- [x] Artifact Studio supports sanitized HTML live preview/source editing, click-to-selector targeting, targeted visual edit prompts, A/B variant requests, local Playwright browser evidence capture, video briefs, Design DNA extraction, and artifact history
+- [x] Artifact Studio supports sanitized HTML live preview/source editing, click-to-selector targeting, targeted visual edit prompts, persisted A/B Variant Studio groups, local Playwright browser evidence capture, video briefs, Design DNA extraction, artifact history, revision snapshots, and one-click revert
 - [x] Approval Center supports local approve/deny decisions and Hermes notification when the local gateway exposes an approval response route
 - [x] Docs updated for Mission Control, Design Canvas, Artifact Studio, Approval Center, and Hermes model/provider integration
 
 ## Next High-Value Milestones
 
-- [ ] Checkpoint-backed artifact revisions with visual diff and one-click rollback
+- [ ] Visual diff UI for artifact revisions and checkpoint-linked rollback evidence
 - [ ] Local concept-pack marketplace for animated theme worlds and reusable production kits
 - [ ] Figma MCP metadata extraction and image/vision-assisted design reconstruction
 - [ ] Rich MCP connection management using Hermes MCP CLI/API surfaces only

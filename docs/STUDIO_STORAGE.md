@@ -53,41 +53,22 @@ Migration `6: persistent_approvals` creates Studio-owned Approval Center tables:
 - `approvals`
 - `approval_events`
 
-Migration `7: persistent_processes` creates Studio-owned Process Management tables:
-
-- `processes`
-- `process_events`
-
-Migration `8: persistent_tool_packs` creates Studio-owned Tool Pack tables:
-
-- `tool_packs`
-- `tool_pack_tools`
-
-Migration `9: persistent_checkpoints` creates Studio-owned Checkpoint tables:
-
-- `checkpoints`
-- `checkpoint_events`
-
-Migration `10: persistent_worktrees` creates Studio-owned Worktree tables:
-
-- `worktrees`
-
-Migration `11: persistent_delegations` creates Studio-owned Delegation tables:
-
-- `delegations`
-- `delegation_events`
-
-Migration `12: persistent_cron_jobs` creates Studio-owned Cron tables:
-
-- `cron_jobs`
-
-Migration `13: audit_logging` creates Studio-owned Audit tables:
+Migration `7: audit_log_table` creates Studio-owned Audit tables:
 
 - `audit_log`
 
-Migration `14: connection_cache` creates connection resilience tables:
+Migration `8: tool_packs` creates Studio-owned Tool Pack tables:
 
-- `connection_cache`
+- `tool_packs`
+
+Migration `9: artifact_revisions` creates Studio-owned artifact rollback tables:
+
+- `artifact_revisions`
+
+Migration `10: artifact_variants` creates Studio-owned artifact comparison tables:
+
+- `artifact_variant_groups`
+- `artifact_variants`
 
 The migrations write metadata such as `schema_version`, `initialized_at`, and `storage_owner`.
 
@@ -109,7 +90,7 @@ Migrations are idempotent. Reopening `studio.db` does not duplicate migration re
 {
   "storage": {
     "available": true,
-    "schema_version": 6,
+    "schema_version": 10,
     "data_dir": "/home/user/.local/share/hermes-desktop-studio",
     "db_path": "/home/user/.local/share/hermes-desktop-studio/studio.db",
     "last_error": null
@@ -131,7 +112,7 @@ Run Ledger tables support current local workflow actions and future artifacts, c
 
 ## Artifact Shelf Use
 
-Phase Product-3 stores artifact metadata and small text outputs in `studio.db`. Artifact records can link to runs, sessions, and Kanban cards. File artifacts are path references only; Studio does not copy arbitrary large files into SQLite. HTML artifacts can be inspected in sanitized sandboxed previews and as source text. See [STUDIO_ARTIFACTS.md](STUDIO_ARTIFACTS.md).
+Phase Product-3 stores artifact metadata and small text outputs in `studio.db`. Artifact records can link to runs, sessions, and Kanban cards. File artifacts are path references only; Studio does not copy arbitrary large files into SQLite. HTML artifacts can be inspected in sanitized sandboxed previews and as source text. Revision snapshots and A/B variant groups are Studio-owned and can apply changes back to the source artifact through a new revision. See [STUDIO_ARTIFACTS.md](STUDIO_ARTIFACTS.md).
 
 ## Context Inspector Use
 

@@ -50,11 +50,64 @@ def test_artifact_lifecycle_routes() -> None:
     patched = client.patch(
         f"/studio/artifacts/{artifact['id']}",
         headers=HEADERS,
-        json={"title": "Updated report", "type": "report"},
+        json={"title": "Updated report", "type": "report", "content_text": "Updated content"},
     )
     assert patched.status_code == 200
     assert patched.json()["title"] == "Updated report"
     assert patched.json()["type"] == "report"
+
+    revisions = client.get(f"/studio/artifacts/{artifact['id']}/revisions", headers=HEADERS)
+    assert revisions.status_code == 200
+    assert revisions.json()["total"] == 2
+
+    reverted = client.post(
+        f"/studio/artifacts/{artifact['id']}/revert",
+        headers=HEADERS,
+        json={"version": 1},
+    )
+    assert reverted.status_code == 200
+    assert reverted.json()["title"] == "Run report"
+    assert reverted.json()["content_text"] == "# Run Summary\nDone"
+
+    variant_group = client.post(
+        f"/studio/artifacts/{artifact['id']}/variant-groups",
+        headers=HEADERS,
+        json={
+            "title": "Report variants",
+            "variants": [
+                {
+                    "label": "A",
+                    "title": "Short report",
+                    "content_text": "# Short\nDone",
+                    "rationale": "More direct.",
+                    "score": 88,
+                }
+            ],
+        },
+    )
+    assert variant_group.status_code == 200
+    assert variant_group.json()["variants"][0]["label"] == "Source"
+
+    added_variant_group = client.post(
+        f"/studio/artifact-variant-groups/{variant_group.json()['id']}/variants",
+        headers=HEADERS,
+        json={"label": "B", "title": "Detailed report", "content_text": "# Detailed\nDone"},
+    )
+    assert added_variant_group.status_code == 200
+    assert len(added_variant_group.json()["variants"]) == 3
+
+    variant_groups = client.get(f"/studio/artifacts/{artifact['id']}/variant-groups", headers=HEADERS)
+    assert variant_groups.status_code == 200
+    assert variant_groups.json()["total"] == 1
+
+    applied = client.post(
+        f"/studio/artifact-variant-groups/{variant_group.json()['id']}/apply",
+        headers=HEADERS,
+        json={"variant_id": variant_group.json()["variants"][1]["id"]},
+    )
+    assert applied.status_code == 200
+    assert applied.json()["content_text"] == "# Short\nDone"
+    assert applied.json()["variant_groups"][0]["status"] == "applied"
 
     linked_session = client.post(
         f"/studio/artifacts/{artifact['id']}/link-session",

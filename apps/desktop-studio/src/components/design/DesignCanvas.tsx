@@ -18,6 +18,23 @@ const TYPE_BY_KIND: Record<ImportKind, ArtifactType> = {
   markdown: "markdown",
 };
 
+function sanitizedPreviewDoc(content: string) {
+  if (typeof window === "undefined") return content;
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(content, "text/html");
+  doc.querySelectorAll("script, form, iframe, object, embed").forEach((node) => node.remove());
+  doc.querySelectorAll("*").forEach((node) => {
+    for (const attr of [...node.attributes]) {
+      const name = attr.name.toLowerCase();
+      const value = attr.value.trim().toLowerCase();
+      if (name.startsWith("on") || value.startsWith("javascript:")) {
+        node.removeAttribute(attr.name);
+      }
+    }
+  });
+  return `<!doctype html>${doc.documentElement.outerHTML}`;
+}
+
 export function DesignCanvas() {
   const artifacts = useArtifactStore((s) => s.artifacts);
   const selectedArtifact = useArtifactStore((s) => s.selectedArtifact);
@@ -50,6 +67,11 @@ export function DesignCanvas() {
   const designToolsets = toolsets
     .filter((toolset) => ["browser", "web", "file", "vision", "image_gen", "code_execution"].includes(toolset.id) || toolset.id.includes("figma"))
     .map((toolset) => toolset.id);
+  const selectedPreviewDoc = React.useMemo(() => (
+    selectedArtifact?.type === "html" && selectedArtifact.content_text
+      ? sanitizedPreviewDoc(selectedArtifact.content_text)
+      : ""
+  ), [selectedArtifact?.type, selectedArtifact?.content_text]);
 
   async function importDesign() {
     const trimmed = content.trim();
@@ -160,7 +182,7 @@ export function DesignCanvas() {
                 <dd>{selectedArtifact.id}</dd>
               </dl>
               {selectedArtifact.type === "html" && selectedArtifact.content_text ? (
-                <iframe className="design-preview-frame" title={selectedArtifact.title} srcDoc={selectedArtifact.content_text} sandbox="" />
+                <iframe className="design-preview-frame" title={selectedArtifact.title} srcDoc={selectedPreviewDoc} sandbox="" />
               ) : (
                 <pre className="event-payload">{(selectedArtifact.content_text ?? selectedArtifact.file_path ?? "").slice(0, 3000)}</pre>
               )}

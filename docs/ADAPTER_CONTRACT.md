@@ -94,6 +94,12 @@ Both include `storage` diagnostics for Studio-owned `studio.db`:
 - `GET /studio/artifacts/{artifact_id}`
 - `POST /studio/artifacts`
 - `PATCH /studio/artifacts/{artifact_id}`
+- `GET /studio/artifacts/{artifact_id}/revisions`
+- `POST /studio/artifacts/{artifact_id}/revert`
+- `GET /studio/artifacts/{artifact_id}/variant-groups`
+- `POST /studio/artifacts/{artifact_id}/variant-groups`
+- `POST /studio/artifact-variant-groups/{group_id}/variants`
+- `POST /studio/artifact-variant-groups/{group_id}/apply`
 - `POST /studio/artifacts/{artifact_id}/archive`
 - `POST /studio/artifacts/{artifact_id}/link-run`
 - `POST /studio/artifacts/{artifact_id}/link-session`

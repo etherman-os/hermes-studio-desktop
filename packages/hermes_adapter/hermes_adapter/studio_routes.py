@@ -1183,6 +1183,82 @@ async def update_artifact(
         raise _artifact_http_error(e) from e
 
 
+@router.get("/artifacts/{artifact_id}/revisions")
+async def list_artifact_revisions(artifact_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
+    backend = await _get_backend()
+    try:
+        return await backend.list_artifact_revisions(artifact_id)
+    except (RuntimeError, ValueError) as e:
+        raise _artifact_http_error(e) from e
+
+
+@router.post("/artifacts/{artifact_id}/revert")
+async def revert_artifact(
+    artifact_id: str,
+    body: dict[str, Any],
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    backend = await _get_backend()
+    try:
+        version = body.get("version")
+        if isinstance(version, bool) or not isinstance(version, int):
+            raise ValueError("version must be an integer")
+        return await backend.revert_artifact(artifact_id, version)
+    except (RuntimeError, ValueError) as e:
+        raise _artifact_http_error(e) from e
+
+
+@router.get("/artifacts/{artifact_id}/variant-groups")
+async def list_artifact_variant_groups(artifact_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
+    backend = await _get_backend()
+    try:
+        return await backend.list_artifact_variant_groups(artifact_id)
+    except (RuntimeError, ValueError) as e:
+        raise _artifact_http_error(e) from e
+
+
+@router.post("/artifacts/{artifact_id}/variant-groups")
+async def create_artifact_variant_group(
+    artifact_id: str,
+    body: dict[str, Any],
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    backend = await _get_backend()
+    try:
+        return await backend.create_artifact_variant_group(artifact_id, body)
+    except (RuntimeError, ValueError) as e:
+        raise _artifact_http_error(e) from e
+
+
+@router.post("/artifact-variant-groups/{group_id}/variants")
+async def add_artifact_variant(
+    group_id: str,
+    body: dict[str, Any],
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    backend = await _get_backend()
+    try:
+        return await backend.add_artifact_variant(group_id, body)
+    except (RuntimeError, ValueError) as e:
+        raise _artifact_http_error(e) from e
+
+
+@router.post("/artifact-variant-groups/{group_id}/apply")
+async def apply_artifact_variant(
+    group_id: str,
+    body: dict[str, Any],
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    backend = await _get_backend()
+    try:
+        variant_id = body.get("variant_id")
+        if not isinstance(variant_id, str) or not variant_id.strip():
+            raise ValueError("variant_id is required")
+        return await backend.apply_artifact_variant(group_id, variant_id)
+    except (RuntimeError, ValueError) as e:
+        raise _artifact_http_error(e) from e
+
+
 @router.post("/artifacts/{artifact_id}/archive")
 async def archive_artifact(artifact_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
     backend = await _get_backend()

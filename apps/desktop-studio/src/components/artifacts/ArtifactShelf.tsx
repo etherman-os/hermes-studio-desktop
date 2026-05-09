@@ -84,6 +84,10 @@ export function ArtifactShelf() {
   const selectArtifact = useArtifactStore((s) => s.selectArtifact);
   const createArtifact = useArtifactStore((s) => s.createArtifact);
   const updateArtifact = useArtifactStore((s) => s.updateArtifact);
+  const revertArtifact = useArtifactStore((s) => s.revertArtifact);
+  const createVariantGroup = useArtifactStore((s) => s.createVariantGroup);
+  const addVariant = useArtifactStore((s) => s.addVariant);
+  const applyVariant = useArtifactStore((s) => s.applyVariant);
   const runBrowserEvidence = useArtifactStore((s) => s.runBrowserEvidence);
   const saving = useArtifactStore((s) => s.saving);
   const setFilterType = useArtifactStore((s) => s.setFilterType);
@@ -137,6 +141,7 @@ export function ArtifactShelf() {
     if (!selectedArtifact) return;
     const target = artifactTarget(selectedArtifact);
     const excerpt = selectedArtifact.content_text?.slice(0, 1600) ?? "";
+    let variantGroupId = "";
     const instruction = kind === "visual-edit"
       ? visualPrompt.trim()
       : kind === "variants"
@@ -177,15 +182,38 @@ export function ArtifactShelf() {
         ].filter(Boolean).join("\n\n"),
       });
     }
+    if (kind === "variants") {
+      const draftChanged = Boolean(selectedArtifact.type === "html"
+        && htmlDraft.trim()
+        && htmlDraft !== (selectedArtifact.content_text ?? ""));
+      const group = await createVariantGroup(selectedArtifact.id, {
+        title: `A/B Variant Studio · ${selectedArtifact.title}`,
+        brief: visualPrompt.trim() || "Hermes-generated production alternatives for visual comparison and reversible apply.",
+        variants: draftChanged
+          ? [{
+              label: "Draft",
+              title: "Current Studio draft",
+              content_text: htmlDraft,
+              mime_type: "text/html",
+              rationale: "Unsaved live-source draft captured before Hermes variant generation.",
+            }]
+          : [],
+      });
+      variantGroupId = group?.id ?? "";
+    }
     setActiveTab("chat");
     await sendPrompt(
       [
         `Hermes Artifact Studio request: ${kind}`,
         `Artifact: ${selectedArtifact.title} (${selectedArtifact.id})`,
+        variantGroupId ? `Studio variant group: ${variantGroupId}` : "",
         `Target: ${target}`,
         targetSelector.trim() ? `Selected selector: ${targetSelector.trim()}` : "",
         selectedArtifact.description ? `Description: ${selectedArtifact.description}` : "",
         excerpt ? `Current artifact excerpt:\n${excerpt}` : "",
+        kind === "variants"
+          ? "Return candidates as complete replacement content with label, title, rationale, and score so Studio can save each one into this variant group."
+          : "",
         `Instruction:\n${instruction}`,
       ].filter(Boolean).join("\n\n"),
       activeSessionId ?? "default",
@@ -209,6 +237,17 @@ export function ArtifactShelf() {
     await updateArtifact(selectedArtifact.id, {
       content_text: htmlDraft,
       description: selectedArtifact.description ?? undefined,
+    });
+  }
+
+  async function saveDraftVariant(groupId: string) {
+    if (!selectedArtifact || selectedArtifact.type !== "html" || !htmlDraft.trim()) return;
+    await addVariant(groupId, {
+      label: "Draft",
+      title: "Live source draft",
+      content_text: htmlDraft,
+      mime_type: "text/html",
+      rationale: "Manual Studio draft captured from the live source editor.",
     });
   }
 
@@ -496,6 +535,83 @@ export function ArtifactShelf() {
                   </button>
                 </div>
               </div>
+              <div className="artifact-variant-studio">
+                <div className="artifact-section-header">
+                  <div>
+                    <div className="inventory-section-title">Variant Studio</div>
+                    <span>
+                      {(selectedArtifact.variant_groups ?? []).length} groups · reversible A/B content for this artifact
+                    </span>
+                  </div>
+                  <button
+                    className="tool-button"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void sendArtifactPrompt("variants")}
+                  >
+                    New Group
+                  </button>
+                </div>
+                {(selectedArtifact.variant_groups ?? []).length === 0 && (
+                  <div className="workbench-empty compact">
+                    No variant groups yet. Start A/B Variants to create a persisted comparison set.
+                  </div>
+                )}
+                {(selectedArtifact.variant_groups ?? []).map((group) => (
+                  <div className="artifact-variant-group" key={group.id}>
+                    <div className="artifact-variant-group-header">
+                      <div>
+                        <strong>{group.title}</strong>
+                        <small>
+                          {group.status}
+                          {group.winner_variant_id ? ` · winner ${group.winner_variant_id}` : ""}
+                        </small>
+                      </div>
+                      {selectedArtifact.type === "html" && (
+                        <button
+                          className="tool-button"
+                          type="button"
+                          disabled={saving || !htmlDraft.trim()}
+                          onClick={() => void saveDraftVariant(group.id)}
+                        >
+                          Save Draft Variant
+                        </button>
+                      )}
+                    </div>
+                    {group.brief && <p className="artifact-variant-brief">{group.brief}</p>}
+                    <div className="artifact-variant-grid">
+                      {group.variants.map((variant) => (
+                        <div
+                          className={`artifact-variant-card ${group.winner_variant_id === variant.id ? "winner" : ""}`}
+                          key={variant.id}
+                        >
+                          <div className="artifact-variant-card-header">
+                            <span>{variant.label}</span>
+                            <small>{variant.score !== null ? `${variant.score}/100` : "unscored"}</small>
+                          </div>
+                          <strong>{variant.title}</strong>
+                          {variant.rationale && <p>{variant.rationale}</p>}
+                          {selectedArtifact.type === "html" && variant.content_text && (
+                            <iframe
+                              title={`${variant.title} preview`}
+                              srcDoc={sanitizedPreviewDoc(variant.content_text)}
+                              sandbox="allow-same-origin"
+                            />
+                          )}
+                          <button
+                            className="primary-button"
+                            type="button"
+                            disabled={saving || group.winner_variant_id === variant.id || (!variant.has_content && !variant.file_path)}
+                            onClick={() => void applyVariant(group.id, variant.id)}
+                          >
+                            Apply
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
               {selectedArtifact.events && selectedArtifact.events.length > 0 && (
                 <div className="artifact-history">
                   <div className="inventory-section-title">Artifact History</div>
@@ -503,6 +619,28 @@ export function ArtifactShelf() {
                     <div key={event.id} className="artifact-history-row">
                       <span>{event.type}</span>
                       <small>{new Date(event.created_at).toLocaleString()}</small>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {selectedArtifact.revisions && selectedArtifact.revisions.length > 0 && (
+                <div className="artifact-history">
+                  <div className="inventory-section-title">Artifact Revisions</div>
+                  {selectedArtifact.revisions.map((revision) => (
+                    <div key={revision.id} className="artifact-history-row">
+                      <span>
+                        v{revision.version} · {revision.event_type}
+                        {revision.has_content ? " · content" : ""}
+                      </span>
+                      <small>{new Date(revision.created_at).toLocaleString()}</small>
+                      <button
+                        className="tool-button"
+                        type="button"
+                        disabled={saving || revision.version === selectedArtifact.revisions?.[0]?.version}
+                        onClick={() => void revertArtifact(selectedArtifact.id, revision.version)}
+                      >
+                        Revert
+                      </button>
                     </div>
                   ))}
                 </div>

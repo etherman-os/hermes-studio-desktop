@@ -54,6 +54,70 @@ def test_update_artifact(tmp_path: Path) -> None:
     assert updated["type"] == "report"
 
 
+def test_artifact_revisions_and_revert(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    artifact = repo.create_artifact({"title": "Initial", "type": "text", "content_text": "v1"})
+    repo.update_artifact(artifact["id"], {"title": "Second", "content_text": "v2"})
+
+    revisions = repo.list_revisions(artifact["id"])
+    reverted = repo.revert_artifact(artifact["id"], 1)
+    detail = repo.get_artifact(artifact["id"])
+
+    assert revisions["total"] == 2
+    assert [revision["version"] for revision in revisions["revisions"]] == [2, 1]
+    assert revisions["revisions"][0]["has_content"] is True
+    assert reverted["title"] == "Initial"
+    assert reverted["content_text"] == "v1"
+    assert [revision["version"] for revision in detail["revisions"]] == [3, 2, 1]
+    assert detail["revisions"][0]["event_type"] == "artifact.reverted"
+    assert detail["events"][-1]["type"] == "artifact.reverted"
+
+
+def test_artifact_variant_groups_and_apply(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    artifact = repo.create_artifact({"title": "Landing", "type": "html", "content_text": "<h1>Original</h1>"})
+
+    group = repo.create_variant_group(
+        artifact["id"],
+        {
+            "title": "Landing variants",
+            "brief": "Compare hero treatments",
+            "variants": [
+                {
+                    "label": "A",
+                    "title": "Sharper hero",
+                    "content_text": "<h1>Sharper</h1>",
+                    "mime_type": "text/html",
+                    "rationale": "Clearer first viewport.",
+                    "score": 91,
+                }
+            ],
+        },
+    )
+    added = repo.add_variant(
+        group["id"],
+        {
+            "label": "B",
+            "title": "Calmer hero",
+            "content_text": "<h1>Calmer</h1>",
+            "mime_type": "text/html",
+            "score": 82,
+        },
+    )
+    applied = repo.apply_variant(group["id"], group["variants"][1]["id"])
+    listed = repo.list_variant_groups(artifact["id"])
+
+    assert group["id"].startswith("artifact_variant_group_")
+    assert [variant["label"] for variant in group["variants"]] == ["Source", "A"]
+    assert added["status"] == "ready"
+    assert len(added["variants"]) == 3
+    assert applied["content_text"] == "<h1>Sharper</h1>"
+    assert applied["revisions"][0]["event_type"] == "artifact.variant_applied"
+    assert applied["variant_groups"][0]["status"] == "applied"
+    assert applied["variant_groups"][0]["winner_variant_id"] == group["variants"][1]["id"]
+    assert listed["total"] == 1
+
+
 def test_archive_artifact(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     artifact = repo.create_artifact({"title": "Archive me", "type": "text"})

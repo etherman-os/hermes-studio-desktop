@@ -4,6 +4,9 @@ import type {
   ArtifactCreateRequest,
   ArtifactDetail,
   ArtifactListParams,
+  ArtifactVariantCreateRequest,
+  ArtifactVariantGroup,
+  ArtifactVariantGroupCreateRequest,
   ArtifactUpdateRequest,
 } from "../api/studioClient";
 import * as api from "../api/studioClient";
@@ -23,6 +26,10 @@ interface ArtifactState {
   selectArtifact: (artifactId: string) => Promise<void>;
   createArtifact: (input: ArtifactCreateRequest) => Promise<ArtifactDetail | null>;
   updateArtifact: (artifactId: string, input: ArtifactUpdateRequest) => Promise<ArtifactDetail | null>;
+  revertArtifact: (artifactId: string, version: number) => Promise<ArtifactDetail | null>;
+  createVariantGroup: (artifactId: string, input: ArtifactVariantGroupCreateRequest) => Promise<ArtifactVariantGroup | null>;
+  addVariant: (groupId: string, input: ArtifactVariantCreateRequest) => Promise<ArtifactVariantGroup | null>;
+  applyVariant: (groupId: string, variantId: string) => Promise<ArtifactDetail | null>;
   archiveArtifact: (artifactId: string) => Promise<ArtifactDetail | null>;
   runBrowserEvidence: (artifactId: string) => Promise<ArtifactDetail | null>;
   linkArtifactToRun: (artifactId: string, runId: string) => Promise<ArtifactDetail | null>;
@@ -53,6 +60,16 @@ function replaceArtifact(list: Artifact[], artifact: ArtifactDetail) {
   const exists = list.some((item) => item.id === artifact.id);
   if (!exists) return [summary, ...list];
   return list.map((item) => (item.id === artifact.id ? summary : item));
+}
+
+function replaceVariantGroup(artifact: ArtifactDetail | null, group: ArtifactVariantGroup) {
+  if (!artifact || artifact.id !== group.source_artifact_id) return artifact;
+  const groups = artifact.variant_groups ?? [];
+  const exists = groups.some((item) => item.id === group.id);
+  const nextGroups = exists
+    ? groups.map((item) => (item.id === group.id ? group : item))
+    : [group, ...groups];
+  return { ...artifact, variant_groups: nextGroups };
 }
 
 export const useArtifactStore = create<ArtifactState>((set, get) => ({
@@ -143,6 +160,74 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
       return artifact;
     } catch (err) {
       set({ saving: false, error: messageFromError(err, "Failed to update artifact") });
+      return null;
+    }
+  },
+
+  revertArtifact: async (artifactId, version) => {
+    set({ saving: true, error: null, actionMessage: null });
+    try {
+      const artifact = await api.revertArtifact(artifactId, version);
+      set((state) => ({
+        artifacts: replaceArtifact(state.artifacts, artifact),
+        selectedArtifact: artifact,
+        selectedArtifactId: artifact.id,
+        saving: false,
+        actionMessage: `Artifact reverted to v${version}`,
+      }));
+      return artifact;
+    } catch (err) {
+      set({ saving: false, error: messageFromError(err, "Failed to revert artifact") });
+      return null;
+    }
+  },
+
+  createVariantGroup: async (artifactId, input) => {
+    set({ saving: true, error: null, actionMessage: null });
+    try {
+      const group = await api.createArtifactVariantGroup(artifactId, input);
+      set((state) => ({
+        selectedArtifact: replaceVariantGroup(state.selectedArtifact, group),
+        saving: false,
+        actionMessage: "Variant group created",
+      }));
+      return group;
+    } catch (err) {
+      set({ saving: false, error: messageFromError(err, "Failed to create variant group") });
+      return null;
+    }
+  },
+
+  addVariant: async (groupId, input) => {
+    set({ saving: true, error: null, actionMessage: null });
+    try {
+      const group = await api.addArtifactVariant(groupId, input);
+      set((state) => ({
+        selectedArtifact: replaceVariantGroup(state.selectedArtifact, group),
+        saving: false,
+        actionMessage: "Variant saved",
+      }));
+      return group;
+    } catch (err) {
+      set({ saving: false, error: messageFromError(err, "Failed to save variant") });
+      return null;
+    }
+  },
+
+  applyVariant: async (groupId, variantId) => {
+    set({ saving: true, error: null, actionMessage: null });
+    try {
+      const artifact = await api.applyArtifactVariant(groupId, variantId);
+      set((state) => ({
+        artifacts: replaceArtifact(state.artifacts, artifact),
+        selectedArtifact: artifact,
+        selectedArtifactId: artifact.id,
+        saving: false,
+        actionMessage: "Variant applied",
+      }));
+      return artifact;
+    } catch (err) {
+      set({ saving: false, error: messageFromError(err, "Failed to apply variant") });
       return null;
     }
   },

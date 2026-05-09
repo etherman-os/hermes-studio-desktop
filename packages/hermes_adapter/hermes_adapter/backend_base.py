@@ -235,6 +235,42 @@ class StudioBackend(ABC):
 
         return ArtifactRepository().update_artifact(artifact_id, input_data)
 
+    async def list_artifact_revisions(self, artifact_id: str) -> dict[str, Any]:
+        """Return Studio-owned artifact revision history."""
+        from hermes_adapter.artifact_repository import ArtifactRepository
+
+        return ArtifactRepository().list_revisions(artifact_id)
+
+    async def revert_artifact(self, artifact_id: str, version: int) -> dict[str, Any]:
+        """Revert a Studio-owned artifact to a stored revision."""
+        from hermes_adapter.artifact_repository import ArtifactRepository
+
+        return ArtifactRepository().revert_artifact(artifact_id, version)
+
+    async def list_artifact_variant_groups(self, artifact_id: str) -> dict[str, Any]:
+        """Return Studio-owned variant groups for an artifact."""
+        from hermes_adapter.artifact_repository import ArtifactRepository
+
+        return ArtifactRepository().list_variant_groups(artifact_id)
+
+    async def create_artifact_variant_group(self, artifact_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
+        """Create a Studio-owned A/B variant group for an artifact."""
+        from hermes_adapter.artifact_repository import ArtifactRepository
+
+        return ArtifactRepository().create_variant_group(artifact_id, input_data)
+
+    async def add_artifact_variant(self, group_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
+        """Add a Studio-owned variant to an artifact variant group."""
+        from hermes_adapter.artifact_repository import ArtifactRepository
+
+        return ArtifactRepository().add_variant(group_id, input_data)
+
+    async def apply_artifact_variant(self, group_id: str, variant_id: str) -> dict[str, Any]:
+        """Apply a Studio-owned variant to its source artifact."""
+        from hermes_adapter.artifact_repository import ArtifactRepository
+
+        return ArtifactRepository().apply_variant(group_id, variant_id)
+
     async def archive_artifact(self, artifact_id: str) -> dict[str, Any]:
         """Archive a persistent Studio-owned artifact."""
         from hermes_adapter.artifact_repository import ArtifactRepository

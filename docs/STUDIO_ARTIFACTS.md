@@ -11,6 +11,15 @@ Migration `5: persistent_artifacts` creates:
 - `artifacts`
 - `artifact_events`
 
+Migration `9: artifact_revisions` creates:
+
+- `artifact_revisions`
+
+Migration `10: artifact_variants` creates:
+
+- `artifact_variant_groups`
+- `artifact_variants`
+
 Artifact records can link to:
 
 - `run_id`
@@ -42,6 +51,12 @@ All artifact calls are protected `/studio/*` calls:
 - `GET /studio/artifacts/{artifact_id}`
 - `POST /studio/artifacts`
 - `PATCH /studio/artifacts/{artifact_id}`
+- `GET /studio/artifacts/{artifact_id}/revisions`
+- `POST /studio/artifacts/{artifact_id}/revert`
+- `GET /studio/artifacts/{artifact_id}/variant-groups`
+- `POST /studio/artifacts/{artifact_id}/variant-groups`
+- `POST /studio/artifact-variant-groups/{group_id}/variants`
+- `POST /studio/artifact-variant-groups/{group_id}/apply`
 - `POST /studio/artifacts/{artifact_id}/archive`
 - `POST /studio/artifacts/{artifact_id}/browser-evidence`
 - `POST /studio/artifacts/{artifact_id}/link-run`
@@ -61,6 +76,7 @@ The OpenAPI route parity test fails if these paths drift from `packages/protocol
 - Render HTML previews only after sanitizer removal of scripts, event-handler attributes, forms, nested iframes, objects, and `javascript:` URLs.
 - Use sandboxed iframes without script permissions for inline previews.
 - Browser evidence for stored HTML is materialized as a sanitized temporary file with JavaScript disabled. URL/file evidence runs with local Playwright against the referenced target.
+- Variant content is treated exactly like artifact content: bounded, redacted, never executed directly, and only applied through a new artifact revision.
 - Treat model output as untrusted; persistent artifact creation should come from structured user or app intent.
 
 ## Frontend
@@ -80,12 +96,16 @@ Artifact Shelf v1 supports:
 - edit HTML artifact source beside a live sanitized preview and persist the revision through `/studio/artifacts/{id}`
 - click an element inside the sanitized HTML preview to capture a CSS selector for targeted Hermes edits
 - send targeted Visual Edit prompts to Hermes with optional CSS selector/component target
-- request A/B visual variants through Hermes
+- create persisted A/B Variant Studio groups with a baseline source snapshot
+- save draft/generated variants with label, rationale, score, and optional preview content
+- apply a winning variant back to the source artifact while recording a new revision
+- request A/B visual variants through Hermes with the Studio variant group ID in the handoff prompt
 - capture a local Playwright browser evidence artifact with screenshot path, console/runtime findings, basic accessibility/overflow checks, and artifact links
 - create a Hermes browser-check request when the user wants the agent to interpret or fix the evidence
 - request a video production brief from any artifact using Hermes video/image generation skills and toolsets
 - extract a reusable "Design DNA" profile proposal from an artifact for future visual edits
 - inspect artifact history events
+- inspect artifact revision snapshots and revert an artifact to a previous Studio-owned version
 
 Markdown is rendered using safe React text nodes. JSON is pretty printed. Logs and source text remain visible as monospaced text. File references show path metadata and an "Open file" placeholder.
 
@@ -98,8 +118,9 @@ Future layers can add:
 - artifact extraction from real run outputs
 - richer screenshot diffing and viewport matrices
 - test result parsing
-- checkpoint/diff references
+- visual diff references for artifact revisions
 - richer card/run/session artifact relationship views
 - direct screenshot capture from preview frames
+- automatic structured import of Hermes-generated variant JSON into existing variant groups
 
 Those layers should keep the same Studio-owned storage boundary.

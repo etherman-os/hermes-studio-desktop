@@ -114,6 +114,7 @@ Each theme must be a directory containing `theme.toml`.
 - Active theme persists in `~/.config/hermes-desktop-studio/config.json`
 - Does NOT write to Hermes `config.yaml`
 - Theme activation is instant via CSS variable swap
+- Theme activation also updates the animated ThemeWorld companion and ambient motifs through semantic world classes (`studio`, `block`, `archive`, `lab`, `paper`).
 
 ## Creating a Custom Theme
 
