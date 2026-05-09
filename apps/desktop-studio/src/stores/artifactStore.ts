@@ -26,6 +26,7 @@ interface ArtifactState {
   selectArtifact: (artifactId: string) => Promise<void>;
   createArtifact: (input: ArtifactCreateRequest) => Promise<ArtifactDetail | null>;
   updateArtifact: (artifactId: string, input: ArtifactUpdateRequest) => Promise<ArtifactDetail | null>;
+  loadRevisions: (artifactId: string, includeContent?: boolean) => Promise<void>;
   revertArtifact: (artifactId: string, version: number) => Promise<ArtifactDetail | null>;
   createVariantGroup: (artifactId: string, input: ArtifactVariantGroupCreateRequest) => Promise<ArtifactVariantGroup | null>;
   addVariant: (groupId: string, input: ArtifactVariantCreateRequest) => Promise<ArtifactVariantGroup | null>;
@@ -161,6 +162,20 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
     } catch (err) {
       set({ saving: false, error: messageFromError(err, "Failed to update artifact") });
       return null;
+    }
+  },
+
+  loadRevisions: async (artifactId, includeContent = false) => {
+    set({ error: null });
+    try {
+      const data = await api.listArtifactRevisions(artifactId, includeContent);
+      set((state) => ({
+        selectedArtifact: state.selectedArtifact?.id === artifactId
+          ? { ...state.selectedArtifact, revisions: data.revisions }
+          : state.selectedArtifact,
+      }));
+    } catch (err) {
+      set({ error: messageFromError(err, "Artifact revisions unavailable") });
     }
   },
 

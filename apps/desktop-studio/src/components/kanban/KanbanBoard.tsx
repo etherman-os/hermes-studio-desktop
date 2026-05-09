@@ -1,5 +1,5 @@
 import React from "react";
-import type { KanbanCard, KanbanColumn } from "../../api/studioClient";
+import { getArtifact, type ArtifactDetail, type KanbanCard, type KanbanColumn } from "../../api/studioClient";
 import { useArtifactStore } from "../../stores/artifactStore";
 import { useContextStore } from "../../stores/contextStore";
 import { useKanbanStore } from "../../stores/kanbanStore";
@@ -11,6 +11,7 @@ type CardPriority = "low" | "medium" | "high" | "urgent";
 type EditorMode = "create" | "edit";
 
 const PRIORITIES: CardPriority[] = ["low", "medium", "high", "urgent"];
+const MAX_CARD_ARTIFACT_PREVIEWS = 2;
 
 interface CardEditorState {
   title: string;
@@ -53,6 +54,23 @@ function formatUpdated(iso: string) {
   } catch {
     return iso;
   }
+}
+
+function sanitizedPreviewDoc(content: string) {
+  if (typeof window === "undefined") return content;
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(content, "text/html");
+  doc.querySelectorAll("script, form, iframe, object, embed").forEach((node) => node.remove());
+  doc.querySelectorAll("*").forEach((node) => {
+    for (const attr of [...node.attributes]) {
+      const name = attr.name.toLowerCase();
+      const value = attr.value.trim().toLowerCase();
+      if (name.startsWith("on") || value.startsWith("javascript:")) {
+        node.removeAttribute(attr.name);
+      }
+    }
+  });
+  return `<!doctype html>${doc.documentElement.outerHTML}`;
 }
 
 function CardEditor({ mode, card, columns, saving, onCancel, onSubmit }: CardEditorProps) {
@@ -200,18 +218,22 @@ export function KanbanBoard() {
   const linkCardToRun = useKanbanStore((s) => s.linkCardToRun);
   const artifacts = useArtifactStore((s) => s.artifacts);
   const loadArtifacts = useArtifactStore((s) => s.loadArtifacts);
+  const selectArtifact = useArtifactStore((s) => s.selectArtifact);
   const createArtifact = useArtifactStore((s) => s.createArtifact);
   const artifactSaving = useArtifactStore((s) => s.saving);
   const loadRunContext = useContextStore((s) => s.loadRunContext);
   const loadSessionContext = useContextStore((s) => s.loadSessionContext);
   const setSidebarSection = useLayoutStore((s) => s.setSidebarSection);
+  const setActiveTab = useLayoutStore((s) => s.setActiveTab);
   const showSidebar = useLayoutStore((s) => s.showSidebar);
   const label = useThemeStore((s) => s.label);
   const icon = useThemeStore((s) => s.icon);
   const openNewRun = useUiStore((s) => s.openNewRun);
 
   const [editor, setEditor] = React.useState<{ mode: EditorMode; card: KanbanCard | null } | null>(null);
+  const [artifactDetails, setArtifactDetails] = React.useState<Record<string, ArtifactDetail>>({});
   const requestedInitialLoad = React.useRef(false);
+  const requestedArtifactDetails = React.useRef(new Set<string>());
 
   React.useEffect(() => {
     if (board || requestedInitialLoad.current) return;
@@ -226,6 +248,41 @@ export function KanbanBoard() {
   const columns = board?.columns ?? [];
   const activeCards = columns.flatMap((column) => column.cards).filter((card) => !card.archived_at);
   const inboxColumn = defaultColumn(columns);
+  const artifactsByCardId = React.useMemo(() => {
+    const grouped = new Map<string, typeof artifacts>();
+    for (const artifact of artifacts) {
+      if (!artifact.kanban_card_id) continue;
+      const existing = grouped.get(artifact.kanban_card_id) ?? [];
+      existing.push(artifact);
+      grouped.set(artifact.kanban_card_id, existing);
+    }
+    return grouped;
+  }, [artifacts]);
+
+  React.useEffect(() => {
+    const previewCandidates = artifacts
+      .filter((artifact) => artifact.kanban_card_id && artifact.has_content)
+      .filter((artifact) => !artifactDetails[artifact.id])
+      .filter((artifact) => !requestedArtifactDetails.current.has(artifact.id))
+      .slice(0, 24);
+    if (previewCandidates.length === 0) return;
+    previewCandidates.forEach((artifact) => requestedArtifactDetails.current.add(artifact.id));
+    let cancelled = false;
+    void Promise.all(previewCandidates.map((artifact) => getArtifact(artifact.id).catch(() => null))).then((details) => {
+      if (cancelled) return;
+      if (!details.some(Boolean)) return;
+      setArtifactDetails((current) => {
+        const next = { ...current };
+        for (const detail of details) {
+          if (detail) next[detail.id] = detail;
+        }
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [artifactDetails, artifacts]);
 
   async function submitEditor(state: CardEditorState) {
     const status = columnStatus(columns, state.columnId);
@@ -312,6 +369,13 @@ export function KanbanBoard() {
     if (card.session_id) {
       await loadSessionContext(card.session_id);
     }
+  }
+
+  async function openLinkedArtifact(artifactId: string) {
+    await selectArtifact(artifactId);
+    setActiveTab("artifacts");
+    setSidebarSection("artifacts");
+    showSidebar();
   }
 
   function openKanbanSwarmRun() {
@@ -401,43 +465,83 @@ export function KanbanBoard() {
                 {col.cards.filter((card) => !card.archived_at).length === 0 && (
                   <div className="kanban-empty-column">No linked work in this lane</div>
                 )}
-                {col.cards.filter((card) => !card.archived_at).map((card) => (
-                  <article key={card.id} className={`kanban-card priority-edge-${normalizePriority(card.priority)}`}>
-                    <div className="kanban-card-main">
-                      <div className="kanban-card-title">{card.title}</div>
-                      {card.description && <div className="kanban-card-desc">{card.description}</div>}
-                    </div>
-                    <div className="kanban-card-meta">
-                      <span className={`priority-badge priority-${normalizePriority(card.priority)}`}>{normalizePriority(card.priority)}</span>
-                      {card.run_id && <span className="kanban-link-chip">Run {card.run_id}</span>}
-                      {card.session_id && <span className="kanban-link-chip">Session {card.session_id}</span>}
-                      <span className="kanban-link-chip">
-                        {artifacts.filter((artifact) => artifact.kanban_card_id === card.id).length} artifacts
-                      </span>
-                      <span>Updated {formatUpdated(card.updated_at)}</span>
-                    </div>
-                    <div className="kanban-card-actions">
-                      <button className="tool-button" onClick={() => setEditor({ mode: "edit", card })}>Edit</button>
-                      <button className="tool-button" disabled={artifactSaving} onClick={() => void createArtifactFromCard(card)}>Create Artifact</button>
-                      {(card.run_id || card.session_id) && <button className="tool-button" onClick={() => void inspectCardContext(card)}>Context</button>}
-                      <select
-                        className="studio-select kanban-move-select"
-                        value=""
-                        disabled={saving}
-                        aria-label={`Move ${card.title}`}
-                        onChange={(event) => void moveToColumn(card, event.target.value)}
-                      >
-                        <option value="">Move to...</option>
-                        {columns.map((column) => (
-                          <option key={column.id} value={column.id} disabled={column.id === card.column_id}>
-                            {column.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button className="tool-button danger" disabled={saving} onClick={() => void archiveCard(card.id)}>Archive</button>
-                    </div>
-                  </article>
-                ))}
+                {col.cards.filter((card) => !card.archived_at).map((card) => {
+                  const cardArtifacts = artifactsByCardId.get(card.id) ?? [];
+                  return (
+                    <article key={card.id} className={`kanban-card priority-edge-${normalizePriority(card.priority)}`}>
+                      <div className="kanban-card-main">
+                        <div className="kanban-card-title">{card.title}</div>
+                        {card.description && <div className="kanban-card-desc">{card.description}</div>}
+                      </div>
+                      {cardArtifacts.length > 0 && (
+                        <div className="kanban-artifact-thumbnails">
+                          {cardArtifacts.slice(0, MAX_CARD_ARTIFACT_PREVIEWS).map((artifact) => {
+                            const detail = artifactDetails[artifact.id];
+                            const previewText = detail?.content_text ?? artifact.description ?? artifact.title;
+                            return (
+                              <button
+                                key={artifact.id}
+                                className={`kanban-artifact-thumb artifact-type-${artifact.type}`}
+                                type="button"
+                                title={artifact.title}
+                                onClick={() => void openLinkedArtifact(artifact.id)}
+                              >
+                                <span>{artifact.type}</span>
+                                {artifact.type === "html" && detail?.content_text ? (
+                                  <iframe
+                                    title={`${artifact.title} thumbnail`}
+                                    srcDoc={sanitizedPreviewDoc(detail.content_text)}
+                                    sandbox=""
+                                  />
+                                ) : (
+                                  <code>{previewText.slice(0, 180)}</code>
+                                )}
+                              </button>
+                            );
+                          })}
+                          {cardArtifacts.length > MAX_CARD_ARTIFACT_PREVIEWS && (
+                            <button
+                              className="kanban-artifact-more"
+                              type="button"
+                              onClick={() => void openLinkedArtifact(cardArtifacts[MAX_CARD_ARTIFACT_PREVIEWS].id)}
+                            >
+                              +{cardArtifacts.length - MAX_CARD_ARTIFACT_PREVIEWS}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      <div className="kanban-card-meta">
+                        <span className={`priority-badge priority-${normalizePriority(card.priority)}`}>{normalizePriority(card.priority)}</span>
+                        {card.run_id && <span className="kanban-link-chip">Run {card.run_id}</span>}
+                        {card.session_id && <span className="kanban-link-chip">Session {card.session_id}</span>}
+                        <span className="kanban-link-chip">
+                          {cardArtifacts.length} artifacts
+                        </span>
+                        <span>Updated {formatUpdated(card.updated_at)}</span>
+                      </div>
+                      <div className="kanban-card-actions">
+                        <button className="tool-button" onClick={() => setEditor({ mode: "edit", card })}>Edit</button>
+                        <button className="tool-button" disabled={artifactSaving} onClick={() => void createArtifactFromCard(card)}>Create Artifact</button>
+                        {(card.run_id || card.session_id) && <button className="tool-button" onClick={() => void inspectCardContext(card)}>Context</button>}
+                        <select
+                          className="studio-select kanban-move-select"
+                          value=""
+                          disabled={saving}
+                          aria-label={`Move ${card.title}`}
+                          onChange={(event) => void moveToColumn(card, event.target.value)}
+                        >
+                          <option value="">Move to...</option>
+                          {columns.map((column) => (
+                            <option key={column.id} value={column.id} disabled={column.id === card.column_id}>
+                              {column.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button className="tool-button danger" disabled={saving} onClick={() => void archiveCard(card.id)}>Archive</button>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             </div>
           ))}

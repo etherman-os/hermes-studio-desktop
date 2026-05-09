@@ -1,5 +1,6 @@
 import React from "react";
 import type { StudioEvent } from "../../api/studioClient";
+import { extractRunArtifactCandidates } from "../../utils/artifactExtraction";
 import { useApprovalStore } from "../../stores/approvalStore";
 import { useArtifactStore } from "../../stores/artifactStore";
 import { useContextStore } from "../../stores/contextStore";
@@ -266,6 +267,14 @@ export function RunLedger() {
     ?? null;
   const requestedLedgerIds = React.useRef(new Set<string>());
   const timeline = React.useMemo(() => buildTimeline(run?.events ?? []), [run?.events]);
+  const extractedArtifactCandidates = React.useMemo(() => (
+    run ? extractRunArtifactCandidates({
+      runId: run.runId,
+      sessionId: run.sessionId,
+      prompt: run.prompt,
+      events: run.events,
+    }) : []
+  ), [run]);
   const approvalEvents = React.useMemo(
     () => (run?.events ?? []).filter((event) => event.type === "approval.requested" || event.type === "approval.resolved"),
     [run?.events],
@@ -337,6 +346,15 @@ export function RunLedger() {
     if (artifact) setActiveTab("artifacts");
   }
 
+  async function extractRunArtifacts() {
+    if (!run || extractedArtifactCandidates.length === 0) return;
+    for (const candidate of extractedArtifactCandidates) {
+      const { key: _key, language: _language, ...artifactInput } = candidate;
+      await createArtifact(artifactInput);
+    }
+    setActiveTab("artifacts");
+  }
+
   async function inspectRunContext() {
     if (!run) return;
     setSidebarSection("context");
@@ -379,6 +397,11 @@ export function RunLedger() {
           {run && <button className="tool-button" onClick={() => void createRunSummaryArtifact("summary")} disabled={artifactSaving}>Create Artifact from Run</button>}
           {run && <button className="tool-button" onClick={() => void createRunSummaryArtifact("report")} disabled={artifactSaving}>Create Markdown Report</button>}
           {run && <button className="tool-button" onClick={() => void createLogSnapshotArtifact()} disabled={artifactSaving}>Create Log Snapshot</button>}
+          {run && extractedArtifactCandidates.length > 0 && (
+            <button className="primary-button" onClick={() => void extractRunArtifacts()} disabled={artifactSaving}>
+              Extract Artifacts ({extractedArtifactCandidates.length})
+            </button>
+          )}
           {run && extractRunUrl(run) && (
             <PreviewLauncher
               url={extractRunUrl(run)!}

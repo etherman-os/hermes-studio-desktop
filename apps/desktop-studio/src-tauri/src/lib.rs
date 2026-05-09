@@ -54,6 +54,7 @@ fn send_notification(app: AppHandle, title: String, body: String) -> Result<(), 
 fn open_preview_window(
     app: AppHandle,
     url: String,
+    html: Option<String>,
     title: Option<String>,
 ) -> Result<String, String> {
     let label = "preview";
@@ -62,19 +63,26 @@ fn open_preview_window(
     if let Some(window) = app.get_webview_window(label) {
         let _ = window.show();
         let _ = window.set_focus();
-        if !url.is_empty() {
+        if let Some(html) = html.as_ref().filter(|value| !value.is_empty()) {
+            let _ = app.emit("preview:html", html);
+        } else if !url.is_empty() {
             let _ = app.emit("preview:navigate", &url);
         }
         return Ok(label.to_string());
     }
 
-    if !(url.starts_with("http://") || url.starts_with("https://")) {
-        return Err("Preview windows only support http and https URLs".to_string());
+    let has_html = html.as_ref().is_some_and(|value| !value.is_empty());
+    if !has_html && !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err("Preview windows only support http and https URLs or sanitized artifact HTML".to_string());
     }
 
     let encoded_url = serde_json::to_string(&url)
         .map_err(|e| format!("Failed to encode preview URL: {e}"))?;
-    let init_script = format!("window.__PREVIEW_INITIAL_URL = {encoded_url};");
+    let encoded_html = serde_json::to_string(&html.unwrap_or_default())
+        .map_err(|e| format!("Failed to encode preview HTML: {e}"))?;
+    let init_script = format!(
+        "window.__PREVIEW_INITIAL_URL = {encoded_url}; window.__PREVIEW_INITIAL_HTML = {encoded_html};"
+    );
 
     let _window = WebviewWindowBuilder::new(&app, label, WebviewUrl::App("/".into()))
         .title(&window_title)

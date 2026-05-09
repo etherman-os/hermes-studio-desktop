@@ -33,10 +33,33 @@ function normalizePreviewUrl(value: string): string | null {
   }
 }
 
+function sanitizedPreviewDoc(content: string) {
+  if (typeof window === "undefined") return content;
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(content, "text/html");
+  doc.querySelectorAll("script, form, iframe, object, embed").forEach((node) => node.remove());
+  doc.querySelectorAll("*").forEach((node) => {
+    for (const attr of [...node.attributes]) {
+      const name = attr.name.toLowerCase();
+      const value = attr.value.trim().toLowerCase();
+      if (name.startsWith("on") || value.startsWith("javascript:")) {
+        node.removeAttribute(attr.name);
+      }
+    }
+  });
+  const csp = doc.createElement("meta");
+  csp.setAttribute("http-equiv", "Content-Security-Policy");
+  csp.setAttribute("content", "default-src 'none'; img-src data: blob: file: http: https:; style-src 'unsafe-inline' file: http: https:; font-src data: file: http: https:; script-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'");
+  doc.head.prepend(csp);
+  return `<!doctype html>${doc.documentElement.outerHTML}`;
+}
+
 export function PreviewCanvas() {
   const currentUrl = usePreviewStore((s) => s.currentUrl);
+  const currentHtml = usePreviewStore((s) => s.currentHtml);
   const consoleLogs = usePreviewStore((s) => s.consoleLogs);
   const setCurrentUrl = usePreviewStore((s) => s.setCurrentUrl);
+  const setCurrentHtml = usePreviewStore((s) => s.setCurrentHtml);
   const addConsoleLog = usePreviewStore((s) => s.addConsoleLog);
   const clearConsoleLogs = usePreviewStore((s) => s.clearConsoleLogs);
 
@@ -53,7 +76,12 @@ export function PreviewCanvas() {
         setCurrentUrl(normalized);
       }
     }
-  }, [setCurrentUrl]);
+    const initialHtml = (window as unknown as Record<string, unknown>).__PREVIEW_INITIAL_HTML;
+    if (typeof initialHtml === "string" && initialHtml.length > 0) {
+      setInputUrl("");
+      setCurrentHtml(initialHtml);
+    }
+  }, [setCurrentHtml, setCurrentUrl]);
 
   React.useEffect(() => {
     const unlisten = listen<string>("preview:navigate", (event) => {
@@ -66,6 +94,16 @@ export function PreviewCanvas() {
       void unlisten.then((fn) => fn());
     };
   }, [setCurrentUrl]);
+
+  React.useEffect(() => {
+    const unlisten = listen<string>("preview:html", (event) => {
+      setInputUrl("");
+      setCurrentHtml(event.payload);
+    });
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, [setCurrentHtml]);
 
   React.useEffect(() => {
     const original: Record<string, (...args: unknown[]) => void> = {
@@ -243,7 +281,20 @@ export function PreviewCanvas() {
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ flex: 1, position: "relative" }}>
-          {currentUrl ? (
+          {currentHtml ? (
+            <iframe
+              ref={iframeRef}
+              srcDoc={sanitizedPreviewDoc(currentHtml)}
+              title="Artifact Preview"
+              sandbox=""
+              style={{
+                width: "100%",
+                height: "100%",
+                border: "none",
+                background: "#fff",
+              }}
+            />
+          ) : currentUrl ? (
             <iframe
               ref={iframeRef}
               src={currentUrl}

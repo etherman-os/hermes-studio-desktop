@@ -235,11 +235,11 @@ class StudioBackend(ABC):
 
         return ArtifactRepository().update_artifact(artifact_id, input_data)
 
-    async def list_artifact_revisions(self, artifact_id: str) -> dict[str, Any]:
+    async def list_artifact_revisions(self, artifact_id: str, *, include_content: bool = False) -> dict[str, Any]:
         """Return Studio-owned artifact revision history."""
         from hermes_adapter.artifact_repository import ArtifactRepository
 
-        return ArtifactRepository().list_revisions(artifact_id)
+        return ArtifactRepository().list_revisions(artifact_id, include_content=include_content)
 
     async def revert_artifact(self, artifact_id: str, version: int) -> dict[str, Any]:
         """Revert a Studio-owned artifact to a stored revision."""

@@ -11,6 +11,7 @@ vi.mock("../api/studioClient", async () => {
     getArtifact: vi.fn(),
     createArtifact: vi.fn(),
     updateArtifact: vi.fn(),
+    listArtifactRevisions: vi.fn(),
     revertArtifact: vi.fn(),
     createArtifactVariantGroup: vi.fn(),
     addArtifactVariant: vi.fn(),
@@ -119,6 +120,38 @@ describe("artifactStore", () => {
     expect(api.revertArtifact).toHaveBeenCalledWith("artifact_1", 1);
     expect(useArtifactStore.getState().selectedArtifact?.content_text).toBe("# Previous");
     expect(useArtifactStore.getState().actionMessage).toBe("Artifact reverted to v1");
+  });
+
+  it("loads revision content onto the selected artifact", async () => {
+    useArtifactStore.setState({ artifacts: [artifact], selectedArtifact: artifact, selectedArtifactId: "artifact_1" });
+    vi.mocked(api.listArtifactRevisions).mockResolvedValue({
+      artifact_id: "artifact_1",
+      total: 1,
+      revisions: [
+        {
+          id: "artifact_rev_1",
+          artifact_id: "artifact_1",
+          version: 1,
+          title: "Run summary",
+          type: "markdown",
+          description: "Summary",
+          file_path: null,
+          file_name: null,
+          mime_type: null,
+          size_bytes: null,
+          source: "run",
+          event_type: "artifact.created",
+          created_at: "2026-05-07T00:00:00Z",
+          has_content: true,
+          content_text: "# Previous",
+        },
+      ],
+    });
+
+    await useArtifactStore.getState().loadRevisions("artifact_1", true);
+
+    expect(api.listArtifactRevisions).toHaveBeenCalledWith("artifact_1", true);
+    expect(useArtifactStore.getState().selectedArtifact?.revisions?.[0].content_text).toBe("# Previous");
   });
 
   it("creates and applies artifact variants", async () => {

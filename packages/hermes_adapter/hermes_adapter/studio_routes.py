@@ -1184,10 +1184,14 @@ async def update_artifact(
 
 
 @router.get("/artifacts/{artifact_id}/revisions")
-async def list_artifact_revisions(artifact_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
+async def list_artifact_revisions(
+    artifact_id: str,
+    include_content: bool = Query(False, description="Include bounded revision content for local diff views"),
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
     backend = await _get_backend()
     try:
-        return await backend.list_artifact_revisions(artifact_id)
+        return await backend.list_artifact_revisions(artifact_id, include_content=include_content)
     except (RuntimeError, ValueError) as e:
         raise _artifact_http_error(e) from e
 

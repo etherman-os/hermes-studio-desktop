@@ -331,11 +331,11 @@ class ArtifactRepository:
                 )
             return self._artifact_detail(conn, clean_artifact_id)
 
-    def list_revisions(self, artifact_id: str) -> dict[str, Any]:
+    def list_revisions(self, artifact_id: str, *, include_content: bool = False) -> dict[str, Any]:
         clean_artifact_id = self._clean_artifact_id(artifact_id)
         with self._storage.connect() as conn:
             self._require_artifact(conn, clean_artifact_id, include_archived=True)
-            revisions = self._list_revision_rows(conn, clean_artifact_id, include_content=False)
+            revisions = self._list_revision_rows(conn, clean_artifact_id, include_content=include_content)
             return {"artifact_id": clean_artifact_id, "revisions": revisions, "total": len(revisions)}
 
     def revert_artifact(self, artifact_id: str, version: int) -> dict[str, Any]:

@@ -6,6 +6,16 @@ import { useSessionStore } from "../../stores/sessionStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useHermesInventoryStore } from "../../stores/hermesInventoryStore";
 import { PreviewLauncher } from "../preview/PreviewLauncher";
+import type { ArtifactRevision } from "../../api/studioClient";
+
+type DiffRow = {
+  type: "same" | "added" | "removed";
+  text: string;
+  oldLine?: number;
+  newLine?: number;
+};
+
+const MAX_DIFF_LINES = 420;
 
 function isPreviewable(artifact: { type?: string; content_url?: string | null; content_text?: string | null }) {
   if (artifact.content_url) return true;
@@ -72,6 +82,74 @@ function selectedElementLabel(element: Element) {
   return [element.tagName.toLowerCase() + id + classes, text ? `"${text}"` : ""].filter(Boolean).join(" ");
 }
 
+function splitDiffLines(value: string) {
+  return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+}
+
+function buildLineDiff(previous: string, current: string): DiffRow[] {
+  const previousAll = splitDiffLines(previous);
+  const currentAll = splitDiffLines(current);
+  const previousLines = previousAll.slice(0, MAX_DIFF_LINES);
+  const currentLines = currentAll.slice(0, MAX_DIFF_LINES);
+  const dp = Array.from({ length: previousLines.length + 1 }, () => new Uint16Array(currentLines.length + 1));
+
+  for (let i = previousLines.length - 1; i >= 0; i -= 1) {
+    for (let j = currentLines.length - 1; j >= 0; j -= 1) {
+      dp[i][j] = previousLines[i] === currentLines[j]
+        ? dp[i + 1][j + 1] + 1
+        : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+
+  const rows: DiffRow[] = [];
+  let oldIndex = 0;
+  let newIndex = 0;
+  while (oldIndex < previousLines.length && newIndex < currentLines.length) {
+    if (previousLines[oldIndex] === currentLines[newIndex]) {
+      rows.push({
+        type: "same",
+        text: previousLines[oldIndex],
+        oldLine: oldIndex + 1,
+        newLine: newIndex + 1,
+      });
+      oldIndex += 1;
+      newIndex += 1;
+    } else if (dp[oldIndex + 1][newIndex] >= dp[oldIndex][newIndex + 1]) {
+      rows.push({ type: "removed", text: previousLines[oldIndex], oldLine: oldIndex + 1 });
+      oldIndex += 1;
+    } else {
+      rows.push({ type: "added", text: currentLines[newIndex], newLine: newIndex + 1 });
+      newIndex += 1;
+    }
+  }
+
+  while (oldIndex < previousLines.length) {
+    rows.push({ type: "removed", text: previousLines[oldIndex], oldLine: oldIndex + 1 });
+    oldIndex += 1;
+  }
+  while (newIndex < currentLines.length) {
+    rows.push({ type: "added", text: currentLines[newIndex], newLine: newIndex + 1 });
+    newIndex += 1;
+  }
+  if (previousAll.length > MAX_DIFF_LINES || currentAll.length > MAX_DIFF_LINES) {
+    rows.push({
+      type: "same",
+      text: `Diff truncated to first ${MAX_DIFF_LINES} lines for UI responsiveness.`,
+    });
+  }
+  return rows;
+}
+
+function diffSummary(rows: DiffRow[]) {
+  return rows.reduce(
+    (summary, row) => ({
+      added: summary.added + (row.type === "added" ? 1 : 0),
+      removed: summary.removed + (row.type === "removed" ? 1 : 0),
+    }),
+    { added: 0, removed: 0 },
+  );
+}
+
 export function ArtifactShelf() {
   const artifacts = useArtifactStore((s) => s.artifacts);
   const selectedArtifact = useArtifactStore((s) => s.selectedArtifact);
@@ -84,6 +162,7 @@ export function ArtifactShelf() {
   const selectArtifact = useArtifactStore((s) => s.selectArtifact);
   const createArtifact = useArtifactStore((s) => s.createArtifact);
   const updateArtifact = useArtifactStore((s) => s.updateArtifact);
+  const loadRevisions = useArtifactStore((s) => s.loadRevisions);
   const revertArtifact = useArtifactStore((s) => s.revertArtifact);
   const createVariantGroup = useArtifactStore((s) => s.createVariantGroup);
   const addVariant = useArtifactStore((s) => s.addVariant);
@@ -103,6 +182,7 @@ export function ArtifactShelf() {
   const [visualSelectEnabled, setVisualSelectEnabled] = React.useState(false);
   const [selectedPreviewLabel, setSelectedPreviewLabel] = React.useState("");
   const [htmlDraft, setHtmlDraft] = React.useState("");
+  const [selectedRevisionVersion, setSelectedRevisionVersion] = React.useState<number | null>(null);
   const visualSelectEnabledRef = React.useRef(false);
 
   React.useEffect(() => {
@@ -117,12 +197,47 @@ export function ArtifactShelf() {
     setHtmlDraft(selectedArtifact?.type === "html" ? selectedArtifact.content_text ?? "" : "");
     setTargetSelector("");
     setSelectedPreviewLabel("");
+    setSelectedRevisionVersion(null);
   }, [selectedArtifact?.id, selectedArtifact?.type, selectedArtifact?.content_text]);
+
+  React.useEffect(() => {
+    if (!selectedArtifact?.id || !selectedArtifact.content_text) return;
+    const needsRevisionContent = (selectedArtifact.revisions ?? []).some(
+      (revision) => revision.has_content && revision.content_text === undefined,
+    );
+    if (needsRevisionContent) {
+      void loadRevisions(selectedArtifact.id, true);
+    }
+  }, [loadRevisions, selectedArtifact?.id, selectedArtifact?.content_text, selectedArtifact?.revisions]);
 
   const safeHtmlPreview = React.useMemo(() => {
     if (selectedArtifact?.type !== "html" || !htmlDraft) return "";
     return sanitizedPreviewDoc(htmlDraft);
   }, [selectedArtifact?.type, htmlDraft]);
+
+  const revisionOptions = React.useMemo<ArtifactRevision[]>(() => (
+    (selectedArtifact?.revisions ?? []).filter(
+      (revision) => revision.has_content && typeof revision.content_text === "string",
+    )
+  ), [selectedArtifact?.revisions]);
+  const selectedRevision = React.useMemo(() => {
+    if (revisionOptions.length === 0) return null;
+    if (selectedRevisionVersion !== null) {
+      return revisionOptions.find((revision) => revision.version === selectedRevisionVersion) ?? revisionOptions[0];
+    }
+    const newestVersion = selectedArtifact?.revisions?.[0]?.version;
+    return revisionOptions.find((revision) => revision.version !== newestVersion) ?? revisionOptions[0];
+  }, [revisionOptions, selectedArtifact?.revisions, selectedRevisionVersion]);
+  const currentComparableContent = selectedArtifact?.type === "html"
+    ? htmlDraft
+    : selectedArtifact?.content_text ?? "";
+  const revisionDiffRows = React.useMemo(() => (
+    selectedRevision ? buildLineDiff(selectedRevision.content_text ?? "", currentComparableContent) : []
+  ), [currentComparableContent, selectedRevision]);
+  const revisionDiffSummary = React.useMemo(() => diffSummary(revisionDiffRows), [revisionDiffRows]);
+  const revisionContentPending = Boolean((selectedArtifact?.revisions ?? []).some(
+    (revision) => revision.has_content && revision.content_text === undefined,
+  ));
 
   const designSkillIds = skills
     .filter((skill) => skill.installed && (
@@ -438,6 +553,11 @@ export function ArtifactShelf() {
                     <div className="source-editor-toolbar">
                       <span>Live source</span>
                       <div>
+                        <PreviewLauncher
+                          html={htmlDraft || (selectedArtifact.content_text ?? "")}
+                          title={selectedArtifact.title}
+                          label="Open Preview Window"
+                        />
                         <button className="tool-button" type="button" onClick={() => setHtmlDraft(selectedArtifact.content_text ?? "")}>
                           Reset
                         </button>
@@ -612,6 +732,102 @@ export function ArtifactShelf() {
                   </div>
                 ))}
               </div>
+              {selectedArtifact.content_text && selectedArtifact.revisions && selectedArtifact.revisions.length > 0 && (
+                <div className="artifact-revision-diff">
+                  <div className="artifact-section-header">
+                    <div>
+                      <div className="inventory-section-title">Revision Diff</div>
+                      <span>
+                        {selectedRevision
+                          ? `v${selectedRevision.version} to current · +${revisionDiffSummary.added} / -${revisionDiffSummary.removed}`
+                          : revisionContentPending
+                            ? "Loading revision content for visual diff"
+                            : "No content-bearing revision is available"}
+                      </span>
+                    </div>
+                    <div className="artifact-diff-toolbar">
+                      <select
+                        value={selectedRevision?.version ?? ""}
+                        disabled={revisionOptions.length === 0}
+                        onChange={(event) => setSelectedRevisionVersion(Number(event.target.value))}
+                        aria-label="Revision to compare"
+                      >
+                        {revisionOptions.map((revision) => (
+                          <option key={revision.id} value={revision.version}>
+                            v{revision.version} · {revision.event_type}
+                          </option>
+                        ))}
+                      </select>
+                      {revisionContentPending && (
+                        <button
+                          className="tool-button"
+                          type="button"
+                          onClick={() => void loadRevisions(selectedArtifact.id, true)}
+                        >
+                          Load Content
+                        </button>
+                      )}
+                      {selectedRevision && (
+                        <button
+                          className="tool-button"
+                          type="button"
+                          disabled={saving}
+                          onClick={() => void revertArtifact(selectedArtifact.id, selectedRevision.version)}
+                        >
+                          Revert v{selectedRevision.version}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {selectedRevision ? (
+                    <>
+                      {selectedArtifact.type === "html" && selectedRevision.content_text && currentComparableContent && (
+                        <div className="artifact-diff-preview-grid">
+                          <div className="artifact-diff-frame">
+                            <span>v{selectedRevision.version}</span>
+                            <iframe
+                              title={`${selectedArtifact.title} revision ${selectedRevision.version}`}
+                              srcDoc={sanitizedPreviewDoc(selectedRevision.content_text)}
+                              sandbox="allow-same-origin"
+                            />
+                          </div>
+                          <div className="artifact-diff-frame">
+                            <span>{htmlDraft !== (selectedArtifact.content_text ?? "") ? "Current draft" : "Current"}</span>
+                            <iframe
+                              title={`${selectedArtifact.title} current`}
+                              srcDoc={sanitizedPreviewDoc(currentComparableContent)}
+                              sandbox="allow-same-origin"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      <div className="artifact-diff-lines" role="table" aria-label="Revision line diff">
+                        {revisionDiffRows.map((row, index) => (
+                          <div className={`artifact-diff-row ${row.type}`} role="row" key={`${row.type}-${index}-${row.oldLine ?? row.newLine ?? "note"}`}>
+                            <span className="artifact-diff-marker">
+                              {row.type === "added" ? "+" : row.type === "removed" ? "-" : " "}
+                            </span>
+                            <span className="artifact-diff-line-no">
+                              {row.type === "added"
+                                ? row.newLine ?? ""
+                                : row.type === "removed"
+                                  ? row.oldLine ?? ""
+                                  : row.oldLine && row.newLine
+                                    ? `${row.oldLine}/${row.newLine}`
+                                    : ""}
+                            </span>
+                            <code>{row.text || " "}</code>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="workbench-empty compact">
+                      Revision content has not been loaded for this artifact yet.
+                    </div>
+                  )}
+                </div>
+              )}
               {selectedArtifact.events && selectedArtifact.events.length > 0 && (
                 <div className="artifact-history">
                   <div className="inventory-section-title">Artifact History</div>

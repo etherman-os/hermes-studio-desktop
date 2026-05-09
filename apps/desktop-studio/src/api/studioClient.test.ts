@@ -229,7 +229,7 @@ describe("studioClient protocol surface", () => {
     await api.listArtifacts({ type: "markdown", search: "run" });
     await api.createArtifact({ title: "Run report", type: "markdown", content_text: "# Run report" });
     await api.linkArtifactToRun("artifact_1", "run-1");
-    await api.listArtifactRevisions("artifact_1");
+    await api.listArtifactRevisions("artifact_1", true);
     await api.revertArtifact("artifact_1", 1);
     await api.listArtifactVariantGroups("artifact_1");
     await api.createArtifactVariantGroup("artifact_1", { title: "Variants" });
@@ -241,7 +241,7 @@ describe("studioClient protocol surface", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:39191/studio/artifacts?type=markdown&search=run");
     expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:39191/studio/artifacts");
     expect(fetchMock.mock.calls[2][0]).toBe("http://127.0.0.1:39191/studio/artifacts/artifact_1/link-run");
-    expect(fetchMock.mock.calls[3][0]).toBe("http://127.0.0.1:39191/studio/artifacts/artifact_1/revisions");
+    expect(fetchMock.mock.calls[3][0]).toBe("http://127.0.0.1:39191/studio/artifacts/artifact_1/revisions?include_content=true");
     expect(fetchMock.mock.calls[4][0]).toBe("http://127.0.0.1:39191/studio/artifacts/artifact_1/revert");
     expect(JSON.parse(fetchMock.mock.calls[4][1].body as string)).toEqual({ version: 1 });
     expect(fetchMock.mock.calls[5][0]).toBe("http://127.0.0.1:39191/studio/artifacts/artifact_1/variant-groups");

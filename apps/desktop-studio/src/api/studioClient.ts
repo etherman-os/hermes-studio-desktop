@@ -729,8 +729,9 @@ export async function updateArtifact(artifactId: string, input: ArtifactUpdateRe
   });
 }
 
-export async function listArtifactRevisions(artifactId: string) {
-  return request<ArtifactRevisionListResponse>(`/studio/artifacts/${artifactId}/revisions`);
+export async function listArtifactRevisions(artifactId: string, includeContent = false) {
+  const query = includeContent ? "?include_content=true" : "";
+  return request<ArtifactRevisionListResponse>(`/studio/artifacts/${artifactId}/revisions${query}`);
 }
 
 export async function revertArtifact(artifactId: string, version: number) {

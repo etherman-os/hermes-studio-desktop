@@ -2,9 +2,11 @@ import { create } from "zustand";
 
 interface PreviewState {
   currentUrl: string;
+  currentHtml: string;
   isOpen: boolean;
   consoleLogs: ConsoleEntry[];
   setCurrentUrl: (url: string) => void;
+  setCurrentHtml: (html: string) => void;
   setOpen: (open: boolean) => void;
   addConsoleLog: (entry: ConsoleEntry) => void;
   clearConsoleLogs: () => void;
@@ -18,10 +20,12 @@ export interface ConsoleEntry {
 
 export const usePreviewStore = create<PreviewState>((set) => ({
   currentUrl: "",
+  currentHtml: "",
   isOpen: false,
   consoleLogs: [],
 
-  setCurrentUrl: (url) => set({ currentUrl: url }),
+  setCurrentUrl: (url) => set({ currentUrl: url, currentHtml: "" }),
+  setCurrentHtml: (html) => set({ currentHtml: html, currentUrl: "" }),
   setOpen: (open) => set({ isOpen: open }),
   addConsoleLog: (entry) =>
     set((s) => ({

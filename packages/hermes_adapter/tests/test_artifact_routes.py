@@ -59,6 +59,14 @@ def test_artifact_lifecycle_routes() -> None:
     revisions = client.get(f"/studio/artifacts/{artifact['id']}/revisions", headers=HEADERS)
     assert revisions.status_code == 200
     assert revisions.json()["total"] == 2
+    assert "content_text" not in revisions.json()["revisions"][0]
+
+    revisions_with_content = client.get(
+        f"/studio/artifacts/{artifact['id']}/revisions?include_content=true",
+        headers=HEADERS,
+    )
+    assert revisions_with_content.status_code == 200
+    assert revisions_with_content.json()["revisions"][0]["content_text"] == "Updated content"
 
     reverted = client.post(
         f"/studio/artifacts/{artifact['id']}/revert",

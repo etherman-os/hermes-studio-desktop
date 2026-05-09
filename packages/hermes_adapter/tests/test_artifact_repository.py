@@ -60,12 +60,16 @@ def test_artifact_revisions_and_revert(tmp_path: Path) -> None:
     repo.update_artifact(artifact["id"], {"title": "Second", "content_text": "v2"})
 
     revisions = repo.list_revisions(artifact["id"])
+    revisions_with_content = repo.list_revisions(artifact["id"], include_content=True)
     reverted = repo.revert_artifact(artifact["id"], 1)
     detail = repo.get_artifact(artifact["id"])
 
     assert revisions["total"] == 2
     assert [revision["version"] for revision in revisions["revisions"]] == [2, 1]
     assert revisions["revisions"][0]["has_content"] is True
+    assert "content_text" not in revisions["revisions"][0]
+    assert revisions_with_content["revisions"][0]["content_text"] == "v2"
+    assert revisions_with_content["revisions"][1]["content_text"] == "v1"
     assert reverted["title"] == "Initial"
     assert reverted["content_text"] == "v1"
     assert [revision["version"] for revision in detail["revisions"]] == [3, 2, 1]

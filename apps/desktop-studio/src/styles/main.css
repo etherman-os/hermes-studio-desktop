@@ -744,9 +744,82 @@ body {
   font-size: 11px;
 }
 
+.kanban-artifact-thumbnails {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  gap: var(--app-spacing-xs);
+  margin: var(--app-spacing-sm) 0;
+}
+
+.kanban-artifact-thumb,
+.kanban-artifact-more {
+  min-width: 0;
+  height: 86px;
+  overflow: hidden;
+  border: 1px solid var(--app-border-subtle);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface);
+  color: var(--app-text-secondary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.kanban-artifact-thumb:hover,
+.kanban-artifact-more:hover {
+  border-color: var(--app-accent);
+  color: var(--app-text);
+}
+
+.kanban-artifact-thumb {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.kanban-artifact-thumb span {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 1;
+  padding: 2px 5px;
+  border-radius: var(--app-radius-sm);
+  background: color-mix(in srgb, var(--app-bg) 88%, transparent);
+  color: var(--app-text);
+  font-family: var(--app-font-mono);
+  font-size: 9px;
+}
+
+.kanban-artifact-thumb iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+  pointer-events: none;
+}
+
+.kanban-artifact-thumb code {
+  overflow: hidden;
+  padding: 24px 7px 7px;
+  color: var(--app-text-secondary);
+  font-family: var(--app-font-mono);
+  font-size: 10px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.kanban-artifact-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  font-family: var(--app-font-mono);
+  font-size: 12px;
+}
+
 .kanban-card-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--app-spacing-sm);
   margin-top: var(--app-spacing-sm);
 }
@@ -2669,6 +2742,115 @@ html[data-theme-world="block"] .center-tab.active {
   border: 1px solid var(--app-border-subtle);
   border-radius: var(--app-radius-sm);
   background: #fff;
+}
+
+.artifact-revision-diff {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-spacing-md);
+  margin-top: var(--app-spacing-md);
+  padding: var(--app-spacing-md);
+  border: 1px solid var(--app-border-subtle);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface);
+}
+
+.artifact-diff-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-spacing-xs);
+  justify-content: flex-end;
+}
+
+.artifact-diff-toolbar select {
+  max-width: 220px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-bg);
+  color: var(--app-text);
+  font-size: 11px;
+}
+
+.artifact-diff-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--app-spacing-sm);
+}
+
+.artifact-diff-frame {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.artifact-diff-frame span {
+  color: var(--app-text-muted);
+  font-family: var(--app-font-mono);
+  font-size: 10px;
+}
+
+.artifact-diff-frame iframe {
+  width: 100%;
+  height: 240px;
+  border: 1px solid var(--app-border-subtle);
+  border-radius: var(--app-radius-sm);
+  background: #fff;
+}
+
+.artifact-diff-lines {
+  overflow: auto;
+  max-height: 360px;
+  border: 1px solid var(--app-border-subtle);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-bg);
+  font-family: var(--app-font-mono);
+  font-size: 11px;
+}
+
+.artifact-diff-row {
+  display: grid;
+  grid-template-columns: 20px 64px minmax(0, 1fr);
+  min-height: 24px;
+  align-items: start;
+  border-bottom: 1px solid color-mix(in srgb, var(--app-border-subtle) 55%, transparent);
+}
+
+.artifact-diff-row:last-child {
+  border-bottom: none;
+}
+
+.artifact-diff-row code {
+  overflow: hidden;
+  padding: 4px 8px;
+  color: var(--app-text-secondary);
+  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.artifact-diff-row.added {
+  background: color-mix(in srgb, var(--app-ok) 12%, transparent);
+}
+
+.artifact-diff-row.removed {
+  background: color-mix(in srgb, var(--app-danger) 12%, transparent);
+}
+
+.artifact-diff-marker,
+.artifact-diff-line-no {
+  padding: 4px 6px;
+  color: var(--app-text-muted);
+  text-align: right;
+  user-select: none;
+}
+
+.artifact-diff-marker {
+  color: var(--app-text);
+  font-weight: 700;
+  text-align: center;
 }
 
 .artifact-modal {
@@ -5333,6 +5515,7 @@ a:focus-visible,
   .mission-grid,
   .mission-panels,
   .artifact-live-studio,
+  .artifact-diff-preview-grid,
   .capability-recipe-columns,
   .design-canvas-grid {
     grid-template-columns: 1fr;

@@ -1209,6 +1209,13 @@ paths:
           required: true
           schema:
             type: string
+        - name: include_content
+          in: query
+          required: false
+          description: Include bounded revision content for local diff views.
+          schema:
+            type: boolean
+            default: false
       responses:
         "200":
           description: Artifact detail
