@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -180,6 +181,33 @@ class TestRuns:
         data = resp.json()
         assert "runs" in data
         assert data["history_available"] is True
+
+    def test_compare_runs_route_is_not_captured_by_dynamic_run_route(self, client: TestClient) -> None:
+        run_ids: list[str] = []
+        for prompt in ("left run", "right run"):
+            resp = client.post(
+                "/studio/runs",
+                headers=HEADERS,
+                json={"session_id": "s-1", "prompt": prompt},
+            )
+            run_id = resp.json()["run_id"]
+            run_ids.append(run_id)
+            with client.stream("GET", f"/studio/runs/{run_id}/events", headers=HEADERS) as stream:
+                for _line in stream.iter_lines():
+                    pass
+
+        resp = client.get(
+            "/studio/runs/compare",
+            headers=HEADERS,
+            params={"left_run_id": run_ids[0], "right_run_id": run_ids[1]},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["left"]["run_id"] == run_ids[0]
+        assert data["right"]["run_id"] == run_ids[1]
+        assert data["history_available"] is True
+        assert "event_count_delta" in data["delta"]
 
     def test_run_persists_after_streaming(self, client: TestClient) -> None:
         resp = client.post(
@@ -407,6 +435,275 @@ class TestModelConfig:
         error = resp.json()["error"]
         assert error["code"] == "not_implemented"
         assert error["hint"]
+
+
+class TestHermesDiagnostics:
+    def test_hermes_doctor_route_parses_and_redacts_cli_output(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        async def fake_run_local_hermes(args: list[str], *, timeout: int = 15) -> subprocess.CompletedProcess[str]:
+            assert args == ["doctor"]
+            assert timeout == 90
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                stdout="◆ Auth Providers\n  ✓ GLM configured\n  ⚠ MiniMax token sk-secretvalue missing\n",
+                stderr="",
+            )
+
+        monkeypatch.setattr(studio_routes, "_run_local_hermes", fake_run_local_hermes)
+
+        resp = client.get("/studio/hermes/doctor", headers=HEADERS)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok_count"] == 1
+        assert data["warning_count"] == 1
+        assert data["checks"][0]["section"] == "Auth Providers"
+        assert "sk-secretvalue" not in "\n".join(data["lines"])
+
+    def test_hermes_release_route_checks_version_and_update_status(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        async def fake_run_local_hermes(args: list[str], *, timeout: int = 15) -> subprocess.CompletedProcess[str]:
+            if args == ["version"]:
+                assert timeout == 30
+                return subprocess.CompletedProcess(args, 0, stdout="Hermes Agent v0.13.0 (2026.5.7)\nUp to date\n", stderr="")
+            assert args == ["update", "--check"]
+            assert timeout == 60
+            return subprocess.CompletedProcess(args, 0, stdout="Update available: 27 commits behind upstream/main.\n", stderr="")
+
+        monkeypatch.setattr(studio_routes, "_run_local_hermes", fake_run_local_hermes)
+
+        resp = client.get("/studio/hermes/release", headers=HEADERS)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["version"] == "0.13.0"
+        assert data["update_available"] is True
+        assert data["behind_count"] == 27
+
+    def test_browser_cache_route_reports_playwright_and_puppeteer_cache_dirs(self, client: TestClient) -> None:
+        resp = client.get("/studio/hermes/browser-cache", headers=HEADERS)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["playwright_cache_dir"].endswith(".cache/ms-playwright")
+        assert data["puppeteer_cache_dir"].endswith(".cache/puppeteer")
+        assert isinstance(data["playwright_browsers"], list)
+        assert isinstance(data["puppeteer_browsers"], list)
+
+    def test_checkpoint_prune_route_uses_hermes_checkpoint_cli(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        calls: list[list[str]] = []
+
+        async def fake_run_local_hermes(args: list[str], *, timeout: int = 15) -> subprocess.CompletedProcess[str]:
+            calls.append(args)
+            if args[0:2] == ["checkpoints", "prune"]:
+                assert args == ["checkpoints", "prune", "--retention-days", "3", "--max-size-mb", "200", "--keep-orphans"]
+                assert timeout == 120
+                return subprocess.CompletedProcess(args, 0, stdout="Pruning checkpoint store...\nDone\n", stderr="")
+            assert args == ["checkpoints", "status"]
+            return subprocess.CompletedProcess(args, 0, stdout="Checkpoint base: /tmp/checkpoints\nProjects:        0\n", stderr="")
+
+        monkeypatch.setattr(studio_routes, "_run_local_hermes", fake_run_local_hermes)
+
+        resp = client.post(
+            "/studio/hermes/checkpoints/prune",
+            headers=HEADERS,
+            json={"retention_days": 3, "max_size_mb": 200, "keep_orphans": True},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["action"] == "prune"
+        assert data["ok"] is True
+        assert data["status"]["available"] is True
+        assert calls[0][0:2] == ["checkpoints", "prune"]
+
+    def test_checkpoint_prune_route_validates_options(self, client: TestClient) -> None:
+        resp = client.post(
+            "/studio/hermes/checkpoints/prune",
+            headers=HEADERS,
+            json={"retention_days": 0},
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "invalid_checkpoint_prune_options"
+
+    def test_skill_check_route_uses_hermes_skills_cli(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        async def fake_run_local_hermes(args: list[str], *, timeout: int = 15) -> subprocess.CompletedProcess[str]:
+            assert args == ["skills", "check"]
+            assert timeout == 45
+            return subprocess.CompletedProcess(args, 0, stdout="No hub-installed skills to check.\n", stderr="")
+
+        monkeypatch.setattr(studio_routes, "_run_local_hermes", fake_run_local_hermes)
+
+        resp = client.post("/studio/hermes/skills/check", headers=HEADERS, json={})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["action"] == "check"
+        assert data["ok"] is True
+        assert data["message"] == "No hub-installed skills to check."
+
+    def test_skill_install_route_uses_noninteractive_hermes_cli(
+        self,
+        client: TestClient,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        hermes_home = tmp_path / ".hermes"
+        hermes_home.mkdir()
+        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+
+        async def fake_run_local_hermes(args: list[str], *, timeout: int = 15) -> subprocess.CompletedProcess[str]:
+            assert args == [
+                "skills",
+                "install",
+                "--yes",
+                "--category",
+                "coding",
+                "--name",
+                "skill-creator",
+                "openai/skills/skill-creator",
+            ]
+            assert timeout == 120
+            return subprocess.CompletedProcess(args, 0, stdout="Installed skill-creator\n", stderr="")
+
+        monkeypatch.setattr(studio_routes, "_run_local_hermes", fake_run_local_hermes)
+
+        resp = client.post(
+            "/studio/hermes/skills/install",
+            headers=HEADERS,
+            json={"identifier": "openai/skills/skill-creator", "category": "coding", "name": "skill-creator"},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["action"] == "install"
+        assert data["ok"] is True
+        assert data["skills"] == []
+
+    def test_skill_install_rejects_control_characters(self, client: TestClient) -> None:
+        resp = client.post(
+            "/studio/hermes/skills/install",
+            headers=HEADERS,
+            json={"identifier": "openai/skills/foo\nbar"},
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "invalid_cli_identifier"
+
+    def test_mcp_probe_route_uses_configured_server_and_detects_cli_failure(
+        self,
+        client: TestClient,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        hermes_home = tmp_path / ".hermes"
+        hermes_home.mkdir()
+        (hermes_home / "config.yaml").write_text(
+            "mcp_servers:\n"
+            "  fetch:\n"
+            "    command: uvx\n"
+            "    args: [mcp-server-fetch]\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+
+        async def fake_run_local_hermes(args: list[str], *, timeout: int = 15) -> subprocess.CompletedProcess[str]:
+            assert args == ["mcp", "test", "fetch"]
+            assert timeout == 45
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                stdout="Testing 'fetch'...\n✗ Connection failed: sk-secretvalue missing\n",
+                stderr="",
+            )
+
+        monkeypatch.setattr(studio_routes, "_run_local_hermes", fake_run_local_hermes)
+
+        resp = client.post("/studio/hermes/mcp-servers/fetch/test", headers=HEADERS)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["server_id"] == "fetch"
+        assert data["ok"] is False
+        assert data["status"] == "error"
+        assert "sk-secretvalue" not in "\n".join(data["lines"])
+
+    def test_mcp_probe_route_rejects_unknown_server(self, client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        hermes_home = tmp_path / ".hermes"
+        hermes_home.mkdir()
+        (hermes_home / "config.yaml").write_text("mcp_servers: {}\n", encoding="utf-8")
+        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+
+        resp = client.post("/studio/hermes/mcp-servers/unknown/test", headers=HEADERS)
+
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "mcp_server_not_found"
+
+    def test_configure_toolset_route_uses_hermes_tools_cli(
+        self,
+        client: TestClient,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        hermes_home = tmp_path / ".hermes"
+        hermes_home.mkdir()
+        (hermes_home / "config.yaml").write_text("platform_toolsets:\n  cli: [browser]\n", encoding="utf-8")
+        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+
+        async def fake_run_local_hermes(args: list[str], *, timeout: int = 15) -> subprocess.CompletedProcess[str]:
+            assert args == ["tools", "disable", "--platform", "cli", "browser"]
+            assert timeout == 20
+            return subprocess.CompletedProcess(args, 0, stdout="Disabled: browser\n", stderr="")
+
+        monkeypatch.setattr(studio_routes, "_run_local_hermes", fake_run_local_hermes)
+
+        resp = client.post(
+            "/studio/hermes/toolsets/configure",
+            headers=HEADERS,
+            json={"id": "browser", "platform": "cli", "enabled": False},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "configured"
+        assert data["id"] == "browser"
+        assert data["enabled"] is False
+
+    def test_configure_toolset_route_rejects_unknown_toolset(
+        self,
+        client: TestClient,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        hermes_home = tmp_path / ".hermes"
+        hermes_home.mkdir()
+        (hermes_home / "config.yaml").write_text("platform_toolsets:\n  cli: [file]\n", encoding="utf-8")
+        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+
+        resp = client.post(
+            "/studio/hermes/toolsets/configure",
+            headers=HEADERS,
+            json={"id": "definitely-not-a-toolset", "platform": "cli", "enabled": True},
+        )
+
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "toolset_not_found"
 
 
 class TestLogs:

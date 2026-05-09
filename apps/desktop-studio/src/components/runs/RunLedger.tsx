@@ -241,10 +241,13 @@ export function RunLedger() {
   const historyAvailable = useRunLedgerStore((s) => s.historyAvailable);
   const savingRunCard = useRunLedgerStore((s) => s.savingRunCard);
   const actionMessage = useRunLedgerStore((s) => s.actionMessage);
+  const comparison = useRunLedgerStore((s) => s.comparison);
+  const comparingRuns = useRunLedgerStore((s) => s.comparingRuns);
   const selectRun = useRunLedgerStore((s) => s.selectRun);
   const selectEvent = useRunLedgerStore((s) => s.selectEvent);
   const loadRecentRuns = useRunLedgerStore((s) => s.loadRecentRuns);
   const loadRunLedger = useRunLedgerStore((s) => s.loadRunLedger);
+  const compareRuns = useRunLedgerStore((s) => s.compareRuns);
   const createCardFromRun = useRunLedgerStore((s) => s.createCardFromRun);
   const clearActionMessage = useRunLedgerStore((s) => s.clearActionMessage);
   const createArtifact = useArtifactStore((s) => s.createArtifact);
@@ -290,6 +293,8 @@ export function RunLedger() {
     ?? timeline.find((entry) => entry.events.some((event) => event.id === selectedEventId))
     ?? timeline[0]
     ?? null;
+  const compareOptions = React.useMemo(() => runs.filter((item) => item.runId !== run?.runId), [run?.runId, runs]);
+  const [compareTargetId, setCompareTargetId] = React.useState<string>("");
 
   React.useEffect(() => {
     if (!run || run.events.length > 0 || run.runId.startsWith("pending_") || run.runId.startsWith("local_")) return;
@@ -297,6 +302,12 @@ export function RunLedger() {
     requestedLedgerIds.current.add(run.runId);
     void loadRunLedger(run.runId);
   }, [run, loadRunLedger]);
+
+  React.useEffect(() => {
+    if (!compareOptions.some((item) => item.runId === compareTargetId)) {
+      setCompareTargetId(compareOptions[0]?.runId ?? "");
+    }
+  }, [compareOptions, compareTargetId]);
 
   async function handleCopySummary() {
     if (!run) return;
@@ -412,6 +423,23 @@ export function RunLedger() {
           {run && <button className="tool-button" onClick={() => void openRunApprovals()}>Open Approvals</button>}
           {run && <button className="tool-button" onClick={() => void inspectRunContext()}>Inspect Context</button>}
           {run && <button className="tool-button" onClick={() => void handleCopySummary()}>Copy Run Summary</button>}
+          {run && compareOptions.length > 0 && (
+            <select
+              className="studio-select compact"
+              value={compareTargetId}
+              onChange={(event) => setCompareTargetId(event.target.value)}
+              aria-label="Compare run target"
+            >
+              {compareOptions.map((item) => (
+                <option key={item.runId} value={item.runId}>{runTitle(item).slice(0, 42)}</option>
+              ))}
+            </select>
+          )}
+          {run && compareTargetId && (
+            <button className="tool-button" onClick={() => void compareRuns(run.runId, compareTargetId)} disabled={comparingRuns}>
+              {comparingRuns ? "Comparing" : "Compare"}
+            </button>
+          )}
           {run?.sessionId && <button className="tool-button" onClick={openSession}>Open Related Session</button>}
           <button className="tool-button" onClick={() => void loadRecentRuns()}>{loading ? "Refreshing" : "Refresh"}</button>
         </div>
@@ -444,6 +472,31 @@ export function RunLedger() {
       {(artifactMessage || artifactError) && (
         <div className={`run-ledger-notice ${artifactError ? "warning" : ""}`}>
           {artifactError ? `Artifact unavailable: ${artifactError}` : artifactMessage}
+        </div>
+      )}
+
+      {comparison && (
+        <div className="run-compare-panel">
+          <div className="run-compare-card">
+            <span>Left</span>
+            <strong>{comparison.left.run_id}</strong>
+            <small>{comparison.left.status} · {comparison.left.event_count} events · {comparison.left.tool_names.length} tools</small>
+          </div>
+          <div className="run-compare-card">
+            <span>Right</span>
+            <strong>{comparison.right.run_id}</strong>
+            <small>{comparison.right.status} · {comparison.right.event_count} events · {comparison.right.tool_names.length} tools</small>
+          </div>
+          <div className="run-compare-card delta">
+            <span>Delta</span>
+            <strong>{comparison.delta.event_count_delta >= 0 ? "+" : ""}{comparison.delta.event_count_delta} events</strong>
+            <small>
+              {comparison.delta.status_changed ? "status changed" : "same status"}
+              {comparison.delta.error_delta ? ` · ${comparison.delta.error_delta >= 0 ? "+" : ""}${comparison.delta.error_delta} errors` : ""}
+              {comparison.delta.added_tools.length ? ` · +${comparison.delta.added_tools.join(", ")}` : ""}
+              {comparison.delta.removed_tools.length ? ` · -${comparison.delta.removed_tools.join(", ")}` : ""}
+            </small>
+          </div>
         </div>
       )}
 

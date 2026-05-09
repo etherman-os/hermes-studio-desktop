@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import subprocess
 from typing import Any
 
 import httpx
@@ -239,6 +240,54 @@ class TestHermesBackend:
         await backend.close()
         assert result == {"run_id": "run-1", "status": "started"}
 
+    async def test_start_run_forwards_extended_studio_options_to_gateway(self):
+        async def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/health":
+                return httpx.Response(200, json={"status": "ok", "platform": "hermes-agent"})
+            assert request.url.path == "/v1/runs"
+            body = json.loads(request.content.decode("utf-8"))
+            assert body == {
+                "session_id": "s-1",
+                "input": "hello",
+                "provider": "glm",
+                "model": "glm-5",
+                "skills": ["design"],
+                "toolsets": ["file", "browser"],
+                "checkpoints": True,
+                "max_turns": 42,
+                "worktree": True,
+                "pass_session_id": True,
+                "ignore_rules": True,
+                "ignore_user_config": True,
+                "linked_card_id": "card-1",
+            }
+            return httpx.Response(202, json={"run_id": "run-1", "status": "started"})
+
+        backend = HermesBackend("http://hermes.test")
+        await backend._client.aclose()
+        backend._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+        result = await backend.start_run(
+            "s-1",
+            "hello",
+            context={
+                "provider": "glm",
+                "model": "glm-5",
+                "skills": ["design"],
+                "toolsets": ["file", "browser"],
+                "checkpoints": True,
+                "max_turns": 42,
+                "worktree": True,
+                "pass_session_id": True,
+                "ignore_rules": True,
+                "ignore_user_config": True,
+                "linked_card_id": "card-1",
+            },
+        )
+
+        await backend.close()
+        assert result == {"run_id": "run-1", "status": "started"}
+
     async def test_patch_model_config_uses_hermes_cli(self, tmp_path, monkeypatch):
         hermes_home = tmp_path / ".hermes"
         hermes_home.mkdir()
@@ -312,6 +361,31 @@ exit 2
             "config set model.provider glm",
             "config set model.default glm-5",
         ]
+
+    async def test_activate_profile_uses_hermes_profile_use_cli(self, tmp_path, monkeypatch):
+        hermes_home = tmp_path / ".hermes"
+        hermes_home.mkdir()
+        monkeypatch.setenv("HERMES_STUDIO_HERMES_HOME", str(hermes_home))
+        captured: list[list[str]] = []
+
+        def fake_run(
+            args: list[str],
+            *,
+            capture_output: bool,
+            text: bool,
+            timeout: int,
+        ) -> subprocess.CompletedProcess[str]:
+            captured.append(args)
+            return subprocess.CompletedProcess(args, 0, stdout="profile switched", stderr="")
+
+        monkeypatch.setattr("hermes_adapter.hermes_backend.subprocess.run", fake_run)
+
+        backend = HermesBackend("http://hermes.test")
+        result = await backend.activate_profile("research")
+
+        await backend.close()
+        assert result == {"status": "activated", "profile": "research", "source": "cli"}
+        assert captured == [["hermes", "profile", "use", "research"]]
 
     async def test_stream_run_events(self, fake_hermes):
         backend = HermesBackend(fake_hermes)

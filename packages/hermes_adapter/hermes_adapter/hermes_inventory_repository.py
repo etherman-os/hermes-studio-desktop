@@ -117,6 +117,14 @@ def _string_list(value: Any) -> list[str]:
     return [str(item) for item in value if isinstance(item, (str, int, float))]
 
 
+def _first_string(mapping: dict[str, Any], keys: tuple[str, ...]) -> str | None:
+    for key in keys:
+        value = mapping.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
 def _title_from_markdown(text: str, fallback: str) -> str:
     for line in text.splitlines():
         stripped = line.strip()
@@ -588,6 +596,44 @@ class HermesInventoryRepository:
             merged[(str(item["platform"]), str(item["id"]))] = item
         return sorted(merged.values(), key=lambda item: (str(item["platform"]), str(item["id"])))
 
+    def list_fallback_providers(self) -> list[dict[str, Any]]:
+        """Return configured fallback provider/model chain without exposing secrets."""
+        raw_chain = self._config.get("fallback_providers")
+        if not isinstance(raw_chain, list):
+            return []
+
+        provider_map = {str(provider["id"]): provider for provider in self.list_providers()}
+        fallbacks: list[dict[str, Any]] = []
+        for index, raw in enumerate(raw_chain):
+            provider_id: str | None = None
+            model_id: str | None = None
+            base_url: str | None = None
+            label: str | None = None
+
+            if isinstance(raw, str):
+                provider_id = raw
+            elif isinstance(raw, dict):
+                provider_id = _first_string(raw, ("provider", "provider_id", "id", "name"))
+                model_id = _first_string(raw, ("model", "model_id", "default"))
+                base_url = _first_string(raw, ("base_url", "base-url", "api_base_url"))
+                label = _first_string(raw, ("label", "title"))
+
+            if not provider_id:
+                continue
+
+            provider = provider_map.get(provider_id, {})
+            fallbacks.append({
+                "index": index,
+                "provider": provider_id,
+                "provider_name": provider.get("name") or label or provider_id,
+                "model": model_id,
+                "configured": bool(provider.get("configured")),
+                "active": bool(provider.get("active")),
+                "api_base_url": _redact_string(base_url) if base_url else provider.get("api_base_url"),
+                "source": "config.yaml",
+            })
+        return fallbacks
+
     def summary(self) -> dict[str, Any]:
         active_provider, active_model = self._active_provider_model()
         providers = self.list_providers()
@@ -595,6 +641,7 @@ class HermesInventoryRepository:
         skills = self.list_skills()
         mcp_servers = self.list_mcp_servers()
         toolsets = self.list_toolsets()
+        fallback_providers = self.list_fallback_providers()
         return {
             "hermes_home": str(self._hermes_home),
             "config_available": bool(self._config),
@@ -607,6 +654,7 @@ class HermesInventoryRepository:
             "installed_skill_count": sum(1 for skill in skills if skill.get("installed")),
             "mcp_server_count": len(mcp_servers),
             "toolset_count": len(toolsets),
+            "fallback_provider_count": len(fallback_providers),
         }
 
     def inventory(self) -> dict[str, Any]:
@@ -616,6 +664,7 @@ class HermesInventoryRepository:
         skills = self.list_skills()
         mcp_servers = self.list_mcp_servers()
         toolsets = self.list_toolsets()
+        fallback_providers = self.list_fallback_providers()
         return {
             "summary": self.summary(),
             "providers": providers,
@@ -623,4 +672,5 @@ class HermesInventoryRepository:
             "skills": skills,
             "mcp_servers": mcp_servers,
             "toolsets": toolsets,
+            "fallback_providers": fallback_providers,
         }

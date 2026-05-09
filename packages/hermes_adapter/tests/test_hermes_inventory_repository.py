@@ -22,6 +22,10 @@ mcp_servers:
 providers:
   custom:
     base_url: https://example.test/v1
+fallback_providers:
+  - provider: custom
+    model: custom-fast
+    base_url: https://example.test/v1
 platform_toolsets:
   cli: [browser, file]
 """,
@@ -68,11 +72,14 @@ metadata:
     assert summary["model_count"] == 1
     assert summary["installed_skill_count"] == 1
     assert summary["mcp_server_count"] == 1
+    assert summary["fallback_provider_count"] == 1
     assert repo.list_providers()[0]["id"] == "openai"
     assert repo.list_providers()[0]["configured"] is True
     assert repo.list_models()[0]["context_window"] == 400000
     assert repo.list_skills()[0]["tags"] == ["testing", "code"]
     assert repo.list_mcp_servers()[0]["id"] == "fetch"
+    assert repo.list_fallback_providers()[0]["provider"] == "custom"
+    assert repo.list_fallback_providers()[0]["model"] == "custom-fast"
 
 
 def test_inventory_redacts_mcp_env_values(tmp_path: Path) -> None:

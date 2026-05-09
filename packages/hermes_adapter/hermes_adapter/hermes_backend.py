@@ -736,12 +736,13 @@ class HermesBackend(StudioBackend):
         # Fallback: CLI
         try:
             result = subprocess.run(
-                ["hermes", "profile", "activate", clean_id],
+                ["hermes", "profile", "use", clean_id],
                 capture_output=True,
                 text=True,
                 timeout=15,
             )
             if result.returncode == 0:
+                self._profile_repo = ProfileRepository(self._hermes_home)
                 return {"status": "activated", "profile": clean_id, "source": "cli"}
             raise ValueError(result.stderr.strip() or f"CLI exit code {result.returncode}")
         except FileNotFoundError as exc:
@@ -833,6 +834,13 @@ class HermesBackend(StudioBackend):
                 ("provider", "provider"),
                 ("skills", "skills"),
                 ("toolsets", "toolsets"),
+                ("checkpoints", "checkpoints"),
+                ("max_turns", "max_turns"),
+                ("worktree", "worktree"),
+                ("pass_session_id", "pass_session_id"),
+                ("ignore_rules", "ignore_rules"),
+                ("ignore_user_config", "ignore_user_config"),
+                ("linked_card_id", "linked_card_id"),
             ):
                 value = context.get(source_key)
                 if value not in (None, "", [], {}):

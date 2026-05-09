@@ -145,6 +145,8 @@ The real product runtime is Tauri. Use `pnpm run tauri dev` to open the desktop 
 
 The optional `pnpm run test:visual` / `pnpm run test:visual:firefox` scripts start the Vite frontend and run a lightweight Playwright render smoke in Firefox. They verify the app shell, run-centered navigation, Run Ledger tab, and absence of fatal React/Vite overlays. If no compatible browser is available, the smoke test prints `pnpm run test:visual:install` and skips cleanly. Screenshots, when generated, are written to `artifacts/visual-smoke/` and are ignored by git.
 
+Do not reinstall browsers on every agent pass. Playwright browsers live under `~/.cache/ms-playwright`; Puppeteer uses `~/.cache/puppeteer`. Prefer the repo smoke scripts and install once only when the cache is missing.
+
 For a system Firefox override:
 
 ```bash

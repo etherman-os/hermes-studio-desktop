@@ -13,6 +13,7 @@ import subprocess
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -43,6 +44,7 @@ _SCRIPT_TAG_RE = re.compile(r"<script\b[^<]*(?:(?!</script>)<[^<]*)*</script>", 
 _BLOCKED_EMBED_RE = re.compile(r"<(iframe|object|embed)\b[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
 _EVENT_ATTR_RE = re.compile(r"\s+on[a-zA-Z]+\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s>]+)", re.IGNORECASE)
 _JAVASCRIPT_URL_RE = re.compile(r"\s+(href|src)\s*=\s*(['\"])\s*javascript:[^'\"]*\2", re.IGNORECASE)
+_CLI_SECRET_RE = re.compile(r"Bearer\s+\S+|(?i:sk-|xai-|tvly-|ghp_)[a-zA-Z0-9._-]+|\b[a-f0-9]{32,}\b")
 
 # Backend instance — initialized on first request
 _backend: StudioBackend | None = None
@@ -214,6 +216,89 @@ def _run_ledger_http_error(error: ValueError | RuntimeError) -> HTTPException:
     )
 
 
+def _run_compare_summary(ledger: dict[str, Any]) -> dict[str, Any]:
+    raw_run = ledger.get("run")
+    run: dict[str, Any] = raw_run if isinstance(raw_run, dict) else {}
+    raw_events = ledger.get("events")
+    events: list[Any] = raw_events if isinstance(raw_events, list) else []
+    event_type_counts: dict[str, int] = {}
+    tool_names: set[str] = set()
+    warnings = 0
+    errors = 0
+    approvals = 0
+    assistant_chars = 0
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        event_type = str(event.get("type") or "unknown")
+        event_type_counts[event_type] = event_type_counts.get(event_type, 0) + 1
+        payload = event.get("payload")
+        if not isinstance(payload, dict):
+            payload = {}
+        if event_type in {"adapter.warning", "run.cancelled"}:
+            warnings += 1
+        if event_type == "run.failed" or (event_type == "tool.completed" and payload.get("success") is False):
+            errors += 1
+        if event_type in {"approval.requested", "approval.resolved"}:
+            approvals += 1
+        if event_type in {"tool.started", "tool.completed", "tool.progress"}:
+            tool = payload.get("tool") or payload.get("name")
+            if tool:
+                tool_names.add(str(tool))
+        if event_type == "assistant.delta":
+            text = payload.get("text") or payload.get("content")
+            if isinstance(text, str):
+                assistant_chars += len(text)
+    return {
+        "run_id": run.get("id"),
+        "status": run.get("status"),
+        "backend": run.get("backend"),
+        "model": run.get("model"),
+        "workspace_path": run.get("workspace_path"),
+        "duration_ms": run.get("duration_ms"),
+        "event_count": len(events),
+        "event_type_counts": event_type_counts,
+        "tool_names": sorted(tool_names),
+        "warning_count": warnings,
+        "error_count": errors,
+        "approval_count": approvals,
+        "assistant_chars": assistant_chars,
+    }
+
+
+def _run_compare_delta(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
+    raw_left_types = left.get("event_type_counts")
+    raw_right_types = right.get("event_type_counts")
+    left_types: dict[str, Any] = raw_left_types if isinstance(raw_left_types, dict) else {}
+    right_types: dict[str, Any] = raw_right_types if isinstance(raw_right_types, dict) else {}
+    event_type_delta = {
+        key: int(right_types.get(key, 0)) - int(left_types.get(key, 0))
+        for key in sorted(set(left_types) | set(right_types))
+    }
+    raw_left_tools = left.get("tool_names")
+    raw_right_tools = right.get("tool_names")
+    left_tools = {str(item) for item in raw_left_tools} if isinstance(raw_left_tools, list) else set()
+    right_tools = {str(item) for item in raw_right_tools} if isinstance(raw_right_tools, list) else set()
+    left_duration = left.get("duration_ms")
+    right_duration = right.get("duration_ms")
+    duration_delta = None
+    if isinstance(left_duration, int) and isinstance(right_duration, int):
+        duration_delta = right_duration - left_duration
+    return {
+        "status_changed": left.get("status") != right.get("status"),
+        "model_changed": left.get("model") != right.get("model"),
+        "backend_changed": left.get("backend") != right.get("backend"),
+        "duration_delta_ms": duration_delta,
+        "event_count_delta": int(right.get("event_count") or 0) - int(left.get("event_count") or 0),
+        "warning_delta": int(right.get("warning_count") or 0) - int(left.get("warning_count") or 0),
+        "error_delta": int(right.get("error_count") or 0) - int(left.get("error_count") or 0),
+        "assistant_char_delta": int(right.get("assistant_chars") or 0) - int(left.get("assistant_chars") or 0),
+        "added_tools": sorted(right_tools - left_tools),
+        "removed_tools": sorted(left_tools - right_tools),
+        "event_type_delta": event_type_delta,
+    }
+
+
 def _approval_http_error(error: ValueError | RuntimeError) -> HTTPException:
     message = str(error)
     status_code = 404 if "not found" in message.lower() else 400
@@ -323,6 +408,181 @@ def _parse_cli_capabilities(root_help: str, chat_help: str) -> dict[str, Any]:
     }
 
 
+def _redact_cli_line(line: str) -> str:
+    return _CLI_SECRET_RE.sub("[REDACTED]", line)
+
+
+def _parse_hermes_doctor_output(text: str) -> dict[str, Any]:
+    checks: list[dict[str, str]] = []
+    lines: list[str] = []
+    section = ""
+    for raw_line in text.splitlines():
+        line = _redact_cli_line(raw_line.rstrip())
+        if not line.strip():
+            continue
+        lines.append(line)
+        stripped = line.strip()
+        if stripped.startswith("◆ "):
+            section = stripped[2:].strip()
+            continue
+        marker = stripped[:1]
+        if marker not in {"✓", "⚠", "✗", "✕"}:
+            continue
+        level = "ok" if marker == "✓" else "warning" if marker == "⚠" else "error"
+        checks.append({
+            "section": section or "General",
+            "level": level,
+            "message": stripped[1:].strip(),
+        })
+    return {
+        "lines": lines,
+        "checks": checks,
+        "ok_count": sum(1 for check in checks if check["level"] == "ok"),
+        "warning_count": sum(1 for check in checks if check["level"] == "warning"),
+        "error_count": sum(1 for check in checks if check["level"] == "error"),
+    }
+
+
+def _checkpoint_status_from_result(result: subprocess.CompletedProcess[str]) -> dict[str, Any]:
+    lines = [line.rstrip() for line in result.stdout.splitlines() if line.strip()]
+    if result.returncode != 0:
+        return {"available": False, "error": (result.stderr or result.stdout).strip(), "lines": lines}
+    parsed: dict[str, Any] = {}
+    for line in lines:
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        parsed[key.strip().lower().replace(" ", "_").replace("-", "_")] = value.strip()
+    return {"available": True, "lines": lines, "status": parsed}
+
+
+def _parse_mcp_test_output(text: str, *, exit_code: int) -> dict[str, Any]:
+    lines: list[str] = []
+    status = "ok" if exit_code == 0 else "error"
+    message: str | None = None
+    for raw_line in text.splitlines():
+        line = _redact_cli_line(raw_line.rstrip())
+        if not line.strip():
+            continue
+        lines.append(line)
+        stripped = line.strip()
+        marker = stripped[:1]
+        lower = stripped.casefold()
+        if marker in {"✗", "✕"} or "connection failed" in lower or "failed" in lower:
+            status = "error"
+            message = stripped[1:].strip() if marker in {"✗", "✕"} else stripped
+        elif marker == "⚠" and status != "error":
+            status = "warning"
+            message = stripped[1:].strip()
+        elif marker == "✓" and message is None:
+            message = stripped[1:].strip()
+    if message is None and lines:
+        message = lines[-1].strip()
+    return {"status": status, "ok": status == "ok", "message": message, "lines": lines}
+
+
+def _browser_cache_status() -> dict[str, Any]:
+    cache_root = Path.home() / ".cache"
+    playwright_dir = cache_root / "ms-playwright"
+    puppeteer_dir = cache_root / "puppeteer"
+
+    def _children(path: Path) -> list[str]:
+        if not path.is_dir():
+            return []
+        try:
+            return sorted(child.name for child in path.iterdir() if child.is_dir())[:40]
+        except OSError:
+            return []
+
+    playwright_entries = _children(playwright_dir)
+    puppeteer_entries = _children(puppeteer_dir)
+    playwright_chromium = any(entry.startswith(("chromium-", "chromium_headless_shell-")) for entry in playwright_entries)
+    puppeteer_chrome = any(entry.startswith(("chrome", "chromium")) for entry in puppeteer_entries)
+    return {
+        "playwright_cache_dir": str(playwright_dir),
+        "playwright_cache_exists": playwright_dir.is_dir(),
+        "playwright_browsers": playwright_entries,
+        "playwright_chromium_installed": playwright_chromium,
+        "puppeteer_cache_dir": str(puppeteer_dir),
+        "puppeteer_cache_exists": puppeteer_dir.is_dir(),
+        "puppeteer_browsers": puppeteer_entries,
+        "puppeteer_chrome_installed": puppeteer_chrome,
+        "note": (
+            "Playwright and Puppeteer use separate browser caches. Do not reinstall Playwright browsers "
+            "when ~/.cache/ms-playwright already has Chromium; install Puppeteer Chrome only if a Puppeteer-based smoke tool requires it."
+        ),
+    }
+
+
+def _validate_optional_cli_identifier(value: Any, *, field: str, max_length: int = 240) -> str | None:
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if len(text) > max_length or any(char in text for char in ("\x00", "\r", "\n")):
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("invalid_cli_identifier", f"Invalid {field}", source="studio"),
+        )
+    return text
+
+
+def _skill_action_payload(
+    *,
+    action: str,
+    result: subprocess.CompletedProcess[str],
+    started: float,
+    skills: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    lines = [
+        _redact_cli_line(line.rstrip())
+        for line in f"{result.stdout}\n{result.stderr}".splitlines()
+        if line.strip()
+    ]
+    message = lines[-1].strip() if lines else None
+    payload: dict[str, Any] = {
+        "action": action,
+        "available": True,
+        "ok": result.returncode == 0,
+        "exit_code": result.returncode,
+        "duration_ms": int((perf_counter() - started) * 1000),
+        "message": message,
+        "error": None if result.returncode == 0 else message,
+        "lines": lines,
+    }
+    if skills is not None:
+        payload["skills"] = skills
+    return payload
+
+
+def _parse_hermes_release(version_text: str, update_text: str, *, update_exit_code: int) -> dict[str, Any]:
+    version_lines = [_redact_cli_line(line.rstrip()) for line in version_text.splitlines() if line.strip()]
+    update_lines = [_redact_cli_line(line.rstrip()) for line in update_text.splitlines() if line.strip()]
+    joined = "\n".join([*version_lines, *update_lines])
+    version = None
+    for line in version_lines:
+        match = re.search(r"Hermes Agent v([^\s]+)", line)
+        if match:
+            version = match.group(1)
+            break
+    behind_match = re.search(r"(\d+)\s+commits?\s+behind", joined, re.IGNORECASE)
+    behind_count = int(behind_match.group(1)) if behind_match else None
+    update_available = bool(behind_count and behind_count > 0) or "update available" in joined.casefold()
+    up_to_date = "up to date" in joined.casefold() and not update_available
+    return {
+        "available": bool(version_lines),
+        "version": version,
+        "update_check_available": update_exit_code == 0,
+        "update_available": update_available,
+        "up_to_date": up_to_date,
+        "behind_count": behind_count,
+        "lines": version_lines,
+        "update_lines": update_lines,
+        "error": None if update_exit_code == 0 else (update_lines[-1] if update_lines else "Hermes update check failed"),
+    }
+
+
 @router.get("/hermes/inventory")
 async def get_hermes_inventory(_token: None = Depends(require_token)) -> dict[str, Any]:
     try:
@@ -355,22 +615,117 @@ async def get_hermes_cli(_token: None = Depends(require_token)) -> dict[str, Any
     }
 
 
+@router.get("/hermes/release")
+async def get_hermes_release(_token: None = Depends(require_token)) -> dict[str, Any]:
+    try:
+        version = await _run_local_hermes(["version"], timeout=30)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+        return {
+            "available": False,
+            "version": None,
+            "update_check_available": False,
+            "update_available": False,
+            "up_to_date": False,
+            "behind_count": None,
+            "lines": [],
+            "update_lines": [],
+            "error": str(exc),
+        }
+    try:
+        update = await _run_local_hermes(["update", "--check"], timeout=60)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+        update = subprocess.CompletedProcess(["update", "--check"], 1, stdout="", stderr=str(exc))
+    return _parse_hermes_release(
+        f"{version.stdout}\n{version.stderr}",
+        f"{update.stdout}\n{update.stderr}",
+        update_exit_code=update.returncode,
+    )
+
+
 @router.get("/hermes/checkpoints/status")
 async def get_hermes_checkpoint_status(_token: None = Depends(require_token)) -> dict[str, Any]:
     try:
         result = await _run_local_hermes(["checkpoints", "status"])
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
         return {"available": False, "error": str(exc), "lines": []}
-    lines = [line.rstrip() for line in result.stdout.splitlines() if line.strip()]
-    if result.returncode != 0:
-        return {"available": False, "error": (result.stderr or result.stdout).strip(), "lines": lines}
-    parsed: dict[str, Any] = {}
-    for line in lines:
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        parsed[key.strip().lower().replace(" ", "_").replace("-", "_")] = value.strip()
-    return {"available": True, "lines": lines, "status": parsed}
+    return _checkpoint_status_from_result(result)
+
+
+@router.post("/hermes/checkpoints/prune")
+async def prune_hermes_checkpoint_store(body: dict[str, Any] | None = None, _token: None = Depends(require_token)) -> dict[str, Any]:
+    body = body or {}
+    args = ["checkpoints", "prune"]
+    retention_days = body.get("retention_days")
+    max_size_mb = body.get("max_size_mb")
+    keep_orphans = body.get("keep_orphans")
+    if retention_days is not None:
+        if not isinstance(retention_days, int) or retention_days < 1 or retention_days > 3650:
+            raise HTTPException(
+                status_code=400,
+                detail=_error_detail("invalid_checkpoint_prune_options", "retention_days must be 1-3650", source="studio"),
+            )
+        args.extend(["--retention-days", str(retention_days)])
+    if max_size_mb is not None:
+        if not isinstance(max_size_mb, int) or max_size_mb < 1 or max_size_mb > 102400:
+            raise HTTPException(
+                status_code=400,
+                detail=_error_detail("invalid_checkpoint_prune_options", "max_size_mb must be 1-102400", source="studio"),
+            )
+        args.extend(["--max-size-mb", str(max_size_mb)])
+    if keep_orphans is True:
+        args.append("--keep-orphans")
+
+    started = perf_counter()
+    try:
+        result = await _run_local_hermes(args, timeout=120)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+        return {
+            "action": "prune",
+            "available": False,
+            "ok": False,
+            "exit_code": None,
+            "duration_ms": int((perf_counter() - started) * 1000),
+            "message": str(exc),
+            "error": str(exc),
+            "lines": [],
+        }
+    lines = [
+        _redact_cli_line(line.rstrip())
+        for line in f"{result.stdout}\n{result.stderr}".splitlines()
+        if line.strip()
+    ]
+    status_result = await _run_local_hermes(["checkpoints", "status"], timeout=15) if result.returncode == 0 else None
+    return {
+        "action": "prune",
+        "available": True,
+        "ok": result.returncode == 0,
+        "exit_code": result.returncode,
+        "duration_ms": int((perf_counter() - started) * 1000),
+        "message": lines[-1] if lines else None,
+        "error": None if result.returncode == 0 else (lines[-1] if lines else "Checkpoint prune failed"),
+        "lines": lines,
+        "status": _checkpoint_status_from_result(status_result) if status_result else None,
+    }
+
+
+@router.get("/hermes/doctor")
+async def get_hermes_doctor(_token: None = Depends(require_token)) -> dict[str, Any]:
+    try:
+        result = await _run_local_hermes(["doctor"], timeout=90)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+        return {"available": False, "error": str(exc), "lines": [], "checks": []}
+    parsed = _parse_hermes_doctor_output(f"{result.stdout}\n{result.stderr}")
+    return {
+        "available": result.returncode == 0,
+        "exit_code": result.returncode,
+        "error": None if result.returncode == 0 else (result.stderr or result.stdout).strip()[:1200],
+        **parsed,
+    }
+
+
+@router.get("/hermes/browser-cache")
+async def get_hermes_browser_cache(_token: None = Depends(require_token)) -> dict[str, Any]:
+    return _browser_cache_status()
 
 
 @router.get("/hermes/providers")
@@ -379,6 +734,16 @@ async def list_hermes_providers(_token: None = Depends(require_token)) -> dict[s
         repo = HermesInventoryRepository()
         providers = repo.list_providers()
         return {"providers": providers, "total": len(providers), "summary": repo.summary()}
+    except Exception as e:
+        raise _inventory_http_error(e) from e
+
+
+@router.get("/hermes/fallbacks")
+async def list_hermes_fallbacks(_token: None = Depends(require_token)) -> dict[str, Any]:
+    try:
+        repo = HermesInventoryRepository()
+        fallbacks = repo.list_fallback_providers()
+        return {"fallback_providers": fallbacks, "total": len(fallbacks), "summary": repo.summary()}
     except Exception as e:
         raise _inventory_http_error(e) from e
 
@@ -408,6 +773,89 @@ async def list_hermes_skills(_token: None = Depends(require_token)) -> dict[str,
         raise _inventory_http_error(e) from e
 
 
+@router.post("/hermes/skills/check")
+async def check_hermes_skills(body: dict[str, Any] | None = None, _token: None = Depends(require_token)) -> dict[str, Any]:
+    body = body or {}
+    name = _validate_optional_cli_identifier(body.get("name"), field="skill name")
+    args = ["skills", "check", *([name] if name else [])]
+    started = perf_counter()
+    try:
+        result = await _run_local_hermes(args, timeout=45)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+        return {
+            "action": "check",
+            "available": False,
+            "ok": False,
+            "exit_code": None,
+            "duration_ms": int((perf_counter() - started) * 1000),
+            "message": str(exc),
+            "error": str(exc),
+            "lines": [],
+        }
+    return _skill_action_payload(action="check", result=result, started=started)
+
+
+@router.post("/hermes/skills/update")
+async def update_hermes_skills(body: dict[str, Any] | None = None, _token: None = Depends(require_token)) -> dict[str, Any]:
+    body = body or {}
+    name = _validate_optional_cli_identifier(body.get("name"), field="skill name")
+    args = ["skills", "update", *([name] if name else [])]
+    started = perf_counter()
+    try:
+        result = await _run_local_hermes(args, timeout=90)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+        return {
+            "action": "update",
+            "available": False,
+            "ok": False,
+            "exit_code": None,
+            "duration_ms": int((perf_counter() - started) * 1000),
+            "message": str(exc),
+            "error": str(exc),
+            "lines": [],
+        }
+    skills = HermesInventoryRepository().list_skills() if result.returncode == 0 else None
+    return _skill_action_payload(action="update", result=result, started=started, skills=skills)
+
+
+@router.post("/hermes/skills/install")
+async def install_hermes_skill(body: dict[str, Any], _token: None = Depends(require_token)) -> dict[str, Any]:
+    identifier = _validate_optional_cli_identifier(body.get("identifier"), field="skill identifier", max_length=500)
+    if not identifier:
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("invalid_skill_identifier", "identifier is required", source="studio"),
+        )
+    category = _validate_optional_cli_identifier(body.get("category"), field="skill category", max_length=120)
+    name = _validate_optional_cli_identifier(body.get("name"), field="skill name", max_length=120)
+    force = bool(body.get("force", False))
+    args = ["skills", "install", "--yes"]
+    if force:
+        args.append("--force")
+    if category:
+        args.extend(["--category", category])
+    if name:
+        args.extend(["--name", name])
+    args.append(identifier)
+
+    started = perf_counter()
+    try:
+        result = await _run_local_hermes(args, timeout=120)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+        return {
+            "action": "install",
+            "available": False,
+            "ok": False,
+            "exit_code": None,
+            "duration_ms": int((perf_counter() - started) * 1000),
+            "message": str(exc),
+            "error": str(exc),
+            "lines": [],
+        }
+    skills = HermesInventoryRepository().list_skills() if result.returncode == 0 else None
+    return _skill_action_payload(action="install", result=result, started=started, skills=skills)
+
+
 @router.get("/hermes/mcp-servers")
 async def list_hermes_mcp_servers(_token: None = Depends(require_token)) -> dict[str, Any]:
     try:
@@ -418,6 +866,52 @@ async def list_hermes_mcp_servers(_token: None = Depends(require_token)) -> dict
         raise _inventory_http_error(e) from e
 
 
+@router.post("/hermes/mcp-servers/{server_id}/test")
+async def test_hermes_mcp_server(server_id: str, _token: None = Depends(require_token)) -> dict[str, Any]:
+    clean_id = server_id.strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,80}", clean_id):
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("invalid_mcp_server", "Invalid MCP server id", source="studio"),
+        )
+    try:
+        repo = HermesInventoryRepository()
+        known_servers = {str(server.get("id")) for server in repo.list_mcp_servers()}
+    except Exception as e:
+        raise _inventory_http_error(e) from e
+    if clean_id not in known_servers:
+        raise HTTPException(
+            status_code=404,
+            detail=_error_detail("mcp_server_not_found", f"MCP server '{clean_id}' is not configured", source="studio"),
+        )
+
+    started = perf_counter()
+    try:
+        result = await _run_local_hermes(["mcp", "test", clean_id], timeout=45)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+        return {
+            "server_id": clean_id,
+            "available": False,
+            "ok": False,
+            "status": "error",
+            "exit_code": None,
+            "duration_ms": int((perf_counter() - started) * 1000),
+            "error": str(exc),
+            "message": str(exc),
+            "lines": [],
+        }
+
+    parsed = _parse_mcp_test_output(f"{result.stdout}\n{result.stderr}", exit_code=result.returncode)
+    return {
+        "server_id": clean_id,
+        "available": True,
+        "exit_code": result.returncode,
+        "duration_ms": int((perf_counter() - started) * 1000),
+        "error": None if parsed["ok"] else (parsed.get("message") or result.stderr or result.stdout),
+        **parsed,
+    }
+
+
 @router.get("/hermes/toolsets")
 async def list_hermes_toolsets(_token: None = Depends(require_token)) -> dict[str, Any]:
     try:
@@ -426,6 +920,72 @@ async def list_hermes_toolsets(_token: None = Depends(require_token)) -> dict[st
         return {"toolsets": toolsets, "total": len(toolsets), "summary": repo.summary()}
     except Exception as e:
         raise _inventory_http_error(e) from e
+
+
+@router.post("/hermes/toolsets/configure")
+async def configure_hermes_toolset(body: dict[str, Any], _token: None = Depends(require_token)) -> dict[str, Any]:
+    target = str(body.get("id") or "").strip()
+    platform = str(body.get("platform") or "cli").strip() or "cli"
+    enabled = body.get("enabled")
+    if not target or not re.fullmatch(r"[A-Za-z0-9_.:*:-]{1,120}", target):
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("invalid_toolset", "Invalid toolset id", source="studio"),
+        )
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,40}", platform):
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("invalid_toolset_platform", "Invalid toolset platform", source="studio"),
+        )
+    if not isinstance(enabled, bool):
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("invalid_toolset_state", "enabled must be a boolean", source="studio"),
+        )
+
+    try:
+        repo = HermesInventoryRepository()
+        known = repo.list_toolsets()
+    except Exception as e:
+        raise _inventory_http_error(e) from e
+
+    if not any(str(item.get("id")) == target and str(item.get("platform")) == platform for item in known):
+        raise HTTPException(
+            status_code=404,
+            detail=_error_detail("toolset_not_found", f"Toolset '{platform}:{target}' is not known to Hermes", source="studio"),
+        )
+
+    action = "enable" if enabled else "disable"
+    cli_platform = "cli" if ":" in target else platform
+    try:
+        result = await _run_local_hermes(["tools", action, "--platform", cli_platform, target], timeout=20)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=_error_detail("toolset_configure_unavailable", str(exc), source="hermes", retryable=True),
+        ) from exc
+    output = "\n".join(_redact_cli_line(line.rstrip()) for line in f"{result.stdout}\n{result.stderr}".splitlines() if line.strip())
+    if result.returncode != 0:
+        raise HTTPException(
+            status_code=502,
+            detail=_error_detail(
+                "toolset_configure_failed",
+                output or f"hermes tools {action} failed",
+                source="hermes",
+                retryable=True,
+            ),
+        )
+
+    refreshed = HermesInventoryRepository().list_toolsets()
+    return {
+        "status": "configured",
+        "id": target,
+        "platform": platform,
+        "enabled": enabled,
+        "source": "hermes tools",
+        "message": output,
+        "toolsets": refreshed,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -631,6 +1191,26 @@ async def get_recent_runs(
     backend = await _get_backend()
     try:
         return await backend.get_recent_runs(limit=limit)
+    except (RuntimeError, ValueError) as e:
+        raise _run_ledger_http_error(e) from e
+
+
+@router.get("/runs/compare")
+async def compare_runs(
+    left_run_id: str = Query(..., description="Baseline run id"),
+    right_run_id: str = Query(..., description="Comparison run id"),
+    _token: None = Depends(require_token),
+) -> dict[str, Any]:
+    try:
+        repo = RunLedgerRepository()
+        left = _run_compare_summary(repo.get_ledger(left_run_id))
+        right = _run_compare_summary(repo.get_ledger(right_run_id))
+        return {
+            "left": left,
+            "right": right,
+            "delta": _run_compare_delta(left, right),
+            "history_available": True,
+        }
     except (RuntimeError, ValueError) as e:
         raise _run_ledger_http_error(e) from e
 

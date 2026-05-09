@@ -400,6 +400,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /studio/runs/compare:
+    get:
+      summary: Compare two persisted run ledger records
+      description: Compares Studio-owned run summaries and event counts without reading Hermes state.db.
+      operationId: compareRuns
+      parameters:
+        - name: left_run_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: right_run_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Run comparison
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunLedgerComparison"
+        "404":
+          description: Run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /studio/runs/{run_id}:
     get:
       summary: Persisted run ledger record
@@ -665,6 +695,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/HermesCliStatus"
 
+  /studio/hermes/release:
+    get:
+      summary: Inspect local Hermes version and update availability
+      operationId: getHermesRelease
+      responses:
+        "200":
+          description: Hermes version and update check status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesReleaseStatus"
+
   /studio/hermes/checkpoints/status:
     get:
       summary: Inspect Hermes v0.13 checkpoint store status
@@ -677,6 +719,59 @@ paths:
               schema:
                 $ref: "#/components/schemas/HermesCheckpointStoreStatus"
 
+  /studio/hermes/checkpoints/prune:
+    post:
+      summary: Prune the Hermes filesystem checkpoint store
+      operationId: pruneHermesCheckpointStore
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                retention_days:
+                  type: integer
+                  minimum: 1
+                  maximum: 3650
+                max_size_mb:
+                  type: integer
+                  minimum: 1
+                  maximum: 102400
+                keep_orphans:
+                  type: boolean
+      responses:
+        "200":
+          description: Hermes checkpoint prune result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesCheckpointPruneResult"
+
+  /studio/hermes/doctor:
+    get:
+      summary: Run Hermes doctor diagnostics
+      operationId: getHermesDoctor
+      responses:
+        "200":
+          description: Redacted Hermes doctor diagnostics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesDoctorStatus"
+
+  /studio/hermes/browser-cache:
+    get:
+      summary: Inspect local browser automation caches
+      operationId: getHermesBrowserCache
+      responses:
+        "200":
+          description: Playwright and Puppeteer browser cache status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesBrowserCacheStatus"
+
   /studio/hermes/providers:
     get:
       summary: List local Hermes providers
@@ -688,6 +783,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HermesProviderList"
+
+  /studio/hermes/fallbacks:
+    get:
+      summary: List configured Hermes fallback providers
+      operationId: listHermesFallbacks
+      responses:
+        "200":
+          description: Local Hermes fallback provider chain
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesFallbackProviderList"
 
   /studio/hermes/models:
     get:
@@ -728,6 +835,77 @@ paths:
               schema:
                 $ref: "#/components/schemas/HermesSkillList"
 
+  /studio/hermes/skills/check:
+    post:
+      summary: Check installed Hermes skills for updates
+      operationId: checkHermesSkills
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        "200":
+          description: Hermes skills check result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesSkillActionResult"
+
+  /studio/hermes/skills/update:
+    post:
+      summary: Update installed Hermes skills
+      operationId: updateHermesSkills
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        "200":
+          description: Hermes skills update result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesSkillActionResult"
+
+  /studio/hermes/skills/install:
+    post:
+      summary: Install a Hermes skill through the Hermes CLI
+      operationId: installHermesSkill
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                identifier:
+                  type: string
+                category:
+                  type: string
+                name:
+                  type: string
+                force:
+                  type: boolean
+              required:
+                - identifier
+      responses:
+        "200":
+          description: Hermes skill install result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesSkillActionResult"
+
   /studio/hermes/mcp-servers:
     get:
       summary: List configured Hermes MCP servers
@@ -740,6 +918,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/HermesMcpServerList"
 
+  /studio/hermes/mcp-servers/{server_id}/test:
+    post:
+      summary: Test a configured Hermes MCP server
+      operationId: testHermesMcpServer
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Local Hermes MCP test result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesMcpProbeResult"
+
   /studio/hermes/toolsets:
     get:
       summary: List configured Hermes toolsets
@@ -751,6 +947,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HermesToolsetList"
+
+  /studio/hermes/toolsets/configure:
+    post:
+      summary: Enable or disable a Hermes toolset through the Hermes CLI
+      operationId: configureHermesToolset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                platform:
+                  type: string
+                enabled:
+                  type: boolean
+              required:
+                - id
+                - platform
+                - enabled
+      responses:
+        "200":
+          description: Updated Hermes toolset state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HermesToolsetConfigureResult"
 
   /studio/themes:
     get:
@@ -2498,12 +2723,22 @@ components:
     ProfileInfo:
       type: object
       properties:
+        id:
+          type: string
         name:
           type: string
         path:
           type: string
+        active:
+          type: boolean
         is_active:
           type: boolean
+        has_config:
+          type: boolean
+        has_state_db:
+          type: boolean
+        session_count:
+          type: integer
       required:
         - name
         - path
@@ -2734,6 +2969,115 @@ components:
       required:
         - run
         - events
+        - history_available
+
+    RunLedgerCompareSummary:
+      type: object
+      properties:
+        run_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        backend:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        workspace_path:
+          type: string
+          nullable: true
+        duration_ms:
+          type: integer
+          nullable: true
+        event_count:
+          type: integer
+        event_type_counts:
+          type: object
+          additionalProperties:
+            type: integer
+        tool_names:
+          type: array
+          items:
+            type: string
+        warning_count:
+          type: integer
+        error_count:
+          type: integer
+        approval_count:
+          type: integer
+        assistant_chars:
+          type: integer
+      required:
+        - event_count
+        - event_type_counts
+        - tool_names
+        - warning_count
+        - error_count
+        - approval_count
+        - assistant_chars
+
+    RunLedgerCompareDelta:
+      type: object
+      properties:
+        status_changed:
+          type: boolean
+        model_changed:
+          type: boolean
+        backend_changed:
+          type: boolean
+        duration_delta_ms:
+          type: integer
+          nullable: true
+        event_count_delta:
+          type: integer
+        warning_delta:
+          type: integer
+        error_delta:
+          type: integer
+        assistant_char_delta:
+          type: integer
+        added_tools:
+          type: array
+          items:
+            type: string
+        removed_tools:
+          type: array
+          items:
+            type: string
+        event_type_delta:
+          type: object
+          additionalProperties:
+            type: integer
+      required:
+        - status_changed
+        - model_changed
+        - backend_changed
+        - event_count_delta
+        - warning_delta
+        - error_delta
+        - assistant_char_delta
+        - added_tools
+        - removed_tools
+        - event_type_delta
+
+    RunLedgerComparison:
+      type: object
+      properties:
+        left:
+          $ref: "#/components/schemas/RunLedgerCompareSummary"
+        right:
+          $ref: "#/components/schemas/RunLedgerCompareSummary"
+        delta:
+          $ref: "#/components/schemas/RunLedgerCompareDelta"
+        history_available:
+          type: boolean
+      required:
+        - left
+        - right
+        - delta
         - history_available
 
     ApprovalStatus:
@@ -3008,6 +3352,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/HermesToolset"
+        fallback_providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/HermesFallbackProvider"
       required:
         - summary
         - providers
@@ -3015,6 +3363,7 @@ components:
         - skills
         - mcp_servers
         - toolsets
+        - fallback_providers
 
     HermesInventorySummary:
       type: object
@@ -3043,6 +3392,8 @@ components:
           type: integer
         toolset_count:
           type: integer
+        fallback_provider_count:
+          type: integer
       required:
         - hermes_home
         - config_available
@@ -3053,6 +3404,7 @@ components:
         - installed_skill_count
         - mcp_server_count
         - toolset_count
+        - fallback_provider_count
 
     HermesCliStatus:
       type: object
@@ -3078,6 +3430,122 @@ components:
         - commands
         - chat_flags
 
+    HermesReleaseStatus:
+      type: object
+      properties:
+        available:
+          type: boolean
+        version:
+          type: string
+          nullable: true
+        update_check_available:
+          type: boolean
+        update_available:
+          type: boolean
+        up_to_date:
+          type: boolean
+        behind_count:
+          type: integer
+          nullable: true
+        lines:
+          type: array
+          items:
+            type: string
+        update_lines:
+          type: array
+          items:
+            type: string
+        error:
+          type: string
+          nullable: true
+      required:
+        - available
+        - update_check_available
+        - update_available
+        - up_to_date
+        - lines
+        - update_lines
+
+    HermesDoctorCheck:
+      type: object
+      properties:
+        section:
+          type: string
+        level:
+          type: string
+          enum: [ok, warning, error]
+        message:
+          type: string
+      required:
+        - section
+        - level
+        - message
+
+    HermesDoctorStatus:
+      type: object
+      properties:
+        available:
+          type: boolean
+        exit_code:
+          type: integer
+        error:
+          type: string
+          nullable: true
+        lines:
+          type: array
+          items:
+            type: string
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/HermesDoctorCheck"
+        ok_count:
+          type: integer
+        warning_count:
+          type: integer
+        error_count:
+          type: integer
+      required:
+        - available
+        - lines
+        - checks
+
+    HermesBrowserCacheStatus:
+      type: object
+      properties:
+        playwright_cache_dir:
+          type: string
+        playwright_cache_exists:
+          type: boolean
+        playwright_browsers:
+          type: array
+          items:
+            type: string
+        playwright_chromium_installed:
+          type: boolean
+        puppeteer_cache_dir:
+          type: string
+        puppeteer_cache_exists:
+          type: boolean
+        puppeteer_browsers:
+          type: array
+          items:
+            type: string
+        puppeteer_chrome_installed:
+          type: boolean
+        note:
+          type: string
+      required:
+        - playwright_cache_dir
+        - playwright_cache_exists
+        - playwright_browsers
+        - playwright_chromium_installed
+        - puppeteer_cache_dir
+        - puppeteer_cache_exists
+        - puppeteer_browsers
+        - puppeteer_chrome_installed
+        - note
+
     HermesCheckpointStoreStatus:
       type: object
       properties:
@@ -3095,6 +3563,43 @@ components:
             type: string
       required:
         - available
+        - lines
+
+    HermesCheckpointPruneResult:
+      type: object
+      properties:
+        action:
+          type: string
+          enum:
+            - prune
+        available:
+          type: boolean
+        ok:
+          type: boolean
+        exit_code:
+          type: integer
+          nullable: true
+        duration_ms:
+          type: integer
+        message:
+          type: string
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        lines:
+          type: array
+          items:
+            type: string
+        status:
+          allOf:
+            - $ref: "#/components/schemas/HermesCheckpointStoreStatus"
+          nullable: true
+      required:
+        - action
+        - available
+        - ok
+        - duration_ms
         - lines
 
     HermesProvider:
@@ -3147,6 +3652,51 @@ components:
           $ref: "#/components/schemas/HermesInventorySummary"
       required:
         - providers
+        - total
+        - summary
+
+    HermesFallbackProvider:
+      type: object
+      properties:
+        index:
+          type: integer
+        provider:
+          type: string
+        provider_name:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        configured:
+          type: boolean
+        active:
+          type: boolean
+        api_base_url:
+          type: string
+          nullable: true
+        source:
+          type: string
+      required:
+        - index
+        - provider
+        - configured
+        - active
+        - source
+
+    HermesFallbackProviderList:
+      type: object
+      properties:
+        fallback_providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/HermesFallbackProvider"
+        total:
+          type: integer
+        summary:
+          $ref: "#/components/schemas/HermesInventorySummary"
+      required:
+        - fallback_providers
         - total
         - summary
 
@@ -3239,6 +3789,45 @@ components:
         - total
         - summary
 
+    HermesSkillActionResult:
+      type: object
+      properties:
+        action:
+          type: string
+          enum:
+            - check
+            - update
+            - install
+        available:
+          type: boolean
+        ok:
+          type: boolean
+        exit_code:
+          type: integer
+          nullable: true
+        duration_ms:
+          type: integer
+        message:
+          type: string
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        lines:
+          type: array
+          items:
+            type: string
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/HermesSkill"
+      required:
+        - action
+        - available
+        - ok
+        - duration_ms
+        - lines
+
     HermesMcpServer:
       type: object
       properties:
@@ -3286,6 +3875,44 @@ components:
         - total
         - summary
 
+    HermesMcpProbeResult:
+      type: object
+      properties:
+        server_id:
+          type: string
+        available:
+          type: boolean
+        ok:
+          type: boolean
+        status:
+          type: string
+          enum:
+            - ok
+            - warning
+            - error
+        exit_code:
+          type: integer
+          nullable: true
+        duration_ms:
+          type: integer
+        error:
+          type: string
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        lines:
+          type: array
+          items:
+            type: string
+      required:
+        - server_id
+        - available
+        - ok
+        - status
+        - duration_ms
+        - lines
+
     HermesToolset:
       type: object
       properties:
@@ -3321,6 +3948,33 @@ components:
         - toolsets
         - total
         - summary
+
+    HermesToolsetConfigureResult:
+      type: object
+      properties:
+        status:
+          type: string
+        id:
+          type: string
+        platform:
+          type: string
+        enabled:
+          type: boolean
+        source:
+          type: string
+        message:
+          type: string
+        toolsets:
+          type: array
+          items:
+            $ref: "#/components/schemas/HermesToolset"
+      required:
+        - status
+        - id
+        - platform
+        - enabled
+        - source
+        - toolsets
 
     ThemeInfo:
       type: object

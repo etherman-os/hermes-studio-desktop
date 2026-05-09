@@ -18,8 +18,23 @@ interface ProfileState {
   loaded: boolean;
   error: string | null;
   activateError: string | null;
+  activatingProfileId: string | null;
   loadProfiles: () => Promise<void>;
   activateProfile: (profileId: string) => Promise<void>;
+}
+
+function normalizeProfile(profile: api.ProfileInfo, activeName?: string | null): Profile {
+  const id = profile.id || profile.name;
+  const active = Boolean(profile.active ?? profile.is_active ?? (activeName ? profile.name === activeName || id === activeName : false));
+  return {
+    id,
+    name: profile.name,
+    path: profile.path,
+    active,
+    has_config: Boolean(profile.has_config),
+    has_state_db: Boolean(profile.has_state_db),
+    session_count: typeof profile.session_count === "number" ? profile.session_count : 0,
+  };
 }
 
 export const useProfileStore = create<ProfileState>((set, get) => ({
@@ -29,6 +44,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   loaded: false,
   error: null,
   activateError: null,
+  activatingProfileId: null,
 
   loadProfiles: async () => {
     try {
@@ -36,18 +52,12 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         api.getProfiles(),
         api.getActiveProfile().catch(() => null),
       ]);
-      const profileList = profiles.map((p) => ({
-        id: p.name,
-        name: p.name,
-        path: p.path,
-        active: p.name === active?.name,
-        has_config: false,
-        has_state_db: false,
-        session_count: 0,
-      }));
+      const activeName = active?.id || active?.name || null;
+      const profileList = profiles.map((p) => normalizeProfile(p, activeName));
+      const normalizedActive = active ? normalizeProfile(active, activeName) : profileList.find((p) => p.active) ?? null;
       set({
         profiles: profileList,
-        activeProfile: active ? { id: active.name, name: active.name, path: active.path, active: true, has_config: false, has_state_db: false, session_count: 0 } : null,
+        activeProfile: normalizedActive ? { ...normalizedActive, active: true } : null,
         profileCount: profileList.length,
         loaded: true,
         error: null,
@@ -58,7 +68,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   },
 
   activateProfile: async (profileId: string) => {
-    set({ activateError: null });
+    set({ activateError: null, activatingProfileId: profileId });
     try {
       await api.activateProfile(profileId);
       await get().loadProfiles();
@@ -69,6 +79,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       } else {
         set({ activateError: msg });
       }
+    } finally {
+      set({ activatingProfileId: null });
     }
   },
 }));

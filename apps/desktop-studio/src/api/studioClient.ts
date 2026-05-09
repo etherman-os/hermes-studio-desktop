@@ -22,6 +22,7 @@ import type {
   Delegation,
   DelegationDetail,
   DelegationListResponse,
+  RunLedgerComparison,
   RunLedgerRecentResponse,
   RunLedgerResponse,
   RunLedgerRun,
@@ -55,6 +56,9 @@ export type {
   DelegationDetail,
   DelegationListResponse,
   DelegationStatus,
+  RunLedgerCompareDelta,
+  RunLedgerCompareSummary,
+  RunLedgerComparison,
   RunLedgerRecentResponse,
   RunLedgerResponse,
   RunLedgerRun,
@@ -298,6 +302,11 @@ export async function getRunLedger(runId: string) {
   return request<RunLedgerResponse>(`/studio/runs/${runId}/ledger`);
 }
 
+export async function compareRuns(leftRunId: string, rightRunId: string) {
+  const params = new URLSearchParams({ left_run_id: leftRunId, right_run_id: rightRunId });
+  return request<RunLedgerComparison>(`/studio/runs/compare?${params.toString()}`);
+}
+
 export interface ApprovalListParams {
   status?: ApprovalStatus | string;
   risk_level?: ApprovalRiskLevel | string;
@@ -396,6 +405,7 @@ export interface HermesInventorySummary {
   installed_skill_count: number;
   mcp_server_count: number;
   toolset_count: number;
+  fallback_provider_count?: number;
 }
 
 export interface HermesProvider {
@@ -452,6 +462,18 @@ export interface HermesSkill {
   updated_at: string;
 }
 
+export interface HermesSkillActionResult {
+  action: "check" | "update" | "install";
+  available: boolean;
+  ok: boolean;
+  exit_code?: number | null;
+  duration_ms: number;
+  message?: string | null;
+  error?: string | null;
+  lines: string[];
+  skills?: HermesSkill[];
+}
+
 export interface HermesMcpServer {
   id: string;
   command?: string | null;
@@ -460,6 +482,18 @@ export interface HermesMcpServer {
   env_configured: boolean;
   enabled: boolean;
   source: string;
+}
+
+export interface HermesMcpProbeResult {
+  server_id: string;
+  available: boolean;
+  ok: boolean;
+  status: "ok" | "warning" | "error";
+  exit_code?: number | null;
+  duration_ms: number;
+  error?: string | null;
+  message?: string | null;
+  lines: string[];
 }
 
 export interface HermesToolset {
@@ -471,6 +505,27 @@ export interface HermesToolset {
   label?: string;
 }
 
+export interface HermesToolsetConfigureResult {
+  status: string;
+  id: string;
+  platform: string;
+  enabled: boolean;
+  source: string;
+  message?: string;
+  toolsets: HermesToolset[];
+}
+
+export interface HermesFallbackProvider {
+  index: number;
+  provider: string;
+  provider_name?: string | null;
+  model?: string | null;
+  configured: boolean;
+  active: boolean;
+  api_base_url?: string | null;
+  source: string;
+}
+
 export interface HermesInventoryResponse {
   summary: HermesInventorySummary;
   providers: HermesProvider[];
@@ -478,10 +533,36 @@ export interface HermesInventoryResponse {
   skills: HermesSkill[];
   mcp_servers: HermesMcpServer[];
   toolsets: HermesToolset[];
+  fallback_providers?: HermesFallbackProvider[];
 }
 
 export async function getHermesInventory() {
   return request<HermesInventoryResponse>("/studio/hermes/inventory");
+}
+
+export async function getHermesFallbacks() {
+  return request<{ fallback_providers: HermesFallbackProvider[]; total: number; summary: HermesInventorySummary }>("/studio/hermes/fallbacks");
+}
+
+export async function checkHermesSkills(name?: string) {
+  return request<HermesSkillActionResult>("/studio/hermes/skills/check", {
+    method: "POST",
+    body: JSON.stringify(name ? { name } : {}),
+  });
+}
+
+export async function updateHermesSkills(name?: string) {
+  return request<HermesSkillActionResult>("/studio/hermes/skills/update", {
+    method: "POST",
+    body: JSON.stringify(name ? { name } : {}),
+  });
+}
+
+export async function installHermesSkill(input: { identifier: string; category?: string; name?: string; force?: boolean }) {
+  return request<HermesSkillActionResult>("/studio/hermes/skills/install", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export interface HermesCliStatus {
@@ -497,6 +578,72 @@ export async function getHermesCliStatus() {
   return request<HermesCliStatus>("/studio/hermes/cli");
 }
 
+export interface HermesReleaseStatus {
+  available: boolean;
+  version?: string | null;
+  update_check_available: boolean;
+  update_available: boolean;
+  up_to_date: boolean;
+  behind_count?: number | null;
+  lines: string[];
+  update_lines: string[];
+  error?: string | null;
+}
+
+export async function getHermesRelease() {
+  return request<HermesReleaseStatus>("/studio/hermes/release");
+}
+
+export interface HermesDoctorCheck {
+  section: string;
+  level: "ok" | "warning" | "error";
+  message: string;
+}
+
+export interface HermesDoctorStatus {
+  available: boolean;
+  exit_code?: number;
+  error?: string | null;
+  lines: string[];
+  checks: HermesDoctorCheck[];
+  ok_count?: number;
+  warning_count?: number;
+  error_count?: number;
+}
+
+export async function getHermesDoctor() {
+  return request<HermesDoctorStatus>("/studio/hermes/doctor");
+}
+
+export interface HermesBrowserCacheStatus {
+  playwright_cache_dir: string;
+  playwright_cache_exists: boolean;
+  playwright_browsers: string[];
+  playwright_chromium_installed: boolean;
+  puppeteer_cache_dir: string;
+  puppeteer_cache_exists: boolean;
+  puppeteer_browsers: string[];
+  puppeteer_chrome_installed: boolean;
+  note: string;
+}
+
+export async function getHermesBrowserCache() {
+  return request<HermesBrowserCacheStatus>("/studio/hermes/browser-cache");
+}
+
+export async function testHermesMcpServer(serverId: string) {
+  return request<HermesMcpProbeResult>(`/studio/hermes/mcp-servers/${encodeURIComponent(serverId)}/test`, {
+    method: "POST",
+  });
+}
+
+export async function configureHermesToolset(input: { id: string; platform: string; enabled: boolean }) {
+  return request<HermesToolsetConfigureResult>("/studio/hermes/toolsets/configure", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export interface HermesCheckpointStoreStatus {
   available: boolean;
   error?: string;
@@ -506,6 +653,25 @@ export interface HermesCheckpointStoreStatus {
 
 export async function getHermesCheckpointStoreStatus() {
   return request<HermesCheckpointStoreStatus>("/studio/hermes/checkpoints/status");
+}
+
+export interface HermesCheckpointPruneResult {
+  action: "prune";
+  available: boolean;
+  ok: boolean;
+  exit_code?: number | null;
+  duration_ms: number;
+  message?: string | null;
+  error?: string | null;
+  lines: string[];
+  status?: HermesCheckpointStoreStatus | null;
+}
+
+export async function pruneHermesCheckpointStore(input?: { retention_days?: number; max_size_mb?: number; keep_orphans?: boolean }) {
+  return request<HermesCheckpointPruneResult>("/studio/hermes/checkpoints/prune", {
+    method: "POST",
+    body: JSON.stringify(input ?? {}),
+  });
 }
 
 export async function getHermesModels(params?: { provider?: string; query?: string; limit?: number }) {
@@ -883,8 +1049,14 @@ export interface BootstrapResponse {
 }
 
 export interface ProfileInfo {
+  id?: string;
   name: string;
   path: string;
+  active?: boolean;
+  is_active?: boolean;
+  has_config?: boolean;
+  has_state_db?: boolean;
+  session_count?: number;
 }
 
 export interface SessionSummary {

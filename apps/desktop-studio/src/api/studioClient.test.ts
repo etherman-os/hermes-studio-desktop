@@ -166,6 +166,12 @@ describe("studioClient protocol surface", () => {
         },
         events: [],
         history_available: true,
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        left: { run_id: "run-1", status: "completed", backend: "mock", model: null, workspace_path: null, duration_ms: null, event_count: 1, event_type_counts: { "run.completed": 1 }, tool_names: [], warning_count: 0, error_count: 0, approval_count: 0, assistant_chars: 0 },
+        right: { run_id: "run-2", status: "failed", backend: "mock", model: null, workspace_path: null, duration_ms: null, event_count: 2, event_type_counts: { "run.failed": 1, "tool.completed": 1 }, tool_names: ["pytest"], warning_count: 0, error_count: 1, approval_count: 0, assistant_chars: 0 },
+        delta: { status_changed: true, model_changed: false, backend_changed: false, duration_delta_ms: null, event_count_delta: 1, warning_delta: 0, error_delta: 1, assistant_char_delta: 0, added_tools: ["pytest"], removed_tools: [], event_type_delta: { "run.completed": -1, "run.failed": 1, "tool.completed": 1 } },
+        history_available: true,
       }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -173,9 +179,11 @@ describe("studioClient protocol surface", () => {
     await api.initializeAdapterAuth();
     await api.getRecentRuns();
     await api.getRunLedger("run-1");
+    await api.compareRuns("run-1", "run-2");
 
     expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:39191/studio/runs/recent?limit=50");
     expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:39191/studio/runs/run-1/ledger");
+    expect(fetchMock.mock.calls[2][0]).toBe("http://127.0.0.1:39191/studio/runs/compare?left_run_id=run-1&right_run_id=run-2");
   });
 
   it("uses /studio/artifacts/* for artifact protocol calls", async () => {
@@ -294,6 +302,191 @@ describe("studioClient protocol surface", () => {
     expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:39191/studio/context/runs/run-1");
     expect(fetchMock.mock.calls[2][0]).toBe("http://127.0.0.1:39191/studio/context/sessions/s-1");
     expect(fetchMock.mock.calls[3][0]).toBe("http://127.0.0.1:39191/studio/context/workspaces/current?workspace_path=%2Fwork%2Frepo");
+  });
+
+  it("uses /studio/hermes/fallbacks for fallback provider inventory", async () => {
+    vi.stubEnv("VITE_HERMES_STUDIO_ADAPTER_TOKEN", "dev-token");
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({
+      fallback_providers: [{ index: 0, provider: "minimax", model: "m2.5", configured: true, active: false, source: "config.yaml" }],
+      total: 1,
+      summary: { hermes_home: "/home/user/.hermes", config_available: true, provider_count: 1, configured_provider_count: 1, model_count: 1, skill_count: 0, installed_skill_count: 0, mcp_server_count: 0, toolset_count: 0, fallback_provider_count: 1 },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const api = await loadClient();
+    await api.initializeAdapterAuth();
+    const result = await api.getHermesFallbacks();
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:39191/studio/hermes/fallbacks");
+    expect(result.fallback_providers[0].provider).toBe("minimax");
+  });
+
+  it("uses /studio/hermes/doctor for Hermes diagnostics", async () => {
+    vi.stubEnv("VITE_HERMES_STUDIO_ADAPTER_TOKEN", "dev-token");
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({
+      available: true,
+      exit_code: 0,
+      lines: ["✓ Python 3.11"],
+      checks: [{ section: "Python Environment", level: "ok", message: "Python 3.11" }],
+      ok_count: 1,
+      warning_count: 0,
+      error_count: 0,
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const api = await loadClient();
+    await api.initializeAdapterAuth();
+    const result = await api.getHermesDoctor();
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:39191/studio/hermes/doctor");
+    expect(result.checks[0].section).toBe("Python Environment");
+  });
+
+  it("uses /studio/hermes/browser-cache for browser automation cache status", async () => {
+    vi.stubEnv("VITE_HERMES_STUDIO_ADAPTER_TOKEN", "dev-token");
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({
+      playwright_cache_dir: "/home/user/.cache/ms-playwright",
+      playwright_cache_exists: true,
+      playwright_browsers: ["chromium-1217"],
+      playwright_chromium_installed: true,
+      puppeteer_cache_dir: "/home/user/.cache/puppeteer",
+      puppeteer_cache_exists: false,
+      puppeteer_browsers: [],
+      puppeteer_chrome_installed: false,
+      note: "separate caches",
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const api = await loadClient();
+    await api.initializeAdapterAuth();
+    const result = await api.getHermesBrowserCache();
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:39191/studio/hermes/browser-cache");
+    expect(result.playwright_chromium_installed).toBe(true);
+  });
+
+  it("uses /studio/hermes/release for Hermes release diagnostics", async () => {
+    vi.stubEnv("VITE_HERMES_STUDIO_ADAPTER_TOKEN", "dev-token");
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({
+      available: true,
+      version: "0.13.0",
+      update_check_available: true,
+      update_available: true,
+      up_to_date: false,
+      behind_count: 27,
+      lines: ["Hermes Agent v0.13.0"],
+      update_lines: ["Update available: 27 commits behind upstream/main."],
+      error: null,
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const api = await loadClient();
+    await api.initializeAdapterAuth();
+    const result = await api.getHermesRelease();
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:39191/studio/hermes/release");
+    expect(result.behind_count).toBe(27);
+  });
+
+  it("uses /studio/hermes/checkpoints/prune for checkpoint store maintenance", async () => {
+    vi.stubEnv("VITE_HERMES_STUDIO_ADAPTER_TOKEN", "dev-token");
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({
+      action: "prune",
+      available: true,
+      ok: true,
+      exit_code: 0,
+      duration_ms: 24,
+      message: "Pruned checkpoint store",
+      lines: ["Pruned checkpoint store"],
+      status: { available: true, lines: ["Projects: 0"], status: { projects: "0" } },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const api = await loadClient();
+    await api.initializeAdapterAuth();
+    const result = await api.pruneHermesCheckpointStore({ retention_days: 3, max_size_mb: 200, keep_orphans: true });
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:39191/studio/hermes/checkpoints/prune");
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ retention_days: 3, max_size_mb: 200, keep_orphans: true }),
+    }));
+    expect(result.ok).toBe(true);
+  });
+
+  it("uses /studio/hermes/mcp-servers/{id}/test for MCP probes", async () => {
+    vi.stubEnv("VITE_HERMES_STUDIO_ADAPTER_TOKEN", "dev-token");
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({
+      server_id: "fetch",
+      available: true,
+      ok: false,
+      status: "error",
+      exit_code: 0,
+      duration_ms: 912,
+      error: "Connection failed",
+      message: "Connection failed",
+      lines: ["Testing 'fetch'...", "Connection failed"],
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const api = await loadClient();
+    await api.initializeAdapterAuth();
+    const result = await api.testHermesMcpServer("fetch");
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:39191/studio/hermes/mcp-servers/fetch/test");
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ method: "POST" }));
+    expect(result.status).toBe("error");
+  });
+
+  it("uses /studio/hermes/toolsets/configure for Hermes toolset toggles", async () => {
+    vi.stubEnv("VITE_HERMES_STUDIO_ADAPTER_TOKEN", "dev-token");
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({
+      status: "configured",
+      id: "browser",
+      platform: "cli",
+      enabled: true,
+      source: "hermes tools",
+      toolsets: [{ id: "browser", platform: "cli", kind: "platform", enabled: true, source: "config.yaml" }],
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const api = await loadClient();
+    await api.initializeAdapterAuth();
+    const result = await api.configureHermesToolset({ id: "browser", platform: "cli", enabled: true });
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:39191/studio/hermes/toolsets/configure");
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ id: "browser", platform: "cli", enabled: true }),
+    }));
+    expect(result.toolsets[0].enabled).toBe(true);
+  });
+
+  it("uses /studio/hermes/skills/* for Hermes skill actions", async () => {
+    vi.stubEnv("VITE_HERMES_STUDIO_ADAPTER_TOKEN", "dev-token");
+    const skillResult = { action: "check", available: true, ok: true, exit_code: 0, duration_ms: 12, message: "No updates", lines: ["No updates"] };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(skillResult))
+      .mockResolvedValueOnce(jsonResponse({ ...skillResult, action: "update", skills: [] }))
+      .mockResolvedValueOnce(jsonResponse({ ...skillResult, action: "install", skills: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const api = await loadClient();
+    await api.initializeAdapterAuth();
+    await api.checkHermesSkills();
+    await api.updateHermesSkills("codebase-inspection");
+    const installed = await api.installHermesSkill({ identifier: "openai/skills/skill-creator", category: "coding", name: "skill-creator" });
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:39191/studio/hermes/skills/check");
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ method: "POST", body: "{}" }));
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:39191/studio/hermes/skills/update");
+    expect(fetchMock.mock.calls[1][1]).toEqual(expect.objectContaining({ body: JSON.stringify({ name: "codebase-inspection" }) }));
+    expect(fetchMock.mock.calls[2][0]).toBe("http://127.0.0.1:39191/studio/hermes/skills/install");
+    expect(fetchMock.mock.calls[2][1]).toEqual(expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ identifier: "openai/skills/skill-creator", category: "coding", name: "skill-creator" }),
+    }));
+    expect(installed.action).toBe("install");
   });
 
   it("uses /studio/approvals/* for Approval Center calls", async () => {

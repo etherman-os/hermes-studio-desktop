@@ -1,5 +1,6 @@
 import React from "react";
 import { useCheckpointStore } from "../../stores/checkpointStore";
+import { useHermesInventoryStore } from "../../stores/hermesInventoryStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useRunStore } from "../../stores/runStore";
 import { useSessionStore } from "../../stores/sessionStore";
@@ -35,6 +36,11 @@ export function CheckpointTimeline() {
   const selectCheckpoint = useCheckpointStore((s) => s.selectCheckpoint);
   const loadDiff = useCheckpointStore((s) => s.loadDiff);
   const clearDiff = useCheckpointStore((s) => s.clearDiff);
+  const checkpointStore = useHermesInventoryStore((s) => s.checkpointStore);
+  const checkpointPruneResult = useHermesInventoryStore((s) => s.checkpointPruneResult);
+  const checkpointPruning = useHermesInventoryStore((s) => s.checkpointPruning);
+  const pruneCheckpointStore = useHermesInventoryStore((s) => s.pruneCheckpointStore);
+  const loadLocalHermesStatus = useHermesInventoryStore((s) => s.loadLocalHermesStatus);
   const workspace = useWorkspaceStore((s) => s.selectedWorkspace);
   const sendPrompt = useRunStore((s) => s.sendPrompt);
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
@@ -47,6 +53,10 @@ export function CheckpointTimeline() {
       void loadCheckpoints(workspace);
     }
   }, [workspace, checkpoints.length, loading, loadCheckpoints]);
+
+  React.useEffect(() => {
+    void loadLocalHermesStatus();
+  }, [loadLocalHermesStatus]);
 
   function handleSelect(hash: string) {
     if (selectedHash === hash) {
@@ -125,15 +135,28 @@ export function CheckpointTimeline() {
       <div className="checkpoint-header">
         <div>
           <div className="workbench-eyebrow">Checkpoint Timeline</div>
-          <div className="checkpoint-title">{checkpoints.length} checkpoints</div>
+          <div className="checkpoint-title">
+            {checkpoints.length} checkpoints
+            {checkpointStore?.status?.total_size ? ` · store ${checkpointStore.status.total_size}` : ""}
+          </div>
         </div>
-        <button className="tool-button" onClick={() => void loadCheckpoints(workspace)}>
-          {loading ? "Loading" : "Refresh"}
-        </button>
+        <div className="checkpoint-header-actions">
+          <button className="tool-button" onClick={() => void pruneCheckpointStore({ retention_days: 7, max_size_mb: 500 })} disabled={checkpointPruning}>
+            {checkpointPruning ? "Pruning" : "Prune Store"}
+          </button>
+          <button className="tool-button" onClick={() => void loadCheckpoints(workspace)}>
+            {loading ? "Loading" : "Refresh"}
+          </button>
+        </div>
       </div>
 
       {error && (
         <div className="run-ledger-notice warning" role="alert">{error}</div>
+      )}
+      {checkpointPruneResult && (
+        <div className={`run-ledger-notice ${checkpointPruneResult.ok ? "" : "warning"}`}>
+          {checkpointPruneResult.message || (checkpointPruneResult.ok ? "Checkpoint store pruned" : checkpointPruneResult.error ?? "Checkpoint prune failed")}
+        </div>
       )}
 
       <div className="checkpoint-body">

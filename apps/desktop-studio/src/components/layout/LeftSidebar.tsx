@@ -262,6 +262,7 @@ function ProfilesList() {
   const profileCount = useProfileStore((s) => s.profileCount);
   const loaded = useProfileStore((s) => s.loaded);
   const activateError = useProfileStore((s) => s.activateError);
+  const activatingProfileId = useProfileStore((s) => s.activatingProfileId);
   const activateProfile = useProfileStore((s) => s.activateProfile);
 
   if (!loaded) {
@@ -289,14 +290,16 @@ function ProfilesList() {
       {profiles.map((p) => (
         <button
           key={p.id}
-          className={`sidebar-item ${p.name === activeProfile?.name ? "active" : ""}`}
+          className={`sidebar-item ${p.id === activeProfile?.id ? "active" : ""}`}
+          disabled={Boolean(activatingProfileId)}
+          title={`${p.name}${p.has_config ? " · config" : ""}${p.has_state_db ? ` · ${p.session_count} sessions` : ""}`}
           onClick={() => {
-            if (p.name !== activeProfile?.name) {
-              activateProfile(p.name);
+            if (p.id !== activeProfile?.id) {
+              activateProfile(p.id);
             }
           }}
         >
-          <span>{p.name === activeProfile?.name ? "●" : "○"}</span>
+          <span>{activatingProfileId === p.id ? "…" : p.id === activeProfile?.id ? "●" : "○"}</span>
           <span>{p.name}</span>
         </button>
       ))}

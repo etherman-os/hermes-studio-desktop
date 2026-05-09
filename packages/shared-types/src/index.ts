@@ -81,6 +81,9 @@ export type {
   RunLedgerEvent,
   RunLedgerRecentResponse,
   RunLedgerResponse,
+  RunLedgerCompareSummary,
+  RunLedgerCompareDelta,
+  RunLedgerComparison,
 } from "./runs";
 
 export type {

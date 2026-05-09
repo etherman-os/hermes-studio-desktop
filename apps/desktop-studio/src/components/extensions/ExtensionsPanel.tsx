@@ -22,9 +22,20 @@ export function ExtensionsPanel() {
   const skills = useHermesInventoryStore((s) => s.skills);
   const mcpServers = useHermesInventoryStore((s) => s.mcpServers);
   const toolsets = useHermesInventoryStore((s) => s.toolsets);
+  const fallbackProviders = useHermesInventoryStore((s) => s.fallbackProviders);
+  const mcpProbeResults = useHermesInventoryStore((s) => s.mcpProbeResults);
+  const mcpProbing = useHermesInventoryStore((s) => s.mcpProbing);
+  const configuringToolset = useHermesInventoryStore((s) => s.configuringToolset);
+  const skillAction = useHermesInventoryStore((s) => s.skillAction);
+  const skillActionLoading = useHermesInventoryStore((s) => s.skillActionLoading);
   const inventoryLoading = useHermesInventoryStore((s) => s.loading);
   const inventoryError = useHermesInventoryStore((s) => s.error);
   const loadInventory = useHermesInventoryStore((s) => s.loadInventory);
+  const testMcpServer = useHermesInventoryStore((s) => s.testMcpServer);
+  const configureToolset = useHermesInventoryStore((s) => s.configureToolset);
+  const checkSkills = useHermesInventoryStore((s) => s.checkSkills);
+  const updateSkills = useHermesInventoryStore((s) => s.updateSkills);
+  const installSkill = useHermesInventoryStore((s) => s.installSkill);
   const clearInventoryError = useHermesInventoryStore((s) => s.clearError);
   const label = useThemeStore((s) => s.label);
   const openNewRun = useUiStore((s) => s.openNewRun);
@@ -124,6 +135,7 @@ export function ExtensionsPanel() {
             skills={skills}
             mcpServers={mcpServers}
             toolsets={toolsets}
+            fallbackProviders={fallbackProviders}
           />
           <CapabilityRecipeBuilder
             skills={skills}
@@ -169,6 +181,11 @@ export function ExtensionsPanel() {
           onQueryChange={setSkillQuery}
           onCategoryChange={setSkillCategory}
           loading={inventoryLoading}
+          actionResult={skillAction}
+          actionLoading={skillActionLoading}
+          onCheckSkills={(name) => void checkSkills(name)}
+          onUpdateSkills={(name) => void updateSkills(name)}
+          onInstallSkill={(input) => void installSkill(input)}
           onRunWithSkill={(skill) => openNewRun({
             mode: "task",
             prompt: `Use the ${skill.name} Hermes skill in this workspace. Inspect the relevant files first, then complete the requested work with verification.`,
@@ -185,6 +202,15 @@ export function ExtensionsPanel() {
           servers={mcpServers}
           toolsets={toolsets}
           loading={inventoryLoading}
+          probeResults={mcpProbeResults}
+          probing={mcpProbing}
+          configuringToolset={configuringToolset}
+          onTestServer={(serverId) => void testMcpServer(serverId)}
+          onConfigureToolset={(toolset) => void configureToolset({
+            id: toolset.id,
+            platform: toolset.platform,
+            enabled: !toolset.enabled,
+          })}
           onRunWithToolset={(toolsetId) => openNewRun({
             mode: "task",
             prompt: `Use the ${toolsetId} Hermes toolset while working in this local workspace. Gather context, execute the requested task, and return concrete results.`,
@@ -278,6 +304,7 @@ function HermesOverview({
   skills,
   mcpServers,
   toolsets,
+  fallbackProviders,
 }: {
   loading: boolean;
   summary: ReturnType<typeof useHermesInventoryStore.getState>["summary"];
@@ -286,6 +313,7 @@ function HermesOverview({
   skills: ReturnType<typeof useHermesInventoryStore.getState>["skills"];
   mcpServers: ReturnType<typeof useHermesInventoryStore.getState>["mcpServers"];
   toolsets: ReturnType<typeof useHermesInventoryStore.getState>["toolsets"];
+  fallbackProviders: ReturnType<typeof useHermesInventoryStore.getState>["fallbackProviders"];
 }) {
   const activeProviders = providers.filter((provider) => provider.configured || provider.active);
   const topProviders = [...activeProviders, ...providers.filter((provider) => !provider.configured && !provider.active)].slice(0, 10);
@@ -308,6 +336,7 @@ function HermesOverview({
           <Metric value={summary?.model_count ?? models.length} label="models" />
           <Metric value={summary?.installed_skill_count ?? skills.filter((s) => s.installed).length} label="skills" />
           <Metric value={summary?.mcp_server_count ?? mcpServers.length} label="MCP" />
+          <Metric value={summary?.fallback_provider_count ?? fallbackProviders.length} label="fallbacks" />
         </div>
       </div>
 
@@ -325,6 +354,31 @@ function HermesOverview({
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="inventory-section">
+        <div className="inventory-section-title">Fallback provider chain</div>
+        {fallbackProviders.length > 0 ? (
+          <div className="fallback-chain">
+            {fallbackProviders.map((fallback) => (
+              <div key={`${fallback.index}:${fallback.provider}:${fallback.model ?? ""}`} className="fallback-step">
+                <span>{fallback.index + 1}</span>
+                <div>
+                  <strong>{fallback.provider_name || fallback.provider}</strong>
+                  <small>
+                    {fallback.model || "default model"}
+                    {fallback.configured ? " · configured" : " · missing credentials"}
+                    {fallback.active ? " · active primary" : ""}
+                  </small>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="panel-note">
+            No fallback providers configured. Studio can read the chain now; add entries through Hermes fallback setup until a safe non-interactive write path is available.
+          </div>
+        )}
       </div>
 
       <div className="inventory-section">
@@ -451,6 +505,11 @@ function SkillsCatalog({
   onQueryChange,
   onCategoryChange,
   loading,
+  actionResult,
+  actionLoading,
+  onCheckSkills,
+  onUpdateSkills,
+  onInstallSkill,
   onRunWithSkill,
 }: {
   skills: HermesSkill[];
@@ -459,14 +518,24 @@ function SkillsCatalog({
   onQueryChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
   loading: boolean;
+  actionResult: ReturnType<typeof useHermesInventoryStore.getState>["skillAction"];
+  actionLoading: boolean;
+  onCheckSkills: (name?: string) => void;
+  onUpdateSkills: (name?: string) => void;
+  onInstallSkill: (input: { identifier: string; category?: string; name?: string; force?: boolean }) => void;
   onRunWithSkill: (skill: HermesSkill) => void;
 }) {
+  const [installIdentifier, setInstallIdentifier] = React.useState("");
+  const [installCategory, setInstallCategory] = React.useState("");
+  const [installName, setInstallName] = React.useState("");
+  const [installForce, setInstallForce] = React.useState(false);
   const categories = ["all", ...Array.from(new Set(skills.map((skill) => skill.category))).sort()];
   const filtered = skills.filter((skill) => {
     const matchesCategory = category === "all" || skill.category === category;
     const haystack = `${skill.name} ${skill.title} ${skill.description} ${skill.tags.join(" ")}`.toLowerCase();
     return matchesCategory && haystack.includes(query.toLowerCase());
   });
+  const canInstall = installIdentifier.trim().length > 0;
 
   return (
     <div className="skills-catalog">
@@ -489,6 +558,63 @@ function SkillsCatalog({
           ))}
         </select>
       </div>
+      <div className="skill-action-panel">
+        <div className="skill-action-row">
+          <button className="tool-button" type="button" disabled={actionLoading} onClick={() => onCheckSkills()}>
+            Check
+          </button>
+          <button className="tool-button" type="button" disabled={actionLoading} onClick={() => onUpdateSkills()}>
+            Update
+          </button>
+          <input
+            className="studio-input"
+            value={installIdentifier}
+            onChange={(event) => setInstallIdentifier(event.target.value)}
+            placeholder="Skill identifier or SKILL.md URL"
+            aria-label="Hermes skill identifier"
+          />
+          <input
+            className="studio-input compact"
+            value={installCategory}
+            onChange={(event) => setInstallCategory(event.target.value)}
+            placeholder="Category"
+            aria-label="Install skill category"
+          />
+          <input
+            className="studio-input compact"
+            value={installName}
+            onChange={(event) => setInstallName(event.target.value)}
+            placeholder="Name"
+            aria-label="Install skill name"
+          />
+          <label className="inline-check">
+            <input type="checkbox" checked={installForce} onChange={(event) => setInstallForce(event.target.checked)} />
+            Force
+          </label>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={!canInstall || actionLoading}
+            onClick={() => {
+              onInstallSkill({
+                identifier: installIdentifier.trim(),
+                category: installCategory.trim() || undefined,
+                name: installName.trim() || undefined,
+                force: installForce,
+              });
+            }}
+          >
+            Install
+          </button>
+        </div>
+        {actionResult && (
+          <div className={`skill-action-result ${actionResult.ok ? "ok" : "error"}`}>
+            <strong>{actionResult.action}</strong>
+            <span>{actionResult.message || (actionResult.ok ? "completed" : actionResult.error ?? "failed")}</span>
+            <small>{actionResult.duration_ms.toLocaleString()} ms</small>
+          </div>
+        )}
+      </div>
       {loading && skills.length === 0 && <div className="empty-state"><div className="empty-state-text">Reading skills...</div></div>}
       <div className="skill-catalog-grid">
         {filtered.map((skill) => (
@@ -505,9 +631,17 @@ function SkillsCatalog({
               </div>
             )}
             <code>{skill.id}</code>
-            <button className="tool-button" type="button" onClick={() => onRunWithSkill(skill)}>
-              Run with skill
-            </button>
+            <div className="skill-card-actions">
+              <button className="tool-button" type="button" onClick={() => onRunWithSkill(skill)}>
+                Run
+              </button>
+              <button className="tool-button" type="button" disabled={actionLoading} onClick={() => onCheckSkills(skill.name)}>
+                Check
+              </button>
+              <button className="tool-button" type="button" disabled={actionLoading} onClick={() => onUpdateSkills(skill.name)}>
+                Update
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -524,32 +658,56 @@ function McpCatalog({
   servers,
   toolsets,
   loading,
+  probeResults,
+  probing,
+  configuringToolset,
+  onTestServer,
+  onConfigureToolset,
   onRunWithToolset,
 }: {
   servers: ReturnType<typeof useHermesInventoryStore.getState>["mcpServers"];
   toolsets: ReturnType<typeof useHermesInventoryStore.getState>["toolsets"];
   loading: boolean;
+  probeResults: ReturnType<typeof useHermesInventoryStore.getState>["mcpProbeResults"];
+  probing: ReturnType<typeof useHermesInventoryStore.getState>["mcpProbing"];
+  configuringToolset: ReturnType<typeof useHermesInventoryStore.getState>["configuringToolset"];
+  onTestServer: (serverId: string) => void;
+  onConfigureToolset: (toolset: ReturnType<typeof useHermesInventoryStore.getState>["toolsets"][number]) => void;
   onRunWithToolset: (toolsetId: string) => void;
 }) {
   return (
     <div className="mcp-catalog">
       {loading && servers.length === 0 && <div className="empty-state"><div className="empty-state-text">Reading MCP config...</div></div>}
       <div className="mcp-server-list">
-        {servers.map((server) => (
-          <div key={server.id} className="mcp-server-card">
-            <div>
-              <h3>{server.id}</h3>
-              <code>{String(server.command ?? "")} {server.args.map((arg) => String(arg)).join(" ")}</code>
+        {servers.map((server) => {
+          const probe = probeResults[server.id];
+          const isProbing = Boolean(probing[server.id]);
+          return (
+            <div key={server.id} className={`mcp-server-card ${probe ? `probe-${probe.status}` : ""}`}>
+              <div>
+                <h3>{server.id}</h3>
+                <code>{String(server.command ?? "")} {server.args.map((arg) => String(arg)).join(" ")}</code>
+                {probe && (
+                  <div className="mcp-probe-result">
+                    <span className={`mcp-probe-status ${probe.status}`}>{probe.ok ? "connected" : probe.status}</span>
+                    <strong>{probe.message || probe.error || "MCP probe completed"}</strong>
+                    <small>{probe.duration_ms.toLocaleString()} ms · exit {probe.exit_code ?? "n/a"}</small>
+                  </div>
+                )}
+              </div>
+              <div className="mcp-server-meta">
+                <span>{server.enabled ? "enabled" : "disabled"}</span>
+                <span>{server.env_keys.length} env</span>
+                <button className="tool-button" type="button" disabled={isProbing} onClick={() => onTestServer(server.id)}>
+                  {isProbing ? "Testing" : "Test"}
+                </button>
+                <button className="tool-button" type="button" onClick={() => onRunWithToolset(`${server.id}:*`)}>
+                  Use
+                </button>
+              </div>
             </div>
-            <div className="mcp-server-meta">
-              <span>{server.enabled ? "enabled" : "disabled"}</span>
-              <span>{server.env_keys.length} env</span>
-              <button className="tool-button" type="button" onClick={() => onRunWithToolset(`${server.id}:*`)}>
-                Use
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       {!loading && servers.length === 0 && (
         <div className="empty-state">
@@ -559,17 +717,30 @@ function McpCatalog({
       <div className="inventory-section">
         <div className="inventory-section-title">Toolsets</div>
         <div className="toolset-grid">
-          {toolsets.map((toolset) => (
-            <button
-              key={`${toolset.platform}:${toolset.kind}:${toolset.id}`}
-              className={`toolset-pill as-button ${toolset.enabled ? "enabled" : "disabled"}`}
-              type="button"
-              onClick={() => onRunWithToolset(toolset.id)}
-              title={toolset.label || toolset.source}
-            >
-              {toolset.platform}:{toolset.id}
-            </button>
-          ))}
+          {toolsets.map((toolset) => {
+            const key = `${toolset.platform}:${toolset.id}`;
+            const isConfiguring = Boolean(configuringToolset[key]);
+            return (
+              <div key={`${toolset.platform}:${toolset.kind}:${toolset.id}`} className="toolset-control">
+                <button
+                  className={`toolset-pill as-button ${toolset.enabled ? "enabled" : "disabled"}`}
+                  type="button"
+                  onClick={() => onRunWithToolset(toolset.id)}
+                  title={toolset.label || toolset.source}
+                >
+                  {toolset.platform}:{toolset.id}
+                </button>
+                <button
+                  className="tool-button"
+                  type="button"
+                  disabled={isConfiguring}
+                  onClick={() => onConfigureToolset(toolset)}
+                >
+                  {isConfiguring ? "Saving" : toolset.enabled ? "Disable" : "Enable"}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

@@ -30,8 +30,11 @@ interface RunLedgerState {
   historyAvailable: boolean;
   savingRunCard: boolean;
   actionMessage: string | null;
+  comparison: api.RunLedgerComparison | null;
+  comparingRuns: boolean;
   loadRecentRuns: () => Promise<void>;
   loadRunLedger: (runId: string) => Promise<void>;
+  compareRuns: (leftRunId: string, rightRunId: string) => Promise<void>;
   beginPrompt: (prompt: string, sessionId: string, options?: { workspacePath?: string | null }) => void;
   startRun: (runId: string, prompt: string, sessionId: string, status?: string, options?: { workspacePath?: string | null }) => void;
   recordEvent: (event: StudioEvent) => void;
@@ -142,6 +145,8 @@ export const useRunLedgerStore = create<RunLedgerState>((set, get) => ({
   historyAvailable: true,
   savingRunCard: false,
   actionMessage: null,
+  comparison: null,
+  comparingRuns: false,
 
   loadRecentRuns: async () => {
     set({ loading: true, error: null });
@@ -189,6 +194,20 @@ export const useRunLedgerStore = create<RunLedgerState>((set, get) => ({
     } catch (err) {
       set({
         loading: false,
+        error: err instanceof Error ? err.message : String(err),
+        historyAvailable: false,
+      });
+    }
+  },
+
+  compareRuns: async (leftRunId, rightRunId) => {
+    set({ comparingRuns: true, error: null });
+    try {
+      const comparison = await api.compareRuns(leftRunId, rightRunId);
+      set({ comparison, comparingRuns: false, historyAvailable: comparison.history_available });
+    } catch (err) {
+      set({
+        comparingRuns: false,
         error: err instanceof Error ? err.message : String(err),
         historyAvailable: false,
       });
