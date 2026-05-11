@@ -40,7 +40,7 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           python -m venv .venv
-          source .venv/bin/activate && pnpm run check:python
+          source .venv/bin/activate && pip install -e ".[dev]" && pnpm run check:python
 
       - name: Frontend unit tests
         run: pnpm --filter @hermes-desktop-studio/desktop-studio test
