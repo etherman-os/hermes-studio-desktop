@@ -24,8 +24,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: '22'
+          package-manager: 'pnpm'
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -61,8 +61,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: '22'
+          package-manager: 'pnpm'
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -103,8 +103,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: '22'
+          package-manager: 'pnpm'
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -176,8 +176,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: '22'
+          package-manager: 'pnpm'
 
       - name: Setup Python
         uses: actions/setup-python@v5
