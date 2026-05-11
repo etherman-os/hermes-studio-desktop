@@ -1,4 +1,5 @@
 import type { ThemePack } from "@hermes-studio/shared-types";
+import { resolveThemeWorld } from "../utils/themeWorld";
 
 const ALL_THEME_VARS = [
   "--app-bg",
@@ -33,15 +34,7 @@ export function applyThemeToDOM(theme: ThemePack) {
   }
 
   root.dataset.themeId = themeId;
-  root.dataset.themeWorld = themeId.includes("minecraft")
-    ? "block"
-    : themeId.includes("lotr")
-      ? "archive"
-      : themeId.includes("minions")
-        ? "lab"
-        : themeId.includes("light")
-          ? "paper"
-          : "studio";
+  root.dataset.themeWorld = resolveThemeWorld(theme);
 
   const mapping: Record<string, string | undefined> = {
     "--app-bg": p.bg,

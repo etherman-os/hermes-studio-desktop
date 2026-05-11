@@ -1,5 +1,6 @@
 import React from "react";
-import { useLayoutStore } from "../../stores/layoutStore";
+import { useLayoutStore, MODE_HOME_SURFACE } from "../../stores/layoutStore";
+import { parseStudioUrl, pushStudioUrl, syncUrlFromStore } from "../../utils/studioRouter";
 import { useThemeStore } from "../../stores/themeStore";
 import { useUiStore } from "../../stores/uiStore";
 import { useAdapterStore } from "../../stores/adapterStore";
@@ -14,7 +15,7 @@ import { useProcessStore } from "../../stores/processStore";
 import { useToolPackStore } from "../../stores/toolPackStore";
 import { useModelStore } from "../../stores/modelStore";
 import { useHermesInventoryStore } from "../../stores/hermesInventoryStore";
-import { LeftRail } from "./LeftRail";
+import { ActivityRail4 } from "./ActivityRail4";
 import { LeftSidebar } from "./LeftSidebar";
 import { CenterArea } from "./CenterArea";
 import { RightPanel } from "./RightPanel";
@@ -26,6 +27,9 @@ import { NewRunModal } from "../runs/NewRunModal";
 import { ThemeWorld } from "../theme/ThemeWorld";
 import { WorkspacePicker } from "../workspace/WorkspacePicker";
 import { listen } from "@tauri-apps/api/event";
+import { ToastContainer } from "../common/Toast";
+import type { Mode, CenterTab } from "../../stores/layoutStore";
+import { useToastStore } from "../../stores/toastStore";
 
 export function AppFrame() {
   const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
@@ -41,6 +45,8 @@ export function AppFrame() {
   const openNewRun = useUiStore((s) => s.openNewRun);
   const initialized = React.useRef(false);
   const resizeMode = React.useRef<"sidebar" | "right" | "bottom" | null>(null);
+  // Store Tauri unlisten functions in refs to ensure proper cleanup
+  const unlistenRefs = React.useRef<Array<() => void | Promise<void>>>([]);
 
   React.useEffect(() => {
     if (initialized.current) return;
@@ -54,6 +60,7 @@ export function AppFrame() {
     loadWorkspace();
     initTheme();
     initNative();
+    void useHermesInventoryStore.getState().loadInventory();
 
     void checkConnection().then((ok) => {
       if (ok) {
@@ -71,23 +78,84 @@ export function AppFrame() {
     });
   }, []);
 
+  // Store values for URL sync
+  const setActiveMode = useLayoutStore((s) => s.setActiveMode);
+  const activeMode = useLayoutStore((s) => s.activeMode);
+  const activeTab = useLayoutStore((s) => s.activeTab);
+
+  // URL routing: sync store -> URL on startup
+  React.useEffect(() => {
+    syncUrlFromStore(activeMode, activeTab);
+  }, [activeMode, activeTab]);
+
+  // Listen for browser back/forward navigation (popstate)
+  React.useEffect(() => {
+    function handlePopState(_event: PopStateEvent) {
+      const route = parseStudioUrl(window.location.pathname);
+      const { setActiveMode: sam, setActiveTab: sat } = useLayoutStore.getState();
+      sam(route.mode);
+      // Brief delay so setActiveMode can update activeTab first
+      setTimeout(() => sat(route.surface), 0);
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   React.useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      // Cmd/Ctrl+K: Open command palette
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         openPalette();
+        return;
+      }
+      // Cmd/Ctrl+1-4: Switch mode
+      if ((e.metaKey || e.ctrlKey) && ["1", "2", "3", "4"].includes(e.key)) {
+        e.preventDefault();
+        const modes: Array<"create" | "code" | "automate" | "manage"> = ["create", "code", "automate", "manage"];
+        const idx = parseInt(e.key, 10) - 1;
+        if (idx >= 0 && idx < modes.length) {
+          setActiveMode(modes[idx]);
+        }
+        return;
+      }
+      // Escape: Close any open modal
+      if (e.key === "Escape") {
+        const { closeCommandPalette } = useUiStore.getState();
+        closeCommandPalette();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openPalette]);
+  }, [openPalette, setActiveMode]);
+
+  // Update URL when mode/tab changes (browser history push)
+  React.useEffect(() => {
+    pushStudioUrl(activeMode, activeTab);
+  }, [activeMode, activeTab]);
 
   React.useEffect(() => {
-    const unlistenNewRun = listen("global-shortcut:new-run", () => {
+    document.documentElement.dataset.mode = activeMode;
+  }, [activeMode]);
+
+  React.useEffect(() => {
+    // Set up Tauri event listeners and store cleanup functions
+    const unlistenNewRunPromise = listen("global-shortcut:new-run", () => {
       openNewRun();
     });
 
-    const unlistenToggle = listen("global-shortcut:toggle-visibility", async () => {
+    const unlistenDeepLinkPromise = listen<{ mode: Mode; surface: CenterTab }>("deep-link:navigate", (event) => {
+      const { mode, surface } = event.payload;
+      useLayoutStore.getState().navigateTo({ mode, surface });
+      useToastStore.getState().addToast({
+        kind: "info",
+        title: "Navigated",
+        message: `Opened ${surface} in ${mode} mode`,
+        duration: 2500,
+      });
+    });
+
+    const unlistenTogglePromise = listen("global-shortcut:toggle-visibility", async () => {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
       const win = getCurrentWindow();
       const visible = await win.isVisible();
@@ -99,9 +167,26 @@ export function AppFrame() {
       }
     });
 
+    // Store cleanup functions that work properly with async listeners
+    unlistenRefs.current = [
+      () => { unlistenNewRunPromise.then((fn) => fn()); },
+      () => { unlistenDeepLinkPromise.then((fn) => fn()); },
+      () => { unlistenTogglePromise.then((fn) => fn()); },
+    ];
+
     return () => {
-      void unlistenNewRun.then((fn) => fn());
-      void unlistenToggle.then((fn) => fn());
+      // Properly await and call each unlisten function
+      for (const unlisten of unlistenRefs.current) {
+        try {
+          const result = unlisten();
+          if (result instanceof Promise) {
+            result.catch((err) => console.warn("unlisten error:", err));
+          }
+        } catch (err) {
+          console.warn("unlisten error:", err);
+        }
+      }
+      unlistenRefs.current = [];
     };
   }, [openNewRun]);
 
@@ -148,9 +233,10 @@ export function AppFrame() {
       <div
         className={`app-frame ${showBottom ? "bottom-open" : "bottom-collapsed"} ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${showRight ? "" : "right-collapsed"}`}
         style={frameStyle}
+        data-mode={activeMode}
       >
         <TopBar />
-        <LeftRail />
+        <ActivityRail4 />
         {!sidebarCollapsed && <LeftSidebar />}
         <CenterArea />
         {showRight && <RightPanel />}
@@ -189,6 +275,7 @@ export function AppFrame() {
       <CommandPalette />
       <NewRunModal />
       <WorkspacePicker />
+      <ToastContainer />
     </>
   );
 }

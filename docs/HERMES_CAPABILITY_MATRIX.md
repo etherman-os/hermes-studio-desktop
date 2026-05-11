@@ -4,12 +4,7 @@ This is the working execution map for turning Hermes Desktop Studio into a compl
 
 ## Execution Loop
 
-1. Map the Hermes capability and decide the source of truth.
-2. Add or adjust `/studio/*` adapter contract.
-3. Update OpenAPI and frontend types/store.
-4. Add the smallest useful UI surface.
-5. Add route/store/unit tests and run checks.
-6. Record remaining gaps here before moving to the next slice.
+Map the Hermes capability and decide the source of truth. Add or adjust `/studio/*` adapter contract. Update OpenAPI and frontend types or store. Add the smallest useful UI surface. Add route, store, and unit tests and run checks. Record remaining gaps here before moving to the next slice.
 
 ## Source Of Truth
 
@@ -49,10 +44,4 @@ This is the working execution map for turning Hermes Desktop Studio into a compl
 
 ## Redesign Gate
 
-The full UI/UX redesign should start only when:
-
-- Capability matrix rows above have real adapter/store/UI coverage or are explicitly deferred.
-- No UI button depends on a fake or undocumented Hermes behavior.
-- `/studio/*` OpenAPI matches implemented routes.
-- Core checks pass: `pnpm run check:types`, frontend tests, Python checks, and Tauri `cargo check`.
-- Browser smoke tooling is documented so agents do not reinstall browsers repeatedly.
+The full UI/UX redesign should start only when the capability matrix rows above have real adapter, store, and UI coverage or are explicitly deferred, no UI button depends on a fake or undocumented Hermes behavior, `/studio/*` OpenAPI matches implemented routes, core checks pass including `pnpm run check:types`, frontend tests, Python checks, and Tauri `cargo check`, and browser smoke tooling is documented so agents do not reinstall browsers repeatedly.

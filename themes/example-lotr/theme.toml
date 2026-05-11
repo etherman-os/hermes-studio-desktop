@@ -5,6 +5,7 @@ version = "0.1.0"
 author = "etherman-os"
 extends = "default-dark"
 description = "Middle-earth themed concept pack with earth and gold tones. Parody example."
+keywords = ["archive", "manuscript"]
 
 [compat]
 studio_api = "^1.0"

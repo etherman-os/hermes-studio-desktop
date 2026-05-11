@@ -3,27 +3,127 @@ import { useThemeStore } from "../../stores/themeStore";
 import { useAdapterStore } from "../../stores/adapterStore";
 import { useRunLedgerStore, type RunRecord } from "../../stores/runLedgerStore";
 import { useModelStore } from "../../stores/modelStore";
+import { useLayoutStore, type Mode } from "../../stores/layoutStore";
 import { RuntimeStatus } from "../runtime/RuntimeStatus";
+import { HermesArsenalQuickPanel } from "../arsenal/HermesArsenalQuickPanel";
 import { LoadingSkeleton } from "../Skeleton";
+
+// Mode display labels and icons
+const MODE_CONTEXT: Record<Mode, { label: string; icon: string; description: string }> = {
+  create: { label: "Design Canvas + Artifacts", icon: "◇", description: "Recent artifacts and active designs" },
+  code: { label: "Active Run", icon: "▶", description: "Current run inspector and checkpoint timeline" },
+  automate: { label: "Process Cockpit", icon: "⚙", description: "Active processes and cron status" },
+  manage: { label: "Session + Approval", icon: "☰", description: "Active sessions and pending approvals" },
+};
 
 export function RightPanel() {
   const label = useThemeStore((s) => s.label);
   const icon = useThemeStore((s) => s.icon);
   const connected = useAdapterStore((s) => s.connected);
   const backendMode = useAdapterStore((s) => s.backendMode);
+  const activeMode = useLayoutStore((s) => s.activeMode);
+
+  return (
+    <aside className="right-panel" role="complementary" aria-label="Inspector panel">
+      <ModeHeader activeMode={activeMode} icon={icon} />
+      <HermesArsenalQuickPanel />
+      <ModeContent activeMode={activeMode} connected={connected} backendMode={backendMode} label={label} icon={icon} />
+      <div className="right-section runtime-right-section">
+        <RuntimeStatus compact />
+      </div>
+    </aside>
+  );
+}
+
+// Mode indicator badge at the top of the panel
+function ModeHeader({ activeMode, icon }: { activeMode: Mode; icon: (s: string) => string }) {
+  const context = MODE_CONTEXT[activeMode];
+  return (
+    <div className="right-section" style={{ borderBottom: "1px solid var(--app-border)", paddingBottom: "var(--app-spacing-sm)", marginBottom: "var(--app-spacing-sm)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--app-spacing-xs)" }}>
+        <span style={{ fontSize: "10px", background: "var(--app-accent)", color: "#fff", padding: "2px 6px", borderRadius: "var(--app-radius-sm)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          {activeMode}
+        </span>
+        <span style={{ fontSize: "var(--app-font-size-sm)", color: "var(--app-text-muted)" }}>
+          {icon("inspector")} {context.label}
+        </span>
+      </div>
+      <div style={{ fontSize: "10px", color: "var(--app-text-muted)", marginTop: "2px" }}>
+        {context.description}
+      </div>
+    </div>
+  );
+}
+
+// Render mode-specific content
+function ModeContent({ activeMode, connected, backendMode, label, icon }: {
+  activeMode: Mode;
+  connected: boolean;
+  backendMode: string;
+  label: (s: string) => string;
+  icon: (s: string) => string;
+}) {
+  switch (activeMode) {
+    case "code":
+      return <CodeModeContent connected={connected} backendMode={backendMode} label={label} icon={icon} />;
+    case "create":
+      return <CreateModeContent label={label} icon={icon} />;
+    case "automate":
+      return <AutomateModeContent label={label} icon={icon} />;
+    case "manage":
+      return <ManageModeContent label={label} icon={icon} />;
+    default:
+      return <CodeModeContent connected={connected} backendMode={backendMode} label={label} icon={icon} />;
+  }
+}
+
+// CODE mode: Active Run inspector + checkpoint timeline
+function CodeModeContent({ connected, backendMode, label, icon }: {
+  connected: boolean;
+  backendMode: string;
+  label: (s: string) => string;
+  icon: (s: string) => string;
+}) {
   const runs = useRunLedgerStore((s) => s.runs);
   const currentRunId = useRunLedgerStore((s) => s.currentRunId);
   const run = runs.find((item) => item.runId === currentRunId) ?? runs[0] ?? null;
 
   return (
-    <aside className="right-panel" role="complementary" aria-label="Inspector panel">
+    <>
       <SelectedRunSection run={run} label={label} />
       <ModelSection connected={connected} backendMode={backendMode} label={label} icon={icon} />
       <ToolsSection run={run} />
-      <div className="right-section runtime-right-section">
-        <RuntimeStatus compact />
-      </div>
-    </aside>
+    </>
+  );
+}
+
+// CREATE mode: Design Canvas + Artifacts context
+function CreateModeContent({ label, icon }: { label: (s: string) => string; icon: (s: string) => string }) {
+  return (
+    <div className="right-section">
+      <div className="right-section-title">{icon("inspector")} Design Canvas</div>
+      <div className="panel-note">Recent artifacts and active designs will appear here</div>
+    </div>
+  );
+}
+
+// AUTOMATE mode: Process Cockpit context
+function AutomateModeContent({ label, icon }: { label: (s: string) => string; icon: (s: string) => string }) {
+  return (
+    <div className="right-section">
+      <div className="right-section-title">{icon("inspector")} Process Cockpit</div>
+      <div className="panel-note">Active processes and cron status will appear here</div>
+    </div>
+  );
+}
+
+// MANAGE mode: Session + Approval context
+function ManageModeContent({ label, icon }: { label: (s: string) => string; icon: (s: string) => string }) {
+  return (
+    <div className="right-section">
+      <div className="right-section-title">{icon("inspector")} Session + Approval</div>
+      <div className="panel-note">Active sessions and pending approvals will appear here</div>
+    </div>
   );
 }
 

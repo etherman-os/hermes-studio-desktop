@@ -11,6 +11,21 @@ export default defineConfig(async () => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    chunkSizeWarningLimit: 250,
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("lucide-react")) return "vendor-icons";
+          if (id.includes("@tauri-apps")) return "vendor-tauri";
+          if (id.includes("react-dom")) return "vendor-react";
+          if (id.includes("react/")) return "vendor-react";
+          if (id.includes("zustand")) return "vendor-state";
+        },
+      },
+    },
+  },
   clearScreen: false,
   server: {
     port: 1420,

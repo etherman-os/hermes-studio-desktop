@@ -149,7 +149,12 @@ async function run() {
     await page.locator(".center-area").waitFor();
     await page.locator(".splash-screen").waitFor({ state: "detached", timeout: 5000 });
 
-    for (const label of ["Runs & History", "Chat", "Board", "Sessions", "Artifacts", "Context Inspector", "Logs", "Themes", "Settings"]) {
+    for (const label of ["Runs & History", "Chat", "Design Canvas", "Artifacts", "Processes", "Context Inspector", "More tools", "Logs", "Themes", "Settings"]) {
+      await page.getByRole("button", { name: label }).first().waitFor({ timeout: 5000 });
+    }
+
+    await page.getByRole("button", { name: "More tools" }).click();
+    for (const label of ["Board", "Sessions", "Checkpoints", "Hermes Arsenal"]) {
       await page.getByRole("button", { name: label }).first().waitFor({ timeout: 5000 });
     }
 

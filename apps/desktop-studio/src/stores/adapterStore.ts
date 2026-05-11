@@ -3,6 +3,8 @@ import * as api from "../api/studioClient";
 
 const HEALTH_POLL_INTERVAL_MS = 15_000;
 
+type ConnectionMode = "real" | "mock" | "offline";
+
 interface AdapterState {
   connected: boolean;
   checking: boolean;
@@ -18,6 +20,8 @@ interface AdapterState {
   fallbackReason: string | null;
   lastCheckedAt: string | null;
   _pollTimer: ReturnType<typeof setInterval> | null;
+  connectionMode: ConnectionMode;
+  _checking: boolean;
   setConnected: (v: boolean) => void;
   checkConnection: () => Promise<boolean>;
   startPolling: () => void;
@@ -39,6 +43,8 @@ export const useAdapterStore = create<AdapterState>((set, get) => ({
   fallbackReason: null,
   lastCheckedAt: null,
   _pollTimer: null,
+  connectionMode: "offline",
+  _checking: false,
   setConnected: (v) => set({ connected: v }),
 
   startPolling: () => {
@@ -68,10 +74,12 @@ export const useAdapterStore = create<AdapterState>((set, get) => ({
   },
 
   checkConnection: async () => {
-    const { checking } = get();
-    if (checking) return false;
+    const state = get();
+    // Atomically check-and-set to prevent race conditions from concurrent calls
+    if (state._checking) return false;
+    if (state.checking) return false;
 
-    set({ checking: true });
+    set({ checking: true, _checking: true });
     try {
       const auth = await Promise.race([
         api.initializeAdapterAuth(),
@@ -85,6 +93,7 @@ export const useAdapterStore = create<AdapterState>((set, get) => ({
         set({
           connected: false,
           checking: false,
+          _checking: false,
           authReady: false,
           authError: message,
           backendMode: "unknown",
@@ -96,6 +105,7 @@ export const useAdapterStore = create<AdapterState>((set, get) => ({
           storageSchemaVersion: 0,
           fallbackReason: message,
           lastCheckedAt: new Date().toISOString(),
+          connectionMode: "offline" as ConnectionMode,
         });
         get().startPolling();
         return false;
@@ -110,20 +120,25 @@ export const useAdapterStore = create<AdapterState>((set, get) => ({
 
       const bs = health.backend_status;
       const storage = health.storage;
+      const isMock = (bs?.backend_mode ?? health.backend_mode ?? "").toLowerCase().includes("mock");
+      const isHermesConnected = bs?.hermes_connected ?? health.hermes_connected ?? false;
+      const mode: ConnectionMode = isMock ? "mock" : isHermesConnected ? "real" : "offline";
       set({
         connected: true,
         checking: false,
+        _checking: false,
         authReady: true,
         authError: null,
         backendMode: bs?.backend_mode ?? health.backend_mode ?? "unknown",
         activeBackend: bs?.active_backend ?? bs?.backend_mode ?? health.backend_mode ?? "unknown",
-        hermesConnected: bs?.hermes_connected ?? health.hermes_connected ?? false,
+        hermesConnected: isHermesConnected,
         hermesUrl: bs?.hermes_url ?? "unknown",
         storageAvailable: storage?.available ?? false,
         storageError: storage?.last_error ?? null,
         storageSchemaVersion: storage?.schema_version ?? 0,
         fallbackReason: bs?.fallback_reason ?? null,
         lastCheckedAt: new Date().toISOString(),
+        connectionMode: mode,
       });
       get().stopPolling();
       return true;
@@ -132,6 +147,7 @@ export const useAdapterStore = create<AdapterState>((set, get) => ({
       set({
         connected: false,
         checking: false,
+        _checking: false,
         authReady: api.hasAdapterToken(),
         authError: null,
         backendMode: "unknown",
@@ -143,6 +159,7 @@ export const useAdapterStore = create<AdapterState>((set, get) => ({
         storageSchemaVersion: 0,
         fallbackReason: message,
         lastCheckedAt: new Date().toISOString(),
+        connectionMode: "offline" as ConnectionMode,
       });
       get().startPolling();
       return false;

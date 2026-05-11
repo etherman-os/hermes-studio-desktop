@@ -1,12 +1,12 @@
 # Hermes Desktop Studio
 
-A local-first, themeable desktop workbench for [Hermes Agent](https://github.com/NousResearch/hermes-agent).
+A local-first desktop workbench for [Hermes Agent](https://github.com/NousResearch/hermes-agent).
 
-Hermes Desktop Studio is **not** a terminal-only TUI and **not** a chat app. It is a desktop-class, run-centered production workbench for users who install Hermes Agent locally and want a full desktop studio on top of it.
+This isn't a TUI and it isn't a chat app. It's a full desktop environment for people who run Hermes Agent on their own machine and want something better than a terminal to work with.
 
-## Why a Desktop Workbench?
+## Why bother?
 
-Terminal TUIs have inherent ceilings in visual ergonomics, panel docking, visual preview, rich theming, and accessibility. Hermes Desktop Studio uses **Tauri v2 + React** to provide a full desktop experience: Mission Control, Run Ledger, prompt/chat surface, board, sessions, Design Canvas, Artifact Studio, context inspector, live logs, diagnostics, and user-installable concept packs - all without requiring users to live inside a terminal.
+Terminal interfaces hit walls fast: docking panels is painful, previews are nonexistent, theming is limited, and accessibility is an afterthought. Hermes Desktop Studio runs on Tauri v2 + React and gives you Mission Control, Run Ledger, a chat surface, Kanban board, sessions, Design Canvas, Artifact Studio, context inspector, live logs, diagnostics, and concept packs you can install — all without having to live inside a terminal window.
 
 ## Stack
 
@@ -47,20 +47,20 @@ checkpoints                         ~/.hermes/checkpoints
 
 ## Core Principles
 
-- **Do not modify Hermes core.** Wrap it through public integration surfaces only.
-- **Adapter-first:** UI never talks to Hermes directly; it talks to the local adapter.
-- **Studio protocol only:** Desktop frontend calls `/studio/*`; root `/health` is adapter/dev tooling health only.
-- **Desktop workbench, not terminal TUI.** The main product is a dockable desktop app.
-- **Run-centered, not message-centered.** Chat is one surface; the Run Ledger is the product spine.
-- **Generic theme system:** Colors, icons, labels, layout, and terminology are driven by concept packs. No concept is hardcoded.
-- **Local-only by default:** Bind 127.0.0.1, rotate tokens per launch, never expose without key.
-- **Hermes-first local integration:** Hermes `state.db`, logs, profiles, providers, models, skills, toolsets, and MCP servers are discovered from the local install. Mutations use official Hermes API or CLI surfaces only.
-- **Future-proof:** Same adapter contract supports desktop shell today, terminal mode later.
+- **Don't touch Hermes core.** Everything goes through public integration surfaces only.
+- **Adapter-first.** The UI talks to Hermes only through the local adapter, never directly.
+- **Studio protocol only.** The desktop frontend calls `/studio/*` endpoints. Root `/health` is adapter health for dev tooling.
+- **This is a desktop app, not a terminal.** The main product is a dockable desktop window.
+- **Run-centered.** Chat is one surface among many. The Run Ledger is the spine of the product.
+- **Generic theme system.** Colors, icons, labels, layout, and terminology come from concept packs. Nothing is hardcoded.
+- **Local-only by default.** Binds to 127.0.0.1, rotates tokens on each launch, won't expose itself without a key.
+- **Read from Hermes, write through Hermes.** `state.db`, logs, profiles, providers, models, skills, toolsets, and MCP servers are all discovered from the local install. When the app needs to change something, it uses official Hermes CLI or API surfaces — no direct writes to Hermes files.
+- **Future-proof.** The same adapter contract works for a desktop shell today and a terminal mode later.
 
 ## Project Structure
 
 ```
-hermes-local-studio/
+hermes_shell/
   apps/
     desktop-studio/            # Tauri v2 + React + TypeScript desktop app
   packages/
@@ -75,8 +75,6 @@ hermes-local-studio/
     minecraft-overworld/      # Example concept pack (extends default-dark)
     example-minions/          # Example concept pack (placeholder)
     example-lotr/             # Example concept pack (placeholder)
-  legacy/
-    textual-prototype/        # Original Textual TUI (reference only, not maintained)
   docs/
     ARCHITECTURE.md
     ADAPTER_CONTRACT.md

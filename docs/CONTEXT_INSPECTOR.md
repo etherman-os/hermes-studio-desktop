@@ -38,25 +38,9 @@ The OpenAPI route parity test fails if these paths drift from `packages/protocol
 
 ## Workspace Context Files
 
-The adapter only checks a small allowlist under the selected workspace:
+The adapter only checks a small allowlist under the selected workspace: `SOUL.md`, `AGENTS.md`, `CLAUDE.md`, `README.md`, `package.json`, `pyproject.toml`, and `Cargo.toml`.
 
-- `SOUL.md`
-- `AGENTS.md`
-- `CLAUDE.md`
-- `README.md`
-- `package.json`
-- `pyproject.toml`
-- `Cargo.toml`
-
-Rules:
-
-- read-only
-- no recursive filesystem scan
-- no path traversal
-- symlinks are skipped
-- previews are length-limited
-- obvious secrets are redacted
-- missing files are normal
+All reads are strictly read-only with no recursive filesystem scan, no path traversal, symlinks skipped, previews length-limited, obvious secrets redacted, and missing files treated as normal.
 
 ## Related Work
 
@@ -90,8 +74,4 @@ Run Ledger, Sessions, Artifact Shelf, linked Board cards, and Approval Center en
 
 ## Future Work
 
-- durable context snapshots captured at run start
-- Memory Lab read-only drilldown, then editor only through safe official Hermes APIs
-- Skill Forge read-only discovery, then editor only through safe official Hermes APIs
-- richer relationship graph for runs, sessions, artifacts, cards, and approvals
-- checkpoint/diff context once those surfaces exist
+Future phases can add durable context snapshots captured at run start, Memory Lab read-only drilldown (then editor only through safe official Hermes APIs), Skill Forge read-only discovery (then editor only through safe official Hermes APIs), a richer relationship graph for runs, sessions, artifacts, cards, and approvals, and checkpoint or diff context once those surfaces exist.

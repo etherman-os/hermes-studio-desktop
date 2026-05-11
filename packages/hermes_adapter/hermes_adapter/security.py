@@ -23,6 +23,9 @@ logger = logging.getLogger("hermes_adapter.security")
 
 _auth_token: str | None = None
 _token_created_at: float | None = None
+# Monotonic timestamp when the file-based token was first read.
+_file_token_checked_at: float | None = None
+_file_token_mtime_at_read: float | None = None
 
 DEFAULT_TOKEN_EXPIRY_SECONDS = 24 * 60 * 60  # 24 hours
 
@@ -34,6 +37,65 @@ _auth_failures: dict[str, list[float]] = {}
 _MAX_FAILURES = 10
 _FAILURE_WINDOW_SECONDS = 300  # 5 minutes
 _MAX_TRACKED_IPS = 10000
+_AUTH_FAILURES_FILE = ".hermes-local-shell/runtime/auth_failures.json"
+
+
+def _get_auth_failures_path() -> Path:
+    return Path.home() / _AUTH_FAILURES_FILE
+
+
+def _load_auth_failures_from_disk() -> dict[str, list[float]]:
+    """Load persisted auth failure timestamps from disk for durability across restarts."""
+    path = _get_auth_failures_path()
+    if not path.exists():
+        return {}
+    try:
+        import json
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            result: dict[str, list[float]] = {}
+            for ip, timestamps in data.items():
+                if isinstance(timestamps, list):
+                    result[str(ip)] = [float(t) for t in timestamps if isinstance(t, (int, float))]
+            return result
+    except Exception:
+        pass
+    return {}
+
+
+def _save_auth_failures_to_disk(failures: dict[str, list[float]]) -> None:
+    """Persist auth failure timestamps to disk for durability across restarts."""
+    path = _get_auth_failures_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        import json
+        path.write_text(json.dumps(failures), encoding="utf-8")
+    except OSError:
+        logger.warning("Failed to persist auth failures to disk")
+
+
+def _record_failure(client_ip: str) -> None:
+    """Record an auth failure for *client_ip* with optional audit trail logging."""
+    now = time.monotonic()
+    failures = _auth_failures.setdefault(client_ip, [])
+    failures.append(now)
+    # Prune old entries
+    cutoff = now - _FAILURE_WINDOW_SECONDS
+    _auth_failures[client_ip] = [t for t in failures if t > cutoff]
+    # Evict oldest IPs if map grows too large
+    if len(_auth_failures) > _MAX_TRACKED_IPS:
+        oldest_ip = min(_auth_failures, key=lambda ip: _auth_failures[ip][0] if _auth_failures[ip] else now)
+        del _auth_failures[oldest_ip]
+    # Persist to disk for durability across restarts
+    _save_auth_failures_to_disk(_auth_failures)
+    # Log to audit trail if available
+    try:
+        from hermes_adapter.audit_logger import get_audit_logger
+        audit = get_audit_logger()
+        if audit:
+            audit.log_auth(client_ip, success=False, detail={"reason": "auth_failure", "failure_count": len(_auth_failures.get(client_ip, []))})
+    except Exception:
+        pass  # Audit logging must never break auth flow
 
 
 def _auth_error(code: str, message: str) -> dict[str, object]:
@@ -78,10 +140,31 @@ def rotate_token() -> str:
 
 
 def is_token_expired(max_age: float = DEFAULT_TOKEN_EXPIRY_SECONDS) -> bool:
-    """Return ``True`` if the current token has expired."""
-    if _token_created_at is None:
+    """Return ``True`` if the current token has expired.
+
+    All expiry checks use time.monotonic() for consistency: the in-memory
+    token creation time and the file-based token mtime are both compared
+    using the same monotonic clock. For file-based tokens, the monotonic
+    check time is captured at first read and stored in module state so
+    that subsequent checks use the same reference point.
+    """
+    if _token_created_at is not None:
+        return (time.monotonic() - _token_created_at) > max_age
+
+    path = get_token_path()
+    try:
+        mtime = path.stat().st_mtime
+        if _file_token_mtime_at_read is None or _file_token_mtime_at_read != mtime:
+            # First read or file was replaced — reset the monotonic reference
+            _file_token_mtime_at_read = mtime
+            _file_token_checked_at = time.monotonic()
+        # Compute age relative to the reference point captured at first read.
+        # Using time.monotonic() for both sides of the subtraction ensures
+        # the comparison is monotonic: the file mtime is only used to decide
+        # whether to reset the reference point, not to compute the age.
+        return (time.monotonic() - _file_token_checked_at) > max_age
+    except FileNotFoundError:
         return True
-    return (time.monotonic() - _token_created_at) > max_age
 
 
 def get_token_path() -> Path:
@@ -119,20 +202,6 @@ def read_token() -> str:
 # ---------------------------------------------------------------------------
 # Rate limiting helpers
 # ---------------------------------------------------------------------------
-
-
-def _record_failure(client_ip: str) -> None:
-    """Record an auth failure for *client_ip*."""
-    now = time.monotonic()
-    failures = _auth_failures.setdefault(client_ip, [])
-    failures.append(now)
-    # Prune old entries
-    cutoff = now - _FAILURE_WINDOW_SECONDS
-    _auth_failures[client_ip] = [t for t in failures if t > cutoff]
-    # Evict oldest IPs if map grows too large
-    if len(_auth_failures) > _MAX_TRACKED_IPS:
-        oldest_ip = min(_auth_failures, key=lambda ip: _auth_failures[ip][0] if _auth_failures[ip] else now)
-        del _auth_failures[oldest_ip]
 
 
 def _is_rate_limited(client_ip: str) -> bool:
@@ -198,6 +267,15 @@ async def require_token(request: Request) -> None:
             detail=_auth_error("auth_uninitialized", "Token not initialized"),
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
+
+    if is_token_expired():
+        _record_failure(ip)
+        logger.warning("Auth failed (token expired) from %s", ip)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=_auth_error("auth_expired", "Token expired"),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     if not secrets.compare_digest(provided, expected):
         _record_failure(ip)

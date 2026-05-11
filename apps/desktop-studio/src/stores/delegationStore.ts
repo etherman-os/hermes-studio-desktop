@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Delegation, DelegationDetail } from "../api/studioClient";
 import * as api from "../api/studioClient";
+import { toast } from "./toastStore";
 
 interface DelegationState {
   delegations: Delegation[];

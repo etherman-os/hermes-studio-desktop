@@ -78,7 +78,9 @@ export const useHermesInventoryStore = create<HermesInventoryState>((set) => ({
         loading: false,
         loaded: true,
       });
-      void useHermesInventoryStore.getState().loadLocalHermesStatus();
+      useHermesInventoryStore.getState().loadLocalHermesStatus().catch((err) =>
+        console.warn("loadInventory: loadLocalHermesStatus failed", err)
+      );
     } catch (err) {
       set({
         loading: false,

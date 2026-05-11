@@ -74,7 +74,7 @@ export const useLogStore = create<LogState>((set, get) => ({
           const line: LogLine = {
             timestamp: payload.timestamp,
             level: payload.level ?? "info",
-            message: payload.message,
+            message: payload.message ?? "",
             source: payload.source ?? source ?? "unknown",
           };
           set((s) => ({ lines: [...s.lines.slice(-500), line] }));

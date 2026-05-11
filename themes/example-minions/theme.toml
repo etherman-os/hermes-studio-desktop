@@ -5,6 +5,7 @@ version = "0.1.0"
 author = "etherman-os"
 extends = "default-dark"
 description = "Yellow and blue villain-themed concept pack. Parody example."
+keywords = ["lab", "science"]
 
 [compat]
 studio_api = "^1.0"

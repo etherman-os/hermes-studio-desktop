@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
+import pytest
 
 from hermes_adapter.security import (
     DEFAULT_TOKEN_EXPIRY_SECONDS,
@@ -22,7 +24,9 @@ class TestTokenExpiry:
         set_auth_token(generate_token())
         assert is_token_expired() is False
 
-    def test_no_token_is_expired(self) -> None:
+    def test_no_token_is_expired(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        import hermes_adapter.security as sec
+        monkeypatch.setattr(sec, "get_token_path", lambda: tmp_path / "missing-token")
         set_auth_token(None)
         assert is_token_expired() is True
 
@@ -31,6 +35,25 @@ class TestTokenExpiry:
         import hermes_adapter.security as sec
         sec._token_created_at = time.monotonic() - DEFAULT_TOKEN_EXPIRY_SECONDS - 1
         assert is_token_expired() is True
+
+    def test_require_token_rejects_expired_token(self) -> None:
+        import hermes_adapter.security as sec
+        sec._auth_failures.clear()
+
+        test_app = FastAPI()
+
+        @test_app.get("/protected", dependencies=[Depends(require_token)])
+        async def protected():
+            return {"ok": True}
+
+        set_auth_token("correct-token")
+        sec._token_created_at = time.monotonic() - DEFAULT_TOKEN_EXPIRY_SECONDS - 1
+        client = TestClient(test_app, raise_server_exceptions=False)
+
+        resp = client.get("/protected", headers={"Authorization": "Bearer correct-token"})
+
+        assert resp.status_code == 401
+        assert resp.json()["detail"]["error"]["code"] == "auth_expired"
 
 
 class TestTokenRotation:

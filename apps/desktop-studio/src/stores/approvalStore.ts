@@ -216,7 +216,13 @@ export const useApprovalStore = create<ApprovalState>((set, get) => ({
         lastLoadedAt: nowIso(),
         actionMessage: `Showing approvals for run ${runId}`,
       });
-      if (data.approvals[0]) await get().loadApprovalDetail(data.approvals[0].id);
+      if (data.approvals[0]) {
+        try {
+          await get().loadApprovalDetail(data.approvals[0].id);
+        } catch (err) {
+          console.warn("loadApprovalsForRun: failed to load approval detail", data.approvals[0].id, err);
+        }
+      }
     } catch (err) {
       set({ loading: false, error: messageFromError(err, "Run approvals unavailable") });
     }
@@ -233,7 +239,13 @@ export const useApprovalStore = create<ApprovalState>((set, get) => ({
         lastLoadedAt: nowIso(),
         actionMessage: `Showing approvals for session ${sessionId}`,
       });
-      if (data.approvals[0]) await get().loadApprovalDetail(data.approvals[0].id);
+      if (data.approvals[0]) {
+        try {
+          await get().loadApprovalDetail(data.approvals[0].id);
+        } catch (err) {
+          console.warn("loadApprovalsForSession: failed to load approval detail", data.approvals[0].id, err);
+        }
+      }
     } catch (err) {
       set({ loading: false, error: messageFromError(err, "Session approvals unavailable") });
     }

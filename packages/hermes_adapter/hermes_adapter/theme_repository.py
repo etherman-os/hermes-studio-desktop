@@ -69,13 +69,15 @@ def _get_builtin_themes_dir() -> Path:
     """Get the built-in themes directory from the repo."""
     # Look for themes/ relative to this file's ancestors
     candidates = [
+        Path(__file__).parent.parent.parent.parent / "themes",
         Path(__file__).parent.parent.parent / "themes",
         Path.cwd() / "themes",
+        Path("/home/etherman/Projects/hermes_shell/themes"),
     ]
     for p in candidates:
         if p.is_dir():
             return p
-    return Path(__file__).parent.parent.parent / "themes"
+    return Path(__file__).parent.parent.parent.parent / "themes"
 
 
 def _get_user_themes_dir() -> Path:

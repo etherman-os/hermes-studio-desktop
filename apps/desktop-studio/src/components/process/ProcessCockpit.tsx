@@ -46,8 +46,8 @@ export function ProcessCockpit() {
   }
 
   return (
-    <div className="process-cockpit">
-      <div className="process-cockpit-header">
+    <div className="process-cockpit" data-testid="process-cockpit">
+      <div className="process-cockpit-header" data-testid="process-cockpit-header">
         <div>
           <div className="workbench-eyebrow">Process Cockpit</div>
           <div className="process-cockpit-title">

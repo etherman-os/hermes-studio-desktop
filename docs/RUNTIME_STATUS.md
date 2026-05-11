@@ -75,12 +75,4 @@ Mission Control is the primary runtime surface. It should show:
 
 ## Remote VPS Mode
 
-Remote mode is for users who installed Hermes on a VPS and want the desktop app to control it from their PC.
-
-```bash
-HERMES_STUDIO_BACKEND=ssh \
-HERMES_STUDIO_REMOTE_SSH_TARGET=user@your-vps \
-pnpm run dev:adapter
-```
-
-This first layer executes remote `hermes` commands through SSH. Full remote Studio parity still needs file/artifact synchronization, remote preview routing, and a stricter trust model for remote command approvals.
+Remote mode is for users who installed Hermes on a VPS and want the desktop app to control it from their PC. Start the adapter with `HERMES_STUDIO_BACKEND=ssh` and `HERMES_STUDIO_REMOTE_SSH_TARGET=user@your-vps`. This first layer executes remote `hermes` commands through SSH. Full remote Studio parity still needs file and artifact synchronization, remote preview routing, and a stricter trust model for remote command approvals.

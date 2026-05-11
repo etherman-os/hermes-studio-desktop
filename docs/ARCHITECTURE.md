@@ -2,7 +2,7 @@
 
 ## Overview
 
-Hermes Desktop Studio is a local-first, themeable desktop workbench for Hermes Agent. It does not modify Hermes core; instead, it wraps Hermes through public/local integration surfaces.
+Hermes Desktop Studio is a local-first, themeable desktop workbench for Hermes Agent. It does not modify Hermes core; instead, it wraps Hermes through public and local integration surfaces.
 
 ## Layers
 
@@ -34,7 +34,7 @@ Hermes Desktop Studio is a local-first, themeable desktop workbench for Hermes A
                               studio.db (Studio-owned)
 ```
 
-## Design Principles
+## Design principles
 
 1. **Adapter is the source of truth.** Frontends must not import Hermes internals.
 2. **Stabilize the contract early.** The `/studio/*` API and event schema should change slowly and stay covered by OpenAPI/schema parity tests.
@@ -44,7 +44,7 @@ Hermes Desktop Studio is a local-first, themeable desktop workbench for Hermes A
 6. **Studio-owned persistence.** Local Studio features use `studio.db`, separate from Hermes Agent `state.db`, and never store secrets.
 7. **Desktop workbench, not terminal.** The main product is a dockable desktop app, not a terminal TUI.
 
-## Package Layout
+## Package layout
 
 - `apps/desktop-studio/` — Tauri v2 + React + TypeScript desktop application.
 - `packages/hermes_adapter/` — Python sidecar adapter. Owns the API contract.

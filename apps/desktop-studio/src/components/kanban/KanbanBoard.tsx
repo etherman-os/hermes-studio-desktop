@@ -403,8 +403,8 @@ export function KanbanBoard() {
   }
 
   return (
-    <div className="board-surface">
-      <div className="surface-header">
+    <div className="board-surface" data-testid="kanban-board">
+      <div className="surface-header" data-testid="kanban-header">
         <div>
           <div className="workbench-eyebrow">{icon("kanban")} {label("kanban")}</div>
           <h2>Run and session control surface</h2>
@@ -454,11 +454,11 @@ export function KanbanBoard() {
       )}
 
       {board && (
-        <div className="kanban-board" aria-label={`${board.name} Kanban board`}>
+        <div className="kanban-board" aria-label={`${board.name} Kanban board`} data-testid="kanban-board-area">
           {columns.map((col) => (
-            <div key={col.id} className={`kanban-column kanban-column-${col.semantic_status}`}>
+            <div key={col.id} className={`kanban-column kanban-column-${col.semantic_status}`} data-testid={`kanban-column-${col.id}`}>
               <div className="kanban-column-header">
-                <span>{col.name}</span>
+                <span data-testid={`kanban-column-name-${col.id}`}>{col.name}</span>
                 <span className="kanban-column-count">{col.cards.filter((card) => !card.archived_at).length}</span>
               </div>
               <div className="kanban-column-cards">
@@ -468,7 +468,7 @@ export function KanbanBoard() {
                 {col.cards.filter((card) => !card.archived_at).map((card) => {
                   const cardArtifacts = artifactsByCardId.get(card.id) ?? [];
                   return (
-                    <article key={card.id} className={`kanban-card priority-edge-${normalizePriority(card.priority)}`}>
+                    <article key={card.id} className={`kanban-card priority-edge-${normalizePriority(card.priority)}`} data-testid={`kanban-card-${card.id}`}>
                       <div className="kanban-card-main">
                         <div className="kanban-card-title">{card.title}</div>
                         {card.description && <div className="kanban-card-desc">{card.description}</div>}

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
+import hermes_adapter.process_manager as process_manager_module
 from hermes_adapter.process_manager import (
     ManagedProcess,
     ProcessManager,
@@ -138,3 +141,86 @@ def test_get_process_manager_singleton() -> None:
     m2 = get_process_manager()
     assert m1 is m2
     mod._manager = None
+
+
+class _EmptyStdout:
+    def __aiter__(self) -> "_EmptyStdout":
+        return self
+
+    async def __anext__(self) -> bytes:
+        raise StopAsyncIteration
+
+
+class _FakeProcess:
+    pid = 12345
+    returncode = None
+    stdout = _EmptyStdout()
+
+
+@pytest.mark.asyncio
+async def test_start_process_rejects_unallowed_env_override(
+    manager: ProcessManager,
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(ValueError, match="not allowed"):
+        await manager.start_process("hermes-doctor", env_overrides={"PATH": "/tmp/bin"})
+
+
+@pytest.mark.asyncio
+async def test_start_process_rejects_unsafe_allowed_env_value(
+    manager: ProcessManager,
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(ValueError, match="unsafe characters"):
+        await manager.start_process(
+            "hermes-remote-ssh-check",
+            env_overrides={"HERMES_STUDIO_REMOTE_SSH_TARGET": "devbox.example.com extra-arg"},
+        )
+
+
+@pytest.mark.asyncio
+async def test_start_process_rejects_cwd_outside_workspace(
+    manager: ProcessManager,
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.chdir(workspace)
+
+    with pytest.raises(ValueError, match="outside the adapter workspace"):
+        await manager.start_process("hermes-doctor", cwd=str(outside))
+
+
+@pytest.mark.asyncio
+async def test_start_process_allows_template_specific_env_override(
+    manager: ProcessManager,
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    async def fake_create_subprocess_shell(*args: Any, **kwargs: Any) -> _FakeProcess:
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return _FakeProcess()
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(process_manager_module.asyncio, "create_subprocess_shell", fake_create_subprocess_shell)
+
+    result = await manager.start_process(
+        "hermes-remote-ssh-check",
+        env_overrides={"HERMES_STUDIO_REMOTE_SSH_TARGET": "devbox.example.com"},
+    )
+
+    assert result["status"] == "running"
+    assert captured["kwargs"]["cwd"] == str(tmp_path)
+    assert captured["kwargs"]["env"]["HERMES_STUDIO_REMOTE_SSH_TARGET"] == "devbox.example.com"

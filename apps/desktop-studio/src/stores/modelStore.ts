@@ -38,7 +38,9 @@ export const useModelStore = create<ModelState>((set, get) => ({
       if (models.length === 0) {
         try {
           const bootstrap = await api.getBootstrap();
-          models = bootstrap.available_models ?? [];
+          // BootstrapResponse doesn't carry available_models; fall back to listAvailableModels
+          const fallback = await api.listAvailableModels();
+          models = fallback.models;
         } catch {
           // Non-fatal
         }

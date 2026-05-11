@@ -145,6 +145,7 @@ class MockBackend(StudioBackend):
         return {"run_id": run_id, "status": "started"}
 
     async def stream_run_events(self, run_id: str) -> AsyncIterator[dict[str, Any]]:
+        """Yield mock run events. Uses CancelledError handling for clean termination."""
         run = self._active_runs.get(run_id)
         if not run:
             yield _sse_event("run.failed", {"run_id": run_id, "message": f"Run '{run_id}' not found", "error_code": "not_found"})
@@ -160,46 +161,52 @@ class MockBackend(StudioBackend):
         if run_id in self._run_cancelled:
             yield _sse_event("run.cancelled", {"run_id": run_id, "reason": "user_cancelled"})
             return
-        yield _sse_event("run.started", {"run_id": run_id, "session_id": run["session_id"]})
-        await asyncio.sleep(0.3)
+        try:
+            yield _sse_event("run.started", {"run_id": run_id, "session_id": run["session_id"]})
+            await asyncio.sleep(0.3)
 
-        for chunk in response_chunks:
-            if run_id in self._run_cancelled:
-                yield _sse_event("run.cancelled", {"run_id": run_id, "reason": "user_cancelled"})
-                self._run_cancelled.discard(run_id)
-                return
-            yield _sse_event("assistant.delta", {"text": chunk})
-            await asyncio.sleep(0.2)
+            for chunk in response_chunks:
+                if run_id in self._run_cancelled:
+                    yield _sse_event("run.cancelled", {"run_id": run_id, "reason": "user_cancelled"})
+                    self._run_cancelled.discard(run_id)
+                    return
+                yield _sse_event("assistant.delta", {"text": chunk})
+                await asyncio.sleep(0.2)
 
-        if run_id in self._run_cancelled:
-            yield _sse_event("run.cancelled", {"run_id": run_id, "reason": "user_cancelled"})
-            return
-        yield _sse_event("tool.started", {"tool": "file_tree", "tool_call_id": "tc_001"})
-        await asyncio.sleep(0.3)
-
-        for pct in (30, 70, 100):
             if run_id in self._run_cancelled:
                 yield _sse_event("run.cancelled", {"run_id": run_id, "reason": "user_cancelled"})
                 return
-            yield _sse_event("tool.progress", {"tool": "file_tree", "tool_call_id": "tc_001", "progress": pct / 100, "message": f"Scanning... {pct}%"})
+            yield _sse_event("tool.started", {"tool": "file_tree", "tool_call_id": "tc_001"})
+            await asyncio.sleep(0.3)
+
+            for pct in (30, 70, 100):
+                if run_id in self._run_cancelled:
+                    yield _sse_event("run.cancelled", {"run_id": run_id, "reason": "user_cancelled"})
+                    return
+                yield _sse_event("tool.progress", {"tool": "file_tree", "tool_call_id": "tc_001", "progress": pct / 100, "message": f"Scanning... {pct}%"})
+                await asyncio.sleep(0.2)
+
+            if run_id in self._run_cancelled:
+                yield _sse_event("run.cancelled", {"run_id": run_id, "reason": "user_cancelled"})
+                return
+            yield _sse_event("tool.completed", {"tool": "file_tree", "tool_call_id": "tc_001", "success": True, "duration_ms": 1200, "output": ["src/", "tests/", "README.md"]})
+            await asyncio.sleep(0.3)
+
+            yield _sse_event("assistant.completed", {"model": "claude-sonnet-4-20250514", "total_tokens": 342, "duration_ms": 2100})
             await asyncio.sleep(0.2)
 
-        if run_id in self._run_cancelled:
-            yield _sse_event("run.cancelled", {"run_id": run_id, "reason": "user_cancelled"})
-            return
-        yield _sse_event("tool.completed", {"tool": "file_tree", "tool_call_id": "tc_001", "success": True, "duration_ms": 1200, "output": ["src/", "tests/", "README.md"]})
-        await asyncio.sleep(0.3)
+            yield _sse_event("kanban.updated", {"board_id": "board_default", "action": "card_status_changed", "card_id": "card_mock_2"})
+            await asyncio.sleep(0.1)
 
-        yield _sse_event("assistant.completed", {"model": "claude-sonnet-4-20250514", "total_tokens": 342, "duration_ms": 2100})
-        await asyncio.sleep(0.2)
+            yield _sse_event("memory.updated", {"session_id": run["session_id"], "action": "created", "artifact_id": "mem_new_001"})
+            await asyncio.sleep(0.1)
 
-        yield _sse_event("kanban.updated", {"board_id": "board_default", "action": "card_status_changed", "card_id": "card_mock_2"})
-        await asyncio.sleep(0.1)
-
-        yield _sse_event("memory.updated", {"session_id": run["session_id"], "action": "created", "artifact_id": "mem_new_001"})
-        await asyncio.sleep(0.1)
-
-        yield _sse_event("run.completed", {"run_id": run_id, "total_tokens": 342, "duration_ms": 2100, "tool_count": 1})
+            yield _sse_event("run.completed", {"run_id": run_id, "total_tokens": 342, "duration_ms": 2100, "tool_count": 1})
+        except asyncio.CancelledError:
+            # Clean up active run state on cancellation
+            self._active_runs.pop(run_id, None)
+            self._run_cancelled.discard(run_id)
+            raise
 
         self._active_runs.pop(run_id, None)
         self._run_cancelled.discard(run_id)

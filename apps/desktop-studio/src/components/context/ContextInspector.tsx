@@ -63,8 +63,8 @@ export function ContextInspector() {
     : [];
 
   return (
-    <div className="context-inspector">
-      <div className="surface-header">
+    <div className="context-inspector" data-testid="context-inspector">
+      <div className="surface-header" data-testid="context-header">
         <div>
           <div className="workbench-eyebrow">Context Inspector</div>
           <h2>{selectedScope === "current" ? "Current influence map" : `${selectedScope} context`}</h2>

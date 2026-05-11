@@ -166,7 +166,49 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
   },
 
   moveCard: async (cardId, input) => {
-    set({ saving: true, error: null, actionMessage: null, lastAction: "move" });
+    const prevBoard = get().activeBoard;
+    // Find the card to get its original column_id and board_id
+    let originalColumnId: string | null = null;
+    let originalBoardId: string | null = null;
+    if (prevBoard) {
+      for (const col of prevBoard.columns) {
+        const card = col.cards.find((c) => c.id === cardId);
+        if (card) {
+          originalColumnId = card.column_id;
+          originalBoardId = card.board_id;
+          break;
+        }
+      }
+    }
+    // Apply optimistic update: move card to new position immediately
+    if (prevBoard && originalColumnId !== null) {
+      // Build a properly-structured optimistic card with all required KanbanCard fields
+      const existingCard = prevBoard.columns.flatMap((c) => c.cards).find((c) => c.id === cardId) ?? null;
+      const optimisticCard: KanbanCard = {
+        id: cardId,
+        board_id: existingCard?.board_id ?? prevBoard.id,
+        column_id: input.column_id,
+        title: existingCard?.title ?? "Moving card...",
+        description: existingCard?.description ?? "",
+        priority: existingCard?.priority ?? "medium",
+        status: existingCard?.status ?? "",
+        position: input.position,
+        session_id: existingCard?.session_id ?? null,
+        run_id: existingCard?.run_id ?? null,
+        created_at: existingCard?.created_at ?? new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        archived_at: existingCard?.archived_at ?? null,
+      };
+      set((state) => ({
+        activeBoard: updateBoardCard(state.activeBoard, optimisticCard),
+        saving: true,
+        error: null,
+        actionMessage: null,
+        lastAction: "move",
+      }));
+    } else {
+      set({ saving: true, error: null, actionMessage: null, lastAction: "move" });
+    }
     try {
       const card = await api.moveKanbanCard(cardId, input);
       set((state) => ({
@@ -177,8 +219,10 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
       await get().refreshBoard();
       return card;
     } catch (err) {
+      // Rollback to previous board state on failure
       set({
         saving: false,
+        activeBoard: prevBoard,
         error: messageFromError(err, "Failed to move Kanban card"),
       });
       return null;

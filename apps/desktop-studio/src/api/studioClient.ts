@@ -64,6 +64,215 @@ export type {
   RunLedgerRun,
 } from "@hermes-studio/shared-types";
 
+// -----------------------------------------------------------------------------------------------------------------------------------------
+// Internal / adapter-level types
+// -----------------------------------------------------------------------------------------------------------------------------------------
+
+interface AuthBootstrapResult {
+  authenticated: boolean;
+  source: "memory" | "env" | "tauri" | "unavailable";
+  error?: string;
+}
+
+function setAdapterToken(token: string) {
+  config.token = token;
+}
+
+interface AdapterErrorEnvelope {
+  error?: {
+    code?: string;
+    message?: string;
+    retryable?: boolean;
+    source?: string;
+  };
+  detail?: unknown;
+}
+
+// -----------------------------------------------------------------------------------------------------------------------------------------
+// Response / protocol types
+// -----------------------------------------------------------------------------------------------------------------------------------------
+
+interface BootstrapResponse {
+  adapter_version: string;
+  backend_mode?: string;
+  hermes_connected?: boolean;
+  active_profile?: string;
+}
+
+interface ActivateProfileResponse {
+  profile_id: string;
+  ok: boolean;
+}
+
+interface SessionsResponse {
+  sessions: SessionSummary[];
+  total: number;
+  source?: string;
+}
+
+interface RunResponse {
+  run_id: string;
+  status: string;
+  session_id?: string;
+  message?: string;
+}
+
+interface LogsResponse {
+  source: string;
+  lines: string[];
+}
+
+interface HermesInventoryResponse {
+  summary: HermesInventorySummary;
+  providers: HermesProvider[];
+  models: HermesModel[];
+  skills: HermesSkill[];
+  mcp_servers: HermesMcpServer[];
+  toolsets: HermesToolset[];
+  fallback_providers: HermesFallbackProvider[];
+}
+
+interface HermesToolsetConfigureResult {
+  status: string;
+  id: string;
+  platform: string;
+  enabled: boolean;
+  source: string;
+  toolsets: HermesToolset[];
+}
+
+interface HermesDoctorCheck {
+  section: string;
+  level: "ok" | "warning" | "error";
+  message: string;
+  details?: string;
+}
+
+interface ThemesResponse {
+  themes: ThemeInfo[];
+  active?: string;
+}
+
+interface ThemeReloadResponse {
+  ok: boolean;
+  themes_loaded: number;
+}
+
+interface ConfigInput {
+  key: string;
+  value: unknown;
+}
+
+interface ConfigResponse {
+  key: string;
+  value: unknown;
+  ok: boolean;
+}
+
+interface ToolPackCommand {
+  id: string;
+  name: string;
+  command: string;
+  description?: string;
+  args?: { name: string; required: boolean }[];
+}
+
+interface ToolPacksResponse {
+  packs: ToolPackInfo[];
+  total: number;
+}
+
+interface ProcessesResponse {
+  processes: ProcessInfo[];
+  templates: ProcessTemplate[];
+}
+
+interface ProcessLogsResponse {
+  process_id: string;
+  lines: string[];
+  truncated: boolean;
+  total?: number;
+}
+
+export interface CheckpointListResponse {
+  checkpoints: Checkpoint[];
+  total: number;
+  is_git_repo: boolean;
+  workspace: string;
+}
+
+interface WorktreeListResponse {
+  worktrees: Worktree[];
+  is_git_repo: boolean;
+  workspace: string;
+}
+
+interface SessionSummary {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
+// -----------------------------------------------------------------------------------------------------------------------------------------
+// Stream handler types
+// -----------------------------------------------------------------------------------------------------------------------------------------
+
+interface RunEventHandlers {
+  onEvent?: (event: StudioEvent) => void;
+  onRunStarted?: (payload: { run_id: string; session_id: string }) => void;
+  onAssistantDelta?: (payload: { text: string }) => void;
+  onAssistantCompleted?: (payload: { model?: string; total_tokens?: number; duration_ms?: number }) => void;
+  onToolStarted?: (payload: { tool: string; tool_call_id?: string }) => void;
+  onToolProgress?: (payload: { tool: string; progress?: number; message?: string }) => void;
+  onToolCompleted?: (payload: { tool: string; success: boolean; duration_ms?: number }) => void;
+  onApprovalRequested?: (payload: { approval_id: string; tool: string; action: string }) => void;
+  onApprovalResolved?: (payload: { approval_id: string; decision: string }) => void;
+  onRunCompleted?: (payload: { run_id: string; total_tokens?: number; duration_ms?: number }) => void;
+  onRunFailed?: (payload: { run_id: string; message: string }) => void;
+  onRunCancelled?: (payload: { run_id: string; reason?: string }) => void;
+  onRunDisconnected?: (payload: { reason?: string; message?: string }) => void;
+  onRunInterrupted?: (payload: { message?: string }) => void;
+  onPing?: () => void;
+  onKanbanUpdated?: (payload: KanbanUpdatedPayload) => void;
+  onMemoryUpdated?: (payload: { session_id?: string; action: string }) => void;
+  onLintResult?: (payload: { file: string; linter: string; issues: unknown[]; severity: string; fixable?: boolean }) => void;
+  onDone?: () => void;
+  onError?: (err: Error) => void;
+}
+
+interface LogEventHandlers {
+  onLogLine?: (payload: { timestamp?: string; level?: string; message?: string; source?: string }) => void;
+  onError?: (err: Error) => void;
+}
+
+// -----------------------------------------------------------------------------------------------------------------------------------------
+// Adapter health
+// -----------------------------------------------------------------------------------------------------------------------------------------
+
+export interface AdapterHealthDetailed {
+  backend_mode?: string;
+  hermes_connected?: boolean;
+  hermes_url?: string;
+  backend_status?: {
+    backend_mode?: string;
+    active_backend?: string;
+    hermes_connected?: boolean;
+    hermes_url?: string;
+    fallback_reason?: string;
+  };
+  storage?: {
+    available?: boolean;
+    last_error?: string | null;
+    schema_version?: number;
+  };
+}
+
+export async function checkAdapterHealthDetailed(): Promise<AdapterHealthDetailed> {
+  return request<AdapterHealthDetailed>("/studio/health");
+}
+
 const ADAPTER_URL = "http://127.0.0.1:39191";
 const TOKEN_UNAVAILABLE_MESSAGE =
   "Adapter auth token is unavailable. Start the adapter and launch the Tauri app, or set VITE_HERMES_STUDIO_ADAPTER_TOKEN for browser dev.";
@@ -80,40 +289,14 @@ const config: AdapterConfig = {
 
 let authBootstrapPromise: Promise<AuthBootstrapResult> | null = null;
 
-export interface AuthBootstrapResult {
-  authenticated: boolean;
-  source: "memory" | "env" | "tauri" | "unavailable";
-  error?: string;
-}
 
-export interface AdapterErrorEnvelope {
-  error?: {
-    code?: string;
-    message?: string;
-    retryable?: boolean;
-    source?: string;
-    hint?: string;
-  };
-  detail?: unknown;
-}
 
-export function setAdapterToken(token: string | null) {
-  const trimmed = token?.trim();
-  config.token = trimmed ? trimmed : null;
-}
 
-export function clearAdapterToken() {
-  config.token = null;
-  authBootstrapPromise = null;
-}
 
 export function hasAdapterToken() {
   return Boolean(config.token);
 }
 
-export function getAdapterUrl() {
-  return config.baseUrl;
-}
 
 function envToken(): string | null {
   const env = import.meta.env as ImportMetaEnv & Record<string, string | undefined>;
@@ -211,43 +394,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json();
 }
 
-export async function checkAdapterHealth(): Promise<boolean> {
-  try {
-    const res = await fetch(`${config.baseUrl}/studio/health`, { signal: AbortSignal.timeout(2000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
 
-export interface HealthResponse {
-  status: string;
-  adapter_version: string;
-  hermes_connected: boolean;
-  backend_mode: string;
-  storage?: StorageStatus;
-  backend_status?: {
-    backend_mode?: string;
-    active_backend?: string;
-    hermes_connected?: boolean;
-    hermes_url?: string;
-    fallback_reason?: string;
-  };
-}
 
-export interface StorageStatus {
-  available: boolean;
-  schema_version: number;
-  data_dir: string;
-  db_path: string;
-  last_error: string | null;
-}
 
-export async function checkAdapterHealthDetailed(): Promise<HealthResponse> {
-  const res = await fetch(`${config.baseUrl}/studio/health`, { signal: AbortSignal.timeout(2000) });
-  if (!res.ok) throw await responseError(res, `Health check failed: ${res.status}`);
-  return res.json();
-}
 
 export async function getBootstrap() {
   return request<BootstrapResponse>("/studio/bootstrap");
@@ -294,9 +443,6 @@ export async function getRecentRuns(limit = 50) {
   return request<RunLedgerRecentResponse>(`/studio/runs/recent?${params.toString()}`);
 }
 
-export async function getRun(runId: string) {
-  return request<RunLedgerRun>(`/studio/runs/${runId}`);
-}
 
 export async function getRunLedger(runId: string) {
   return request<RunLedgerResponse>(`/studio/runs/${runId}/ledger`);
@@ -505,15 +651,6 @@ export interface HermesToolset {
   label?: string;
 }
 
-export interface HermesToolsetConfigureResult {
-  status: string;
-  id: string;
-  platform: string;
-  enabled: boolean;
-  source: string;
-  message?: string;
-  toolsets: HermesToolset[];
-}
 
 export interface HermesFallbackProvider {
   index: number;
@@ -526,15 +663,6 @@ export interface HermesFallbackProvider {
   source: string;
 }
 
-export interface HermesInventoryResponse {
-  summary: HermesInventorySummary;
-  providers: HermesProvider[];
-  models: HermesModel[];
-  skills: HermesSkill[];
-  mcp_servers: HermesMcpServer[];
-  toolsets: HermesToolset[];
-  fallback_providers?: HermesFallbackProvider[];
-}
 
 export async function getHermesInventory() {
   return request<HermesInventoryResponse>("/studio/hermes/inventory");
@@ -594,11 +722,6 @@ export async function getHermesRelease() {
   return request<HermesReleaseStatus>("/studio/hermes/release");
 }
 
-export interface HermesDoctorCheck {
-  section: string;
-  level: "ok" | "warning" | "error";
-  message: string;
-}
 
 export interface HermesDoctorStatus {
   available: boolean;
@@ -690,7 +813,7 @@ export async function getThemes() {
 }
 
 export interface ThemeData {
-  meta?: { id?: string; name?: string; version?: string; author?: string; description?: string; extends?: string };
+  meta?: { id?: string; name?: string; version?: string; author?: string; description?: string; extends?: string; keywords?: string[] };
   palette?: Record<string, string>;
   typography?: Record<string, string>;
   borders?: Record<string, string>;
@@ -725,11 +848,7 @@ export async function reloadThemes() {
   });
 }
 
-export async function getConfig() {
-  return request<ConfigResponse>("/studio/config");
-}
-
-export async function patchConfig(input: { key: string; value: unknown }) {
+export async function patchConfig(input: Partial<ConfigInput>) {
   return request<ConfigResponse>("/studio/config", {
     method: "PATCH",
     body: JSON.stringify(input),
@@ -740,14 +859,6 @@ export async function patchConfig(input: { key: string; value: unknown }) {
 // Tool Packs
 // ---------------------------------------------------------------------------
 
-export interface ToolPackCommand {
-  id: string;
-  name: string;
-  description: string;
-  command: string;
-  args?: { name: string; description?: string; required?: boolean; default?: unknown }[];
-  env?: Record<string, string>;
-}
 
 export interface ToolPackInfo {
   id: string;
@@ -767,17 +878,11 @@ export interface ToolPackInfo {
   updated_at?: string;
 }
 
-export interface ToolPacksResponse {
-  packs: ToolPackInfo[];
-}
 
 export async function getToolPacks() {
   return request<ToolPacksResponse>("/studio/tool-packs");
 }
 
-export async function getToolPack(packId: string) {
-  return request<ToolPackInfo>(`/studio/tool-packs/${packId}`);
-}
 
 export async function enableToolPack(packId: string) {
   return request<ToolPackInfo>(`/studio/tool-packs/${packId}/enable`, {
@@ -1003,9 +1108,6 @@ export async function listCronJobs(limit = 100) {
   return request<CronJobListResponse>(`/studio/cron-jobs?${params.toString()}`);
 }
 
-export async function getCronJob(jobId: string) {
-  return request<CronJob>(`/studio/cron-jobs/${jobId}`);
-}
 
 function optionalQuery(params: Record<string, string | null | undefined>) {
   const searchParams = new URLSearchParams();
@@ -1032,21 +1134,7 @@ export async function getCurrentWorkspaceContext(workspacePath?: string | null) 
   return request<ContextSnapshot>(`/studio/context/workspaces/current${optionalQuery({ workspace_path: workspacePath })}`);
 }
 
-export interface ActivateProfileResponse {
-  status: string;
-  message?: string;
-}
 
-export interface BootstrapResponse {
-  adapter_version: string;
-  hermes_version: string;
-  active_profile: string | null;
-  capabilities: string[];
-  recent_sessions: SessionSummary[];
-  active_theme: ThemeInfo | null;
-  available_models: { id: string; name: string; provider: string }[];
-  storage?: StorageStatus;
-}
 
 export interface ProfileInfo {
   id?: string;
@@ -1059,34 +1147,13 @@ export interface ProfileInfo {
   session_count?: number;
 }
 
-export interface SessionSummary {
-  id: string;
-  title: string;
-  created_at: string;
-  updated_at: string;
-  message_count: number;
-}
 
 export interface SessionDetail extends SessionSummary {
   transcript_preview: { role: string; content: string }[];
 }
 
-export interface SessionsResponse {
-  sessions: SessionSummary[];
-  total: number;
-  source?: string;
-}
 
-export interface RunResponse {
-  run_id: string;
-  status: string;
-}
 
-export interface LogsResponse {
-  source: string;
-  lines: string[];
-  total: number;
-}
 
 export interface ThemeInfo {
   id: string;
@@ -1096,19 +1163,8 @@ export interface ThemeInfo {
   description: string;
 }
 
-export interface ThemesResponse {
-  themes: ThemeInfo[];
-  active: string;
-}
 
-export interface ThemeReloadResponse {
-  reloaded: boolean;
-  count: number;
-}
 
-export interface ConfigResponse {
-  config: Record<string, unknown>;
-}
 
 export interface KanbanBoardSummary {
   id: string;
@@ -1149,9 +1205,6 @@ export interface KanbanCard {
   archived_at: string | null;
 }
 
-export interface KanbanBoardsResponse {
-  boards: KanbanBoardSummary[];
-}
 
 export interface KanbanCreateCardRequest {
   board_id?: string;
@@ -1185,6 +1238,20 @@ export interface KanbanLinkRunRequest {
   run_id: string;
 }
 
+export interface KanbanBoardsResponse {
+  boards: KanbanBoardSummary[];
+}
+
+export interface KanbanUpdatedPayload {
+  board_id: string;
+  column_id: string;
+  card_id: string;
+  action: "created" | "updated" | "moved" | "archived" | "restored";
+  card: KanbanCard;
+}
+
+
+
 // ---------------------------------------------------------------------------
 // Process Management
 // ---------------------------------------------------------------------------
@@ -1211,16 +1278,7 @@ export interface ProcessTemplate {
   category?: string;
 }
 
-export interface ProcessesResponse {
-  processes: ProcessInfo[];
-  templates: ProcessTemplate[];
-}
 
-export interface ProcessLogsResponse {
-  process_id: string;
-  lines: string[];
-  total: number;
-}
 
 export async function listProcesses() {
   return request<ProcessesResponse>("/studio/processes");
@@ -1266,12 +1324,6 @@ export interface Checkpoint {
   is_head: boolean;
 }
 
-export interface CheckpointListResponse {
-  checkpoints: Checkpoint[];
-  total: number;
-  workspace: string;
-  is_git_repo: boolean;
-}
 
 export interface CheckpointDiffResponse {
   hash: string;
@@ -1286,10 +1338,6 @@ export async function listCheckpoints(workspacePath: string, limit = 100) {
   return request<CheckpointListResponse>(`/studio/checkpoints?${params.toString()}`);
 }
 
-export async function getCheckpoint(commitHash: string, workspacePath: string) {
-  const params = new URLSearchParams({ workspace_path: workspacePath });
-  return request<Checkpoint>(`/studio/checkpoints/${commitHash}?${params.toString()}`);
-}
 
 export async function getCheckpointDiff(commitHash: string, workspacePath: string) {
   const params = new URLSearchParams({ workspace_path: workspacePath });
@@ -1312,11 +1360,6 @@ export interface Worktree {
   created_at: string;
 }
 
-export interface WorktreeListResponse {
-  worktrees: Worktree[];
-  is_git_repo: boolean;
-  workspace: string;
-}
 
 export async function listWorktrees(workspacePath: string) {
   const params = new URLSearchParams({ workspace_path: workspacePath });
@@ -1343,14 +1386,6 @@ export async function startRunInWorktree(worktreeId: string, input: { prompt: st
   });
 }
 
-export interface KanbanUpdatedPayload {
-  board_id: string;
-  action: string;
-  card_id?: string;
-  column_id?: string;
-  position?: number;
-  task_id?: string;
-}
 
 export type StudioEventType =
   | "run.started"
@@ -1380,25 +1415,6 @@ export interface StudioEvent<T = Record<string, unknown>> {
   payload: T;
 }
 
-export interface RunEventHandlers {
-  onEvent?: (event: StudioEvent) => void;
-  onRunStarted?: (payload: { run_id: string; session_id: string }) => void;
-  onAssistantDelta?: (payload: { text: string }) => void;
-  onAssistantCompleted?: (payload: { model?: string; total_tokens?: number; duration_ms?: number }) => void;
-  onToolStarted?: (payload: { tool: string; tool_call_id?: string }) => void;
-  onToolProgress?: (payload: { tool: string; progress?: number; message?: string }) => void;
-  onToolCompleted?: (payload: { tool: string; success: boolean; duration_ms?: number }) => void;
-  onApprovalRequested?: (payload: { approval_id: string; tool: string; action: string }) => void;
-  onApprovalResolved?: (payload: { approval_id: string; decision: string }) => void;
-  onRunCompleted?: (payload: { run_id: string; total_tokens?: number; duration_ms?: number }) => void;
-  onRunFailed?: (payload: { run_id: string; message: string }) => void;
-  onRunCancelled?: (payload: { run_id: string; reason?: string }) => void;
-  onKanbanUpdated?: (payload: KanbanUpdatedPayload) => void;
-  onMemoryUpdated?: (payload: { session_id?: string; action: string }) => void;
-  onLintResult?: (payload: { file: string; linter: string; issues: unknown[]; severity: string; fixable?: boolean }) => void;
-  onError?: (error: Error) => void;
-  onDone?: () => void;
-}
 
 export function streamRunEvents(runId: string, handlers: RunEventHandlers): AbortController {
   const ac = new AbortController();
@@ -1500,10 +1516,6 @@ export function streamRunEvents(runId: string, handlers: RunEventHandlers): Abor
   return ac;
 }
 
-export interface LogEventHandlers {
-  onLogLine?: (payload: { source: string; level: string; message: string; timestamp?: string }) => void;
-  onError?: (error: Error) => void;
-}
 
 export function streamLogs(handlers: LogEventHandlers, source?: string): AbortController {
   const ac = new AbortController();

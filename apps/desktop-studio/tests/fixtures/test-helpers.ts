@@ -8,46 +8,90 @@ function jsonRoute(route: Route, body: unknown) {
 }
 
 const TAURI_STUB = `
-  if (!window.__TAURI_INTERNALS__) {
-    const _callbacks = new Map();
-    let _nextCbId = 1;
-    window.__TAURI_INTERNALS__ = {
-      metadata: {
-        currentWindow: { label: "main" },
-        currentWebview: { label: "main" },
-        windows: [{ label: "main" }],
-        webviews: [{ label: "main" }],
-      },
-      transformCallback: function(cb, once) {
-        const id = _nextCbId++;
-        if (once) {
-          _callbacks.set(id, function() { cb.apply(null, arguments); _callbacks.delete(id); });
-        } else {
-          _callbacks.set(id, cb);
+  // Tauri v2 stub for testing
+  const _cbs = new Map();
+  const _eventListeners = new Map();
+  let _nextId = 1;
+  
+  // Expose testing flags so App.tsx knows to skip StartupScreen
+  window.__TESTING_FLAGS = { skipStartup: true };
+  
+  // Expose a trigger function the test can call after listeners register
+  window.__triggerAdapterReady = () => {
+    console.log('[stub] __triggerAdapterReady called, firing to', _eventListeners.size, 'listeners');
+    _eventListeners.forEach((handler, eventName) => {
+      try { 
+        handler({ payload: { status: "ready", message: "Adapter ready" } }); 
+      } catch(e) { 
+        console.error('[stub] handler error for', eventName, e); 
+      }
+    });
+  };
+  
+  window.__TAURI_INTERNALS__ = {
+    transformCallback: (cb, once) => {
+      const id = _nextId++;
+      _cbs.set(id, once ? () => { cb(); _cbs.delete(id); } : cb);
+      return id;
+    },
+    unregisterCallback: (id) => _cbs.delete(id),
+    invoke: (cmd, args) => {
+      if (cmd === "get_adapter_auth_token") {
+        // Return a mock token so initializeAdapterAuth succeeds in test environment
+        return Promise.resolve("test-mock-adapter-token-12345");
+      }
+      if (cmd === "get_adapter_status") {
+        // Return connected status so checkConnection succeeds and AppFrame renders
+        return Promise.resolve({ status: "connected", message: "Adapter connected", running: true, ready: true });
+      }
+      if (cmd === "ensure_adapter_running") {
+        // Fire the adapter:status event asynchronously so StartupScreen's listener
+        // has time to register before the event fires
+        setTimeout(() => {
+          const handler = _eventListeners.get("adapter:status");
+          if (handler) {
+            try { handler({ payload: { status: "ready", message: "Adapter ready" } }); } catch (e) { console.error('[stub]', e); }
+          }
+        }, 50);
+        return Promise.resolve({ status: "ready", running: true, ready: true });
+      }
+      if (cmd === "plugin:event|listen") {
+        const eventName = args?.event || 'unknown';
+        const handler = args?.handler;
+        if (handler) {
+          _eventListeners.set(eventName, handler);
+          console.log('[stub] stored listener for', eventName, 'total:', _eventListeners.size);
+          // For adapter:status, immediately fire if the adapter is "ready"
+          // This ensures the event fires as soon as the listener registers
+          if (eventName === "adapter:status") {
+            setTimeout(() => {
+              try { handler({ payload: { status: "ready", message: "Adapter ready" } }); } catch (e) {}
+            }, 10);
+          }
         }
-        return id;
-      },
-      unregisterCallback: function(id) {
-        _callbacks.delete(id);
-      },
-      invoke: function(cmd, args) {
-        return Promise.reject(new Error('[test-stub] Tauri invoke not available: ' + cmd));
-      },
-      convertFileSrc: function(filePath, protocol) {
-        return 'asset://' + filePath;
-      },
-    };
-  }
-  if (!window.__TAURI_EVENT_PLUGIN_INTERNALS__) {
-    window.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
-      unregisterListener: function() {},
-      registerListener: function() {},
-    };
-  }
+        return Promise.resolve({ id: _nextId++ });
+      }
+      if (cmd === "plugin:event|unlisten") return Promise.resolve();
+      return Promise.reject(new Error('[stub] ' + cmd));
+    },
+    convertFileSrc: (p) => 'asset://' + p,
+    metadata: { currentWindow: { label: "main" } }
+  };
+  window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: ()=>{}, registerListener: ()=>_nextId++ };
+  console.log('[stub] inited');
 `;
 
 export async function injectTauriStub(context: BrowserContext) {
   await context.addInitScript(TAURI_STUB);
+}
+
+// In the fixture, after page.goto, trigger the adapter ready
+export async function triggerAdapterReady(page: Page) {
+  await page.evaluate(() => {
+    if (typeof (window as any).__triggerAdapterReady === 'function') {
+      (window as any).__triggerAdapterReady();
+    }
+  });
 }
 
 export async function mockAdapterHealth(page: Page) {
@@ -175,7 +219,7 @@ export async function mockRunEvents(page: Page) {
     route.fulfill({
       status: 200,
       contentType: "text/event-stream",
-      body: "event: run.completed\ndata: {\"id\":\"ev-done\",\"type\":\"run.completed\",\"run_id\":\"run-abc123\",\"timestamp\":\"2026-05-06T10:01:30Z\",\"source\":\"adapter\",\"payload\":{\"run_id\":\"run-abc123\"}}\n\n",
+      body: "event: run.completed\\ndata: {\"id\":\"ev-done\",\"type\":\"run.completed\",\"run_id\":\"run-abc123\",\"timestamp\":\"2026-05-06T10:01:30Z\",\"source\":\"adapter\",\"payload\":{\"run_id\":\"run-abc123\"}}\\n\\n",
     }),
   );
 }

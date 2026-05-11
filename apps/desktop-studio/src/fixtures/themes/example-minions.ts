@@ -8,6 +8,7 @@ export const exampleMinions: ThemePack = {
     author: "etherman-os",
     extends: "default-dark",
     description: "Yellow and blue villain-themed concept pack",
+    keywords: ["lab", "science"],
   },
   palette: {
     bg: "#1a1a2e",

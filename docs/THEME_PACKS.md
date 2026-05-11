@@ -1,11 +1,10 @@
-# Theme Packs
+# Theme packs
 
-Theme packs (concept packs) are the core theming system of Hermes Desktop Studio.
-They allow users to completely change the visual language of the app — not just colors, but labels, icons, panel names, and terminology.
+Theme packs (concept packs) let you change the entire visual language of Hermes Desktop Studio — not just colors, but labels, icons, panel names, and terminology.
 
-## What Is a Theme Pack?
+## What is a theme pack?
 
-A theme pack is a directory containing a `theme.toml` file. It can override:
+A theme pack lives in a directory with a `theme.toml` file. It can override:
 
 - Colors (palette)
 - Typography (font sizes, weights)
@@ -19,11 +18,11 @@ A theme pack is a directory containing a `theme.toml` file. It can override:
 - Accessibility defaults
 - Decorative assets
 
-## Semantic Slots
+## Semantic slots
 
 The core app uses stable semantic keys. Themes provide the user-visible text:
 
-| Semantic Key | Default | Minecraft | Minions | LOTR |
+| Semantic key | Default | Minecraft | Minions | LOTR |
 |-------------|---------|-----------|---------|------|
 | `profiles` | Profiles | Worlds | Villains | Realms |
 | `sessions` | Sessions | Ender Chest | Missions | Journeys |
@@ -36,7 +35,7 @@ The core app uses stable semantic keys. Themes provide the user-visible text:
 
 No concept is hardcoded into the core app. Components use semantic slots internally.
 
-## Theme Pack Format
+## Theme pack format
 
 ```toml
 [meta]
@@ -100,7 +99,7 @@ Rules:
 - Missing fields fall back to base
 - Invalid `extends` produces warning, falls back to `default-dark`
 
-## Search Paths
+## Search paths
 
 Themes are discovered from:
 
@@ -116,29 +115,17 @@ Each theme must be a directory containing `theme.toml`.
 - Theme activation is instant via CSS variable swap
 - Theme activation also updates the animated ThemeWorld companion and ambient motifs through semantic world classes (`studio`, `block`, `archive`, `lab`, `paper`).
 
-## Creating a Custom Theme
+## Creating a custom theme
 
 1. Create a directory: `~/.config/hermes-desktop-studio/themes/my-theme/`
 2. Add `theme.toml` with your overrides
 3. Restart the adapter or use "Reload Themes" in the UI
 4. Select your theme from the Theme Gallery
 
-## Built-in Example Themes
+## Built-in example themes
 
-| Theme | Description |
-|-------|-------------|
-| `default-dark` | Professional dark theme with blue accent |
-| `minimal-light` | Clean light theme for bright environments |
-| `minecraft-overworld` | Grass and stone tones (parody example) |
-| `example-minions` | Yellow and blue villain theme (parody example) |
-| `example-lotr` | Middle-earth earth and gold tones (parody example) |
-
-All example themes use simple emojis and labels only. No copyrighted assets.
+The `default-dark` theme provides a professional dark theme with a blue accent. `minimal-light` is a clean light theme suited for bright environments. `minecraft-overworld` uses grass and stone tones as a parody example. `example-minions` is a yellow and blue villain theme also in parody style. `example-lotr` uses Middle-earth earth and gold tones. All example themes use simple emojis and labels only — no copyrighted assets.
 
 ## Safety
 
-- Theme packs are data-only (TOML)
-- No executable code in theme packs
-- No JavaScript, Python, or shell scripts
-- Invalid themes produce warnings, not crashes
-- Theme validation runs on load
+Theme packs are data-only TOML. They contain no executable code — no JavaScript, Python, or shell scripts. Invalid themes produce warnings rather than crashes, and theme validation runs on load.

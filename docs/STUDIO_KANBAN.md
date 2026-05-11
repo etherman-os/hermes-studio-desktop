@@ -75,24 +75,8 @@ The backend does not mutate Kanban from arbitrary SSE payloads. SSE events are n
 
 ## Frontend Control Surface
 
-The desktop Board uses a Zustand Kanban store backed only by `/studio/kanban/*`. Current supported actions:
-
-- Load the Studio-owned default board.
-- Create follow-up cards in a selected column.
-- Edit card title, description, priority, and status.
-- Move cards using explicit "Move to" controls.
-- Archive cards out of the active board.
-- Create linked cards from Run Ledger runs.
-- Create linked cards from Hermes sessions.
-- Create linked artifacts from cards.
-- Inspect linked run/session context for cards that have `run_id` or `session_id`.
+The desktop Board uses a Zustand Kanban store backed only by `/studio/kanban/*`. Current supported actions include loading the Studio-owned default board, creating follow-up cards in a selected column, editing card title, description, priority, and status, moving cards using explicit Move to controls, archiving cards out of the active board, creating linked cards from Run Ledger runs, creating linked cards from Hermes sessions, creating linked artifacts from cards, and inspecting linked run or session context for cards that have `run_id` or `session_id`.
 
 ## Future Work
 
-Future phases can add:
-
-- drag-and-drop movement using the existing `POST /studio/kanban/cards/{card_id}/move`
-- concept-pack styling for semantic column states
-- artifact links and review/release workflow metadata
-
-Those phases should keep the same storage and protocol boundaries.
+Future phases can add drag-and-drop movement using the existing `POST /studio/kanban/cards/{card_id}/move`, concept-pack styling for semantic column states, and artifact links and review or release workflow metadata. Those phases should keep the same storage and protocol boundaries.

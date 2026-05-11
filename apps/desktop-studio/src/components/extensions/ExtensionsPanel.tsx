@@ -3,6 +3,8 @@ import { useToolPackStore } from "../../stores/toolPackStore";
 import { useHermesInventoryStore } from "../../stores/hermesInventoryStore";
 import { useThemeStore } from "../../stores/themeStore";
 import { useUiStore } from "../../stores/uiStore";
+import { EmptyState } from "../common/EmptyState";
+import { Package } from "lucide-react";
 import type { HermesSkill, ToolPackInfo } from "../../api/studioClient";
 
 type CatalogTab = "overview" | "skills" | "mcp" | "packs";
@@ -262,13 +264,15 @@ export function ExtensionsPanel() {
           )}
 
           {!loading && packs.length === 0 && (
-            <div className="empty-state">
-              <div className="empty-state-icon" aria-hidden="true">E</div>
-              <div className="empty-state-text">No tool packs installed</div>
-              <div className="empty-state-description">
-                Install a tool pack to add custom Studio commands.
-              </div>
-            </div>
+            <EmptyState
+              icon={Package}
+              title="No extensions"
+              description="Install a tool pack to add custom commands and integrations to Studio."
+              action={{
+                label: "Install Pack",
+                onClick: () => setShowInstall(true),
+              }}
+            />
           )}
 
           <div className="pack-list">

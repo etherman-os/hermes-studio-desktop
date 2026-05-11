@@ -26,6 +26,7 @@ const DEFAULT_LABELS: Record<string, string> = {
   settings: "Settings",
   theme_gallery: "Themes",
   approvals: "Approvals",
+  more: "More",
   model: "Model",
   processes: "Processes",
   extensions: "Extensions",
@@ -59,6 +60,7 @@ const DEFAULT_ICONS: Record<string, string> = {
   settings: "*",
   theme_gallery: "#",
   approvals: "!",
+  more: "+",
   model: "M",
   processes: "P",
   extensions: "X",
@@ -118,6 +120,9 @@ interface ThemeState {
 const THEME_MODE_KEY = "hermes-theme-mode";
 
 export const useThemeStore = create<ThemeState>((set, get) => {
+  // Track the current system theme media query listener to avoid memory leaks
+  let _systemThemeListener: (() => void) | null = null;
+
   // Restore persisted theme mode from localStorage
   let persistedMode: ThemeMode = "system";
   try {
@@ -177,6 +182,12 @@ export const useThemeStore = create<ThemeState>((set, get) => {
       set({ themeMode: mode, activeThemeId: targetId });
       if (theme) applyThemeToDOM(theme);
 
+      // Remove previous system theme listener before registering a new one
+      if (_systemThemeListener) {
+        _systemThemeListener();
+        _systemThemeListener = null;
+      }
+
       // Listen for system theme changes when in system mode
       if (mode === "system" && typeof window !== "undefined" && window.matchMedia) {
         const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -189,6 +200,7 @@ export const useThemeStore = create<ThemeState>((set, get) => {
           if (newTheme) applyThemeToDOM(newTheme);
         };
         mq.addEventListener("change", handler);
+        _systemThemeListener = () => mq.removeEventListener("change", handler);
       }
     },
 
@@ -309,6 +321,7 @@ function adapterThemeToPack(data: api.ThemeData): ThemePack {
       author: data.meta?.author ?? "unknown",
       description: data.meta?.description,
       extends: data.meta?.extends,
+      keywords: Array.isArray(data.meta?.keywords) ? data.meta.keywords.filter((item) => typeof item === "string") : undefined,
     },
     palette: validateStringRecord(data.palette) as ThemePack["palette"],
     typography: validateStringRecord(data.typography) as ThemePack["typography"],

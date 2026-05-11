@@ -6,16 +6,7 @@ It accepts design inputs, stores them as Studio-owned artifacts, and can hand th
 
 ## Import Types
 
-Design Canvas supports:
-
-- HTML or React output pasted as text
-- screenshot notes
-- local URLs or file paths
-- Figma URLs
-- JSON design specs
-- markdown briefs
-
-Imports are stored through `/studio/artifacts` in Studio-owned `studio.db`. They are not written to Hermes `state.db`.
+Design Canvas supports HTML or React output pasted as text, screenshot notes, local URLs or file paths, Figma URLs, JSON design specs, and markdown briefs. Imports are stored through `/studio/artifacts` in Studio-owned `studio.db` — they are not written to Hermes `state.db`.
 
 ## Hermes Handoff
 
@@ -39,7 +30,4 @@ HTML design artifacts are shown in sandboxed iframes without script permissions.
 
 ## Future Layers
 
-- screenshot OCR/vision extraction
-- Figma MCP metadata extraction
-- visual diff thumbnails for artifact variant comparison
-- checkpoint-backed design revisions
+Future layers can add screenshot OCR/vision extraction, Figma MCP metadata extraction, visual diff thumbnails for artifact variant comparison, and checkpoint-backed design revisions.

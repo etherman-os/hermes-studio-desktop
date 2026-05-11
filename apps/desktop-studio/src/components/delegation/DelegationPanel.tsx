@@ -37,6 +37,7 @@ export function DelegationPanel() {
 
   React.useEffect(() => {
     loadDelegations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

@@ -167,19 +167,7 @@ The Studio audit captured the `state.db` modification time before and after sche
 
 ## Config Shape
 
-The local Hermes config uses a nested model shape:
-
-```yaml
-model:
-  provider: provider_name
-  default: model_name
-  base_url: https://example.invalid/v1
-providers:
-  provider_name:
-    base_url: https://example.invalid/v1
-```
-
-The adapter reads this shape without exposing provider secret values.
+The local Hermes config uses a nested model shape. The adapter reads this shape without exposing provider secret values.
 
 ## Fixtures
 
@@ -193,7 +181,4 @@ These fixtures contain request/response shapes only. They do not include provide
 
 ## Known Limitations
 
-- No real provider-backed run was submitted in this audit.
-- `reasoning.available` is not a stable Studio event type; it is normalized to `adapter.warning`.
-- Studio continues to expose only `/studio/*` to the frontend. Direct Hermes API details remain isolated in `HermesBackend`.
-- Studio-owned persistence remains in `studio.db`; Hermes `state.db` is read-only.
+No real provider-backed run was submitted in this audit. `reasoning.available` is not a stable Studio event type and is normalized to `adapter.warning`. Studio continues to expose only `/studio/*` to the frontend — direct Hermes API details remain isolated in `HermesBackend`. Studio-owned persistence remains in `studio.db`, and Hermes `state.db` is read-only.

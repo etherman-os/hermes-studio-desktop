@@ -1,0 +1,139 @@
+/* --- 4-Section Activity Rail --- */
+
+.activity-rail {
+  grid-area: rail;
+  background: var(--app-bg);
+  border-right: 1px solid var(--app-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: var(--app-spacing-sm);
+  padding-bottom: var(--app-spacing-sm);
+  gap: var(--app-spacing-xs);
+  overflow-x: visible;
+  overflow-y: auto;
+  position: relative;
+  z-index: 100;
+}
+
+.rail-sections {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--app-spacing-xs);
+}
+
+.rail-section-container {
+  position: relative;
+}
+
+.rail-section-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--app-radius-md);
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--app-text-muted);
+  transition: all var(--app-transition);
+  border: none;
+  background: transparent;
+}
+
+.rail-section-btn:hover {
+  background: var(--app-surface-alt);
+  color: var(--app-text);
+}
+
+.rail-section-btn.active {
+  background: var(--app-accent-subtle);
+  color: var(--app-accent);
+}
+
+/* Mode-specific active states for 4-section rail */
+[data-mode="create"] .rail-section-btn.active {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--mode-create-accent);
+  box-shadow: inset 3px 0 0 var(--mode-create-accent);
+}
+
+[data-mode="code"] .rail-section-btn.active {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--mode-code-accent);
+  box-shadow: inset 3px 0 0 var(--mode-code-accent);
+}
+
+[data-mode="automate"] .rail-section-btn.active {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--mode-automate-accent);
+  box-shadow: inset 3px 0 0 var(--mode-automate-accent);
+}
+
+[data-mode="manage"] .rail-section-btn.active {
+  background: rgba(139, 92, 246, 0.15);
+  color: var(--mode-manage-accent);
+  box-shadow: inset 3px 0 0 var(--mode-manage-accent);
+}
+
+/* Popover for expanded section */
+.rail-section-popover {
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 0;
+  min-width: 160px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: var(--app-spacing-xs);
+  z-index: 200;
+}
+
+.rail-popover-header {
+  padding: var(--app-spacing-xs) var(--app-spacing-sm);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--app-text-muted);
+  border-bottom: 1px solid var(--app-border-subtle);
+  margin-bottom: var(--app-spacing-xs);
+}
+
+.rail-popover-item {
+  display: flex;
+  align-items: center;
+  gap: var(--app-spacing-sm);
+  padding: var(--app-spacing-sm) var(--app-spacing-md);
+  border-radius: var(--app-radius-sm);
+  cursor: pointer;
+  color: var(--app-text-secondary);
+  transition: all var(--app-transition);
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  font-size: 12px;
+}
+
+.rail-popover-item:hover {
+  background: var(--app-surface-alt);
+  color: var(--app-text);
+}
+
+.rail-popover-item.active {
+  background: var(--app-accent-subtle);
+  color: var(--app-accent);
+}
+
+/* Overlay for closing popover */
+.rail-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+}

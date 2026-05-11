@@ -108,6 +108,7 @@ describe("processStore", () => {
     vi.mocked(api.getProcessLogs).mockResolvedValue({
       process_id: "proc-1",
       lines: ["line1", "line2"],
+      truncated: false,
       total: 2,
     });
 
@@ -130,7 +131,7 @@ describe("processStore", () => {
 
   it("selectProcess sets selectedProcessId and loads logs", async () => {
     useProcessStore.setState({ processes: mockProcesses.processes });
-    vi.mocked(api.getProcessLogs).mockResolvedValue({ process_id: "proc-1", lines: [], total: 0 });
+    vi.mocked(api.getProcessLogs).mockResolvedValue({ process_id: "proc-1", lines: [], truncated: false, total: 0 });
 
     useProcessStore.getState().selectProcess("proc-1");
 

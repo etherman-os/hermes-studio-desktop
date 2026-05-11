@@ -59,6 +59,7 @@ Both include `storage` diagnostics for Studio-owned `studio.db`:
 - `POST /studio/approvals/{approval_id}/deny`
 - `POST /studio/runs`
 - `GET /studio/runs/recent`
+- `GET /studio/runs/compare`
 - `GET /studio/runs/{run_id}`
 - `GET /studio/runs/{run_id}/ledger`
 - `GET /studio/runs/{run_id}/approvals`
@@ -67,15 +68,26 @@ Both include `storage` diagnostics for Studio-owned `studio.db`:
 - `GET /studio/logs`
 - `GET /studio/logs/stream`
 - `GET /studio/model-config`
+- `PATCH /studio/model-config`
 - `GET /studio/model-config/models`
 - `GET /studio/hermes/inventory`
 - `GET /studio/hermes/cli`
+- `GET /studio/hermes/release`
+- `GET /studio/hermes/doctor`
 - `GET /studio/hermes/checkpoints/status`
+- `POST /studio/hermes/checkpoints/prune`
 - `GET /studio/hermes/providers`
+- `GET /studio/hermes/fallbacks`
 - `GET /studio/hermes/models`
 - `GET /studio/hermes/skills`
+- `POST /studio/hermes/skills/check`
+- `POST /studio/hermes/skills/update`
+- `POST /studio/hermes/skills/install`
 - `GET /studio/hermes/mcp-servers`
+- `POST /studio/hermes/mcp-servers/{server_id}/test`
 - `GET /studio/hermes/toolsets`
+- `POST /studio/hermes/toolsets/configure`
+- `GET /studio/hermes/browser-cache`
 - `GET /studio/themes`
 - `GET /studio/themes/active`
 - `GET /studio/themes/{theme_id}`
@@ -101,6 +113,7 @@ Both include `storage` diagnostics for Studio-owned `studio.db`:
 - `POST /studio/artifact-variant-groups/{group_id}/variants`
 - `POST /studio/artifact-variant-groups/{group_id}/apply`
 - `POST /studio/artifacts/{artifact_id}/archive`
+- `POST /studio/artifacts/{artifact_id}/browser-evidence`
 - `POST /studio/artifacts/{artifact_id}/link-run`
 - `POST /studio/artifacts/{artifact_id}/link-session`
 - `POST /studio/artifacts/{artifact_id}/link-card`
@@ -190,12 +203,6 @@ All protected endpoint errors use:
 
 ## Read-only Guarantees
 
-- Hermes `state.db` is opened read-only for sessions.
-- Hermes logs are opened read-only and redacted before returning to the UI.
-- Hermes profiles and model/provider config are inspected read-only unless an official Hermes CLI/API write path is explicitly used.
-- The adapter must not mutate Hermes core files unless a safe official Hermes CLI/API write path is explicitly used.
-- Studio-owned persistence uses `studio.db`; it is separate from Hermes `state.db` and must not store secrets.
-- Studio-owned Kanban writes go only to `studio.db`; session/run links store IDs only.
-- Studio-owned Artifact writes go only to `studio.db`; file artifacts store references only.
-- Context Inspector reads Studio-owned metadata and allowlisted workspace files only; it does not mutate Hermes or Studio workflow records.
-- Approval Center writes go only to `studio.db`; approval response actions may notify Hermes through the verified local gateway route when available.
+Hermes `state.db` is opened read-only for sessions. Hermes logs are opened read-only and redacted before returning to the UI. Hermes profiles and model or provider config are inspected read-only unless an official Hermes CLI or API write path is explicitly used. The adapter must not mutate Hermes core files unless a safe official Hermes CLI or API write path is explicitly used.
+
+Studio-owned persistence uses `studio.db` — it is separate from Hermes `state.db` and must not store secrets. Studio-owned Kanban writes go only to `studio.db`, and session or run links store IDs only. Studio-owned Artifact writes go only to `studio.db`, and file artifacts store references only. Context Inspector reads Studio-owned metadata and allowlisted workspace files only — it does not mutate Hermes or Studio workflow records. Approval Center writes go only to `studio.db`, and approval response actions may notify Hermes through the verified local gateway route when available.

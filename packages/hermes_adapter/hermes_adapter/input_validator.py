@@ -162,3 +162,55 @@ def check_request_size(body: bytes, *, max_bytes: int = MAX_REQUEST_BODY_BYTES) 
     """Raise ``ValidationError`` if *body* exceeds *max_bytes*."""
     if len(body) > max_bytes:
         raise ValidationError(f"Request body size {len(body)} exceeds limit {max_bytes}")
+
+
+# --------------------------------------------------------------------------
+# Request body size middleware
+# --------------------------------------------------------------------------
+
+
+def make_body_size_middleware(max_bytes: int = MAX_REQUEST_BODY_BYTES):
+    """Return a FastAPI middleware that enforces max request body size.
+
+    Usage:
+        from fastapi import FastAPI
+        from hermes_adapter.input_validator import make_body_size_middleware
+        app = FastAPI()
+        app.add_middleware(make_body_size_middleware())
+    """
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.requests import Request
+    from starlette.responses import Response
+
+    async def dispatch(request: Request, call_next) -> Response:
+        if request.method in ("POST", "PUT", "PATCH"):
+            content_length = request.headers.get("content-length")
+            if content_length is not None:
+                try:
+                    if int(content_length) > max_bytes:
+                        from fastapi import HTTPException
+                        raise HTTPException(
+                            status_code=413,
+                            detail=f"Request body too large (max {max_bytes} bytes)",
+                        )
+                except ValueError:
+                    pass
+            # For chunked transfer, read body up to limit and raise if exceeded
+            try:
+                body = await request.body()
+                if len(body) > max_bytes:
+                    from fastapi import HTTPException
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Request body too large (max {max_bytes} bytes)",
+                    )
+                # Reconstruct request with cached body for downstream handlers
+                async def receive():
+                    return {"type": "http.request", "body": body}
+
+                request._receive = receive
+            except Exception:
+                raise
+        return await call_next(request)
+
+    return BaseHTTPMiddleware(dispatch)

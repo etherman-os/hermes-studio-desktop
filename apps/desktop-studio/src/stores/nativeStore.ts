@@ -1,15 +1,18 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
+import type { UnlistenFn } from "@tauri-apps/api/event";
 
 interface NativeState {
   trayActive: boolean;
   shortcutsRegistered: boolean;
   notificationsEnabled: boolean;
   notificationPermission: boolean;
+  _unlistenTray?: UnlistenFn;
   init: () => Promise<void>;
   sendNotification: (title: string, body: string) => Promise<void>;
   requestNotificationPermission: () => Promise<boolean>;
+  cleanup: () => void;
 }
 
 export const useNativeStore = create<NativeState>((set, get) => ({
@@ -25,6 +28,10 @@ export const useNativeStore = create<NativeState>((set, get) => ({
       );
       const { register } = await import("@tauri-apps/plugin-global-shortcut");
 
+      // Clean up any previous tray listener before setting up a new one
+      const prev = get()._unlistenTray;
+      if (prev) prev();
+
       const granted = await isPermissionGranted();
       set({ notificationsEnabled: granted, notificationPermission: granted, trayActive: true });
 
@@ -38,11 +45,20 @@ export const useNativeStore = create<NativeState>((set, get) => ({
 
       set({ shortcutsRegistered: true });
 
-      await listen("tray:new-run", () => {
+      const unlisten = await listen("tray:new-run", () => {
         void emit("global-shortcut:new-run");
       });
+      set({ _unlistenTray: unlisten });
     } catch (err) {
       console.error("Failed to initialize native features:", err);
+    }
+  },
+
+  cleanup: () => {
+    const unlisten = get()._unlistenTray;
+    if (unlisten) {
+      unlisten();
+      set({ _unlistenTray: undefined });
     }
   },
 

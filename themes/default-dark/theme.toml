@@ -4,6 +4,7 @@ name = "Default Dark"
 version = "0.1.0"
 author = "etherman-os"
 description = "Clean professional dark theme with blue accent."
+keywords = ["studio"]
 
 [compat]
 shell_api = "^1.0"

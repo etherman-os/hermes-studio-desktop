@@ -8,6 +8,7 @@ export const minecraftOverworld: ThemePack = {
     author: "etherman-os",
     extends: "default-dark",
     description: "Grass, stone and redstone tones with block feel",
+    keywords: ["block", "pixel"],
   },
   palette: {
     bg: "#14170f",
@@ -31,6 +32,9 @@ export const minecraftOverworld: ThemePack = {
     kanban_doing: "#ffb300",
     kanban_done: "#43a047",
     kanban_blocked: "#e53935",
+  },
+  borders: {
+    style: "blocky",
   },
   icons: {
     profile: "🌍",

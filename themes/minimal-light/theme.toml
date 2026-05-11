@@ -4,6 +4,7 @@ name = "Minimal Light"
 version = "0.1.0"
 author = "etherman-os"
 description = "Clean, minimal light theme for bright environments."
+keywords = ["paper", "minimal"]
 
 [compat]
 studio_api = "^1.0"

@@ -1,91 +1,25 @@
-# Hermes Logs and Profiles Integration
+# Hermes logs and profiles integration
 
 ## Logs
 
-### What Is Read
+The adapter reads four log file categories from `~/.hermes/logs/`: `agent.log` (the main agent log), `errors.log` (error entries), `gateway.log` (gateway activity), and any other `.log` files Hermes writes.
 
-| File | Description |
-|------|-------------|
-| `~/.hermes/logs/agent.log` | Main agent log |
-| `~/.hermes/logs/errors.log` | Error log |
-| `~/.hermes/logs/gateway.log` | Gateway log |
-| `~/.hermes/logs/*.log` | Any other `.log` files |
+Log files are opened read-only. The adapter never creates, modifies, or deletes log files. Log streaming uses file tail — it reads only new bytes appended since the stream started.
 
-### Read-Only Guarantee
+Redaction happens automatically. Bearer tokens become `Bearer [REDACTED]`, API key patterns like `api_key=<value>` become `api_key=[REDACTED]`, secret patterns like `token=<value>`, `secret=<value>`, or `password=<value>` become `[REDACTED]`, and long hex strings (32+ characters) become `[REDACTED_HEX]`. Known key prefixes like `sk-...`, `tvly-...`, and `xai-...` are redacted as `[REDACTED_KEY]`.
 
-- Log files are opened read-only
-- No log files are created, modified, or deleted
-- Log streaming uses file tail (read new bytes only)
+If `~/.hermes/logs/` does not exist, Hermes has not written any log files yet. If a requested log file is missing, it may have been rotated or deleted — try a different source name.
 
-### Log Redaction
-
-The following patterns are automatically redacted from log output:
-
-- Bearer tokens: `Bearer <anything>` → `Bearer [REDACTED]`
-- API keys: `api_key=<value>` → `api_key=[REDACTED]`
-- Secrets: `token=<value>`, `secret=<value>`, `password=<value>` → `[REDACTED]`
-- Long hex strings (32+ chars): `[REDACTED_HEX]`
-- Known key prefixes: `sk-...`, `tvly-...`, `xai-...` → `[REDACTED_KEY]`
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `HERMES_HOME` | `~/.hermes` | Standard Hermes home |
-| `HERMES_STUDIO_HERMES_HOME` | *(none)* | Override for studio |
-
-### Troubleshooting
-
-**"No .log files found"**
-- Check if `~/.hermes/logs/` exists
-- Check if Hermes has written any log files yet
-
-**"Log file not found"**
-- The requested log file may have been rotated or deleted
-- Try a different source name
+The environment variables controlling this are `HERMES_HOME` (defaults to `~/.hermes`) and `HERMES_STUDIO_HERMES_HOME` (overrides the home directory when set).
 
 ---
 
 ## Profiles
 
-### What Is Read
+The adapter discovers profiles by listing directories under `~/.hermes/profiles/`, inspecting each for `config.yaml` and `state.db`, then reading `config.yaml` to detect which profile is active. It falls back to the `HERMES_PROFILE` environment variable if the config file does not specify an active profile.
 
-| File | Description |
-|------|-------------|
-| `~/.hermes/profiles/` | Profile directories |
-| `~/.hermes/config.yaml` | Active profile detection |
-| `HERMES_PROFILE` env var | Active profile override |
+Profile operations are read-only. The adapter does not create, delete, or switch profiles — profile switching returns `501 Not Implemented`. Config files are never mutated.
 
-### Profile Discovery
+If `~/.hermes/profiles/` does not exist or `~/.hermes/config.yaml` is missing, the adapter reports that no profiles were found. The "Profile switching not implemented" message is expected behavior in the current phase.
 
-The adapter:
-1. Lists directories under `~/.hermes/profiles/`
-2. Inspects each for `config.yaml` and `state.db`
-3. Reads `config.yaml` to detect active profile
-4. Falls back to `HERMES_PROFILE` env var
-
-### What Is NOT Done
-
-- No profile creation
-- No profile deletion
-- No profile switching (returns 501 Not Implemented)
-- No config file mutation
-- No full filesystem paths exposed
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `HERMES_HOME` | `~/.hermes` | Standard Hermes home |
-| `HERMES_STUDIO_HERMES_HOME` | *(none)* | Override for studio |
-| `HERMES_PROFILE` | *(none)* | Active profile name |
-
-### Troubleshooting
-
-**"No profiles found"**
-- Check if `~/.hermes/profiles/` exists
-- Check if `~/.hermes/config.yaml` exists
-
-**"Profile switching not implemented"**
-- This is expected in Phase 4C
-- Profile activation will be added in a future phase
+The environment variables controlling profile discovery are `HERMES_HOME` (defaults to `~/.hermes`), `HERMES_STUDIO_HERMES_HOME` (overrides the home directory when set), and `HERMES_PROFILE` (provides an explicit active profile name override).

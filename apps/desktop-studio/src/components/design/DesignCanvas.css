@@ -1,0 +1,104 @@
+.design-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--app-spacing-sm);
+  min-width: 0;
+}
+
+.design-panel-heading > div {
+  min-width: 0;
+}
+
+.design-panel-heading span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.design-status-pill {
+  flex: 0 0 auto;
+  max-width: 150px;
+  padding: 3px 7px;
+  border: 1px solid var(--app-border-subtle);
+  border-radius: 999px;
+  background: var(--app-control-bg, var(--app-bg));
+  color: var(--app-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.design-status-pill.valid {
+  border-color: color-mix(in srgb, var(--app-ok) 55%, var(--app-border-subtle));
+  color: var(--app-ok);
+}
+
+.design-status-pill.warn {
+  border-color: color-mix(in srgb, var(--app-warning) 55%, var(--app-border-subtle));
+  color: var(--app-warning);
+}
+
+.design-status-pill.invalid {
+  border-color: color-mix(in srgb, var(--app-danger) 55%, var(--app-border-subtle));
+  color: var(--app-danger);
+}
+
+.design-validation-card,
+.design-handoff-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid var(--app-border-subtle);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-bg);
+}
+
+.design-validation-card strong,
+.design-handoff-card strong {
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.design-validation-card span,
+.design-handoff-card span,
+.design-handoff-card small {
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.design-validation-card.valid {
+  border-color: color-mix(in srgb, var(--app-ok) 36%, var(--app-border-subtle));
+}
+
+.design-validation-card.warn {
+  border-color: color-mix(in srgb, var(--app-warning) 38%, var(--app-border-subtle));
+}
+
+.design-validation-card.invalid {
+  border-color: color-mix(in srgb, var(--app-danger) 42%, var(--app-border-subtle));
+}
+
+.design-handoff-card {
+  background: color-mix(in srgb, var(--app-surface) 72%, var(--app-bg));
+}
+
+@media (max-width: 680px) {
+  .design-panel-heading {
+    flex-direction: column;
+  }
+
+  .design-status-pill {
+    max-width: 100%;
+  }
+}

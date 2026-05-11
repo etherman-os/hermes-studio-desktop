@@ -20,8 +20,19 @@ def _replay_fixture(path: Path) -> list[dict[str, Any]]:
             if not line:
                 continue
             entry = json.loads(line)
-            raw = entry.get("data", {})
-            raw["type"] = entry.get("event", raw.get("type", raw.get("event", "unknown")))
+            data = entry.get("data", {})
+            # Normalize flat fixture format to what the normalizer expects.
+            # The fixture stores event fields directly in data (e.g. delta, tool,
+            # timestamp) rather than nested under a payload wrapper.
+            raw: dict[str, Any] = {
+                "event": data.get("event", "unknown"),
+                "run_id": data.get("run_id"),
+                "timestamp": data.get("timestamp"),
+                "payload": {
+                    k: v for k, v in data.items()
+                    if k not in ("event", "run_id", "timestamp")
+                },
+            }
             normalized = _normalize_hermes_event(raw)
             events.append(normalized)
     return events

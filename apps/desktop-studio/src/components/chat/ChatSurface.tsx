@@ -6,6 +6,8 @@ import { useAdapterStore } from "../../stores/adapterStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useUiStore } from "../../stores/uiStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
+import { MessageSquare } from "lucide-react";
+import { EmptyState } from "../common/EmptyState";
 import React from "react";
 
 export function ChatSurface() {
@@ -20,8 +22,6 @@ export function ChatSurface() {
   const runs = useRunLedgerStore((s) => s.runs);
   const setActiveTab = useLayoutStore((s) => s.setActiveTab);
   const selectLedgerRun = useRunLedgerStore((s) => s.selectRun);
-  const createCardFromRun = useRunLedgerStore((s) => s.createCardFromRun);
-  const savingRunCard = useRunLedgerStore((s) => s.savingRunCard);
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
   const connected = useAdapterStore((s) => s.connected);
   const activeBackend = useAdapterStore((s) => s.activeBackend);
@@ -69,26 +69,16 @@ export function ChatSurface() {
     <div className="chat-container" role="region" aria-label="Chat">
       <div className="chat-run-strip">
         <div>
-          <div className="workbench-eyebrow">Chat Surface</div>
+          <div className="workbench-eyebrow">Prompt Surface</div>
           <div className="chat-run-meta">
             <span>Run {ledgerRun?.runId ?? "none"}</span>
             <span>Status {ledgerRun?.status ?? (isStreaming ? "running" : "idle")}</span>
-            <span>Session {activeSessionId ?? "none"}</span>
-            <span>Workspace {selectedWorkspace ?? "none"}</span>
             {mockActive && <span className="runtime-chip warn">Studio simulation</span>}
           </div>
         </div>
         <div className="chat-run-actions">
           <button className="tool-button" onClick={() => openNewRun()} aria-label="Start new chat">New Chat</button>
           <button className="tool-button" onClick={openLedger} aria-label="Open run in ledger">Open in Run Ledger</button>
-          <button
-            className="tool-button"
-            disabled={!ledgerRun || savingRunCard}
-            onClick={() => ledgerRun && void createCardFromRun(ledgerRun.runId)}
-            aria-label="Create kanban card from run"
-          >
-            Create Card from Run
-          </button>
         </div>
       </div>
       {toolEvents.length > 0 && (
@@ -101,6 +91,20 @@ export function ChatSurface() {
         </div>
       )}
       <div className="chat-messages selectable" role="log" aria-label="Chat messages" aria-live="polite">
+        {messages.length === 0 && (
+          <EmptyState
+            icon={MessageSquare}
+            title="Start a conversation"
+            description="Send a prompt to chat with Hermes. Your conversation history will appear here."
+            action={{
+              label: "Start chatting",
+              onClick: () => {
+                const input = document.querySelector<HTMLInputElement>('#composer-input');
+                if (input) input.focus();
+              },
+            }}
+          />
+        )}
         {messages.map((msg) => {
           if (msg.role === "tool") {
             return (
@@ -173,13 +177,14 @@ export function ChatSurface() {
           onKeyDown={handleKeyDown}
           style={!connected ? { borderColor: "var(--app-warn)" } : undefined}
           aria-label="Type a message"
+          data-testid="chat-input"
         />
         {isStreaming ? (
-          <button className="composer-send" onClick={stopRun} style={{ background: "var(--app-danger)" }} aria-label="Stop run">
+          <button className="composer-send" onClick={stopRun} style={{ background: "var(--app-danger)" }} aria-label="Stop run" data-testid="send-button">
             {label("stop")}
           </button>
         ) : (
-          <button className="composer-send" onClick={handleSend} aria-label="Send message">
+          <button className="composer-send" onClick={handleSend} aria-label="Send message" data-testid="send-button">
             {label("send")}
           </button>
         )}

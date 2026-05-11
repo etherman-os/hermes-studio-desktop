@@ -3,6 +3,16 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { usePreviewStore, type ConsoleEntry } from "../../stores/previewStore";
+import { useRunStore } from "../../stores/runStore";
+import { useSessionStore } from "../../stores/sessionStore";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
+import {
+  createPreviewChannelId,
+  createPreviewNonce,
+  isInspectorMessage,
+  sanitizedPreviewDoc,
+  type InspectorSelection,
+} from "../../utils/previewDocument";
 
 function captureConsole(
   level: ConsoleEntry["level"],
@@ -33,27 +43,6 @@ function normalizePreviewUrl(value: string): string | null {
   }
 }
 
-function sanitizedPreviewDoc(content: string) {
-  if (typeof window === "undefined") return content;
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(content, "text/html");
-  doc.querySelectorAll("script, form, iframe, object, embed").forEach((node) => node.remove());
-  doc.querySelectorAll("*").forEach((node) => {
-    for (const attr of [...node.attributes]) {
-      const name = attr.name.toLowerCase();
-      const value = attr.value.trim().toLowerCase();
-      if (name.startsWith("on") || value.startsWith("javascript:")) {
-        node.removeAttribute(attr.name);
-      }
-    }
-  });
-  const csp = doc.createElement("meta");
-  csp.setAttribute("http-equiv", "Content-Security-Policy");
-  csp.setAttribute("content", "default-src 'none'; img-src data: blob: file: http: https:; style-src 'unsafe-inline' file: http: https:; font-src data: file: http: https:; script-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'");
-  doc.head.prepend(csp);
-  return `<!doctype html>${doc.documentElement.outerHTML}`;
-}
-
 export function PreviewCanvas() {
   const currentUrl = usePreviewStore((s) => s.currentUrl);
   const currentHtml = usePreviewStore((s) => s.currentHtml);
@@ -65,7 +54,73 @@ export function PreviewCanvas() {
 
   const [inputUrl, setInputUrl] = React.useState(currentUrl);
   const [showConsole, setShowConsole] = React.useState(false);
+  const [isInspectorActive, setIsInspectorActive] = React.useState(false);
+  const [selectedElement, setSelectedElement] =
+    React.useState<InspectorSelection | null>(null);
+  const [targetedPrompt, setTargetedPrompt] = React.useState("");
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
+  const inspectorChannelRef = React.useRef(createPreviewChannelId());
+  const inspectorNonceRef = React.useRef(createPreviewNonce());
+  const inspectorTargetOrigin = React.useMemo(() => {
+    const origin = window.location.origin;
+    // Tauri/srcDoc can report an opaque "null" origin; source + channel checks
+    // below are the trust boundary when an exact target origin is unavailable.
+    return origin && origin !== "null" ? origin : "*";
+  }, []);
+
+  const previewSrcDoc = React.useMemo(
+    () =>
+      sanitizedPreviewDoc(currentHtml, {
+        inspector: isInspectorActive
+          ? {
+              channel: inspectorChannelRef.current,
+              nonce: inspectorNonceRef.current,
+              targetOrigin: inspectorTargetOrigin,
+            }
+          : undefined,
+      }),
+    [currentHtml, inspectorTargetOrigin, isInspectorActive],
+  );
+
+  React.useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (!isInspectorActive) return;
+      if (e.source !== iframeRef.current?.contentWindow) return;
+      if (!isInspectorMessage(e.data, inspectorChannelRef.current)) return;
+      setSelectedElement({
+        selector: e.data.selector,
+        tagName: e.data.tagName,
+        text: e.data.text,
+      });
+      setIsInspectorActive(false);
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [isInspectorActive]);
+
+  function handleTargetedEditSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!targetedPrompt || !selectedElement) return;
+
+    const promptToSend = `Visual Edit Target: \`${selectedElement.tagName}${selectedElement.selector.replace(selectedElement.tagName, "")}\`\nCurrent Text: "${selectedElement.text}"\n\nInstruction: ${targetedPrompt}`;
+    addConsoleLog({
+      level: "info",
+      message: `[Targeted Edit Queued] ${promptToSend}`,
+      timestamp: new Date().toISOString(),
+    });
+
+    const sessionId = useSessionStore.getState().activeSessionId ?? "s-1";
+    const workspacePath = useWorkspaceStore.getState().selectedWorkspace;
+
+    // Send the prompt to Hermes via RunStore
+    void useRunStore.getState().sendPrompt(promptToSend, sessionId, {
+      workspacePath,
+      mode: "visual-edit",
+    });
+
+    setTargetedPrompt("");
+    setSelectedElement(null);
+  }
 
   React.useEffect(() => {
     const initial = (window as unknown as Record<string, unknown>).__PREVIEW_INITIAL_URL;
@@ -84,24 +139,24 @@ export function PreviewCanvas() {
   }, [setCurrentHtml, setCurrentUrl]);
 
   React.useEffect(() => {
-    const unlisten = listen<string>("preview:navigate", (event) => {
+    const unlistenPromise = listen<string>("preview:navigate", (event) => {
       const url = normalizePreviewUrl(event.payload);
       if (!url) return;
       setInputUrl(url);
       setCurrentUrl(url);
     });
     return () => {
-      void unlisten.then((fn) => fn());
+      unlistenPromise.then((fn) => fn()).catch(() => {});
     };
   }, [setCurrentUrl]);
 
   React.useEffect(() => {
-    const unlisten = listen<string>("preview:html", (event) => {
+    const unlistenPromise = listen<string>("preview:html", (event) => {
       setInputUrl("");
       setCurrentHtml(event.payload);
     });
     return () => {
-      void unlisten.then((fn) => fn());
+      unlistenPromise.then((fn) => fn()).catch(() => {});
     };
   }, [setCurrentHtml]);
 
@@ -262,6 +317,28 @@ export function PreviewCanvas() {
         >
           Console ({consoleLogs.length})
         </button>
+        {currentHtml && (
+          <button
+            onClick={() => {
+              setIsInspectorActive((v) => !v);
+              if (!isInspectorActive) setSelectedElement(null);
+            }}
+            title="Visual Click-to-Edit"
+            style={{
+              padding: "6px 12px",
+              borderRadius: 4,
+              border: "1px solid var(--app-border, #444)",
+              background: isInspectorActive
+                ? "var(--app-accent, #ec4899)"
+                : "var(--app-bg-elevated, #2a2a3e)",
+              color: isInspectorActive ? "#fff" : "var(--app-text, #e0e0e0)",
+              cursor: "pointer",
+              fontSize: 13,
+            }}
+          >
+            {isInspectorActive ? "Select an element..." : "Visual Edit"}
+          </button>
+        )}
         <button
           onClick={handleClose}
           title="Close Preview"
@@ -284,9 +361,9 @@ export function PreviewCanvas() {
           {currentHtml ? (
             <iframe
               ref={iframeRef}
-              srcDoc={sanitizedPreviewDoc(currentHtml)}
+              srcDoc={previewSrcDoc}
               title="Artifact Preview"
-              sandbox=""
+              sandbox={isInspectorActive ? "allow-scripts" : ""}
               style={{
                 width: "100%",
                 height: "100%",
@@ -324,6 +401,80 @@ export function PreviewCanvas() {
               <div style={{ fontSize: 12, opacity: 0.6 }}>
                 Or launch from Run Ledger / Artifact Shelf
               </div>
+            </div>
+          )}
+
+          {selectedElement && (
+            <div
+              style={{
+                position: "absolute",
+                bottom: 24,
+                left: "50%",
+                transform: "translateX(-50%)",
+                background: "var(--app-bg-elevated, #222)",
+                border: "1px solid var(--app-accent, #6366f1)",
+                borderRadius: 8,
+                padding: 16,
+                width: "100%",
+                maxWidth: 500,
+                boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
+                zIndex: 10,
+                color: "var(--app-text)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: "var(--app-text-muted)" }}>Target Selected:</div>
+                  <div style={{ fontFamily: "monospace", fontSize: 13, color: "var(--app-accent, #ec4899)", marginTop: 4, wordBreak: "break-all" }}>
+                    {selectedElement.tagName}{selectedElement.selector.replace(selectedElement.tagName, "")}
+                  </div>
+                  {selectedElement.text && (
+                    <div style={{ fontSize: 11, color: "var(--app-text-muted)", marginTop: 4, fontStyle: "italic" }}>
+                      "{selectedElement.text}"
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSelectedElement(null)}
+                  style={{ background: "transparent", border: "none", color: "var(--app-text-muted)", cursor: "pointer", fontSize: 20, lineHeight: 1 }}
+                >
+                  x
+                </button>
+              </div>
+              <form onSubmit={handleTargetedEditSubmit} style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="E.g., Make this button blue, add hover effect..."
+                  value={targetedPrompt}
+                  onChange={(e) => setTargetedPrompt(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: "8px 12px",
+                    borderRadius: 4,
+                    border: "1px solid var(--app-border, #444)",
+                    background: "var(--app-input-bg, #1a1a2e)",
+                    color: "var(--app-text, #e0e0e0)",
+                    fontSize: 13,
+                    outline: "none",
+                  }}
+                />
+                <button
+                  type="submit"
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 4,
+                    border: "none",
+                    background: "var(--app-accent, #6366f1)",
+                    color: "#fff",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 500,
+                  }}
+                >
+                  Ask Hermes
+                </button>
+              </form>
             </div>
           )}
         </div>

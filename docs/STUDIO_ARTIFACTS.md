@@ -6,42 +6,11 @@ Artifacts live in Studio-owned `studio.db`. They are not Hermes Agent state, and
 
 ## Storage
 
-Migration `5: persistent_artifacts` creates:
-
-- `artifacts`
-- `artifact_events`
-
-Migration `9: artifact_revisions` creates:
-
-- `artifact_revisions`
-
-Migration `10: artifact_variants` creates:
-
-- `artifact_variant_groups`
-- `artifact_variants`
-
-Artifact records can link to:
-
-- `run_id`
-- `session_id`
-- `kanban_card_id`
-
-File artifacts are references only. Studio stores path metadata and a display filename; it does not copy arbitrary files into SQLite.
+Migration `5: persistent_artifacts` creates the `artifacts` and `artifact_events` tables. Migration `9: artifact_revisions` adds `artifact_revisions`. Migration `10: artifact_variants` adds `artifact_variant_groups` and `artifact_variants`. Artifact records can link to `run_id`, `session_id`, or `kanban_card_id`. File artifacts are references only — Studio stores path metadata and a display filename, not the file contents.
 
 ## Types
 
-Supported artifact types:
-
-- `markdown`
-- `text`
-- `log_snapshot`
-- `test_result`
-- `report`
-- `html`
-- `screenshot`
-- `file_reference`
-- `json`
-- `unknown`
+The following artifact types are supported: `markdown`, `text`, `log_snapshot`, `test_result`, `report`, `html`, `screenshot`, `file_reference`, `json`, and `unknown`.
 
 ## API
 
@@ -81,46 +50,20 @@ The OpenAPI route parity test fails if these paths drift from `packages/protocol
 
 ## Frontend
 
-Artifact Shelf v1 supports:
+Artifact Shelf v1 supports listing and searching persisted artifacts, filtering by type, inspecting detail metadata and content, creating artifacts manually, and archiving them. You can create run summary, log snapshot, and markdown report artifacts from the Run Ledger, session summary artifacts from Sessions, and card summary artifacts from Board.
 
-- list and search persisted artifacts
-- filter by artifact type
-- inspect detail metadata and content
-- create manual artifacts
-- archive artifacts
-- create run summary, log snapshot, and markdown report artifacts from Run Ledger
-- create session summary artifacts from Sessions
-- create card summary artifacts from Board
-- inspect related run/session context through Context Inspector
-- inspect HTML artifacts in a sanitized sandboxed inline preview
-- edit HTML artifact source beside a live sanitized preview and persist the revision through `/studio/artifacts/{id}`
-- click an element inside the sanitized HTML preview to capture a CSS selector for targeted Hermes edits
-- send targeted Visual Edit prompts to Hermes with optional CSS selector/component target
-- create persisted A/B Variant Studio groups with a baseline source snapshot
-- save draft/generated variants with label, rationale, score, and optional preview content
-- apply a winning variant back to the source artifact while recording a new revision
-- request A/B visual variants through Hermes with the Studio variant group ID in the handoff prompt
-- capture a local Playwright browser evidence artifact with screenshot path, console/runtime findings, basic accessibility/overflow checks, and artifact links
-- create a Hermes browser-check request when the user wants the agent to interpret or fix the evidence
-- request a video production brief from any artifact using Hermes video/image generation skills and toolsets
-- extract a reusable "Design DNA" profile proposal from an artifact for future visual edits
-- inspect artifact history events
-- inspect artifact revision snapshots and revert an artifact to a previous Studio-owned version
+Inspect related run or session context through Context Inspector. HTML artifacts appear in a sanitized sandboxed inline preview. Edit HTML artifact source beside a live sanitized preview and persist revisions through `PATCH /studio/artifacts/{id}`. Click an element inside the sanitized HTML preview to capture a CSS selector for targeted Hermes edits.
 
-Markdown is rendered using safe React text nodes. JSON is pretty printed. Logs and source text remain visible as monospaced text. File references show path metadata and an "Open file" placeholder.
+Create persisted A/B Variant Studio groups with a baseline source snapshot. Save draft or generated variants with label, rationale, score, and optional preview content. Apply a winning variant back to the source artifact while recording a new revision. Request A/B visual variants through Hermes with the Studio variant group ID in the handoff prompt.
 
-Context Inspector can show artifacts linked to a selected run or session. This relationship is read-only from the context surface; artifact writes still go only through `/studio/artifacts/*`.
+Capture a local Playwright browser evidence artifact with screenshot path, console and runtime findings, basic accessibility and overflow checks, and artifact links. Create a Hermes browser-check request when you want the agent to interpret or fix the evidence. Request a video production brief from any artifact using Hermes video or image generation skills and toolsets. Extract a reusable Design DNA profile proposal from an artifact for future visual edits.
+
+Inspect artifact history events, revision snapshots, and revert an artifact to a previous Studio-owned version.
+
+Markdown renders using safe React text nodes. JSON is pretty printed. Logs and source text remain visible as monospaced text. File references show path metadata and an Open file placeholder.
+
+Context Inspector can show artifacts linked to a selected run or session. This relationship is read-only from the context surface — artifact writes still go only through `/studio/artifacts/*`.
 
 ## Future Work
 
-Future layers can add:
-
-- artifact extraction from real run outputs
-- richer screenshot diffing and viewport matrices
-- test result parsing
-- visual diff references for artifact revisions
-- richer card/run/session artifact relationship views
-- direct screenshot capture from preview frames
-- automatic structured import of Hermes-generated variant JSON into existing variant groups
-
-Those layers should keep the same Studio-owned storage boundary.
+Future layers can add artifact extraction from real run outputs, richer screenshot diffing and viewport matrices, test result parsing, visual diff references for artifact revisions, and richer card, run, and session artifact relationship views. Direct screenshot capture from preview frames and automatic structured import of Hermes-generated variant JSON into existing variant groups are also possible. Those layers should keep the same Studio-owned storage boundary.

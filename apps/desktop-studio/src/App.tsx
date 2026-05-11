@@ -1,7 +1,10 @@
 import React from "react";
 import { AppFrame } from "./components/layout/AppFrame";
 import { PreviewCanvas } from "./components/preview/PreviewCanvas";
+import { StartupScreen } from "./components/common/StartupScreen";
+import { FirstRunWizard, isWizardCompleted } from "./components/onboarding/FirstRunWizard";
 import { useThemeStore } from "./stores/themeStore";
+import type { WizardConfig } from "./components/onboarding/FirstRunWizard";
 
 function isPreviewWindow(): boolean {
   try {
@@ -15,68 +18,34 @@ function isPreviewWindow(): boolean {
   return false;
 }
 
-const MIN_SPLASH_MS = 500;
-
 export default function App() {
   const initTheme = useThemeStore((s) => s.initTheme);
   const [isPreview] = React.useState(() => isPreviewWindow());
-  const [splashVisible, setSplashVisible] = React.useState(true);
-  const [splashFading, setSplashFading] = React.useState(false);
+  const [appReady, setAppReady] = React.useState(false);
+  const [wizardComplete, setWizardComplete] = React.useState(() => isWizardCompleted());
 
   React.useEffect(() => {
     initTheme();
   }, [initTheme]);
 
-  React.useEffect(() => {
-    const start = Date.now();
-    const timer = setTimeout(() => {
-      const elapsed = Date.now() - start;
-      const remaining = Math.max(0, MIN_SPLASH_MS - elapsed);
-      setTimeout(() => {
-        setSplashFading(true);
-        setTimeout(() => setSplashVisible(false), 300);
-      }, remaining);
-    }, 0);
-    return () => clearTimeout(timer);
+  const handleWizardComplete = React.useCallback((_config: WizardConfig) => {
+    // Wizard configuration is persisted internally
+    setWizardComplete(true);
+    setAppReady(true);
   }, []);
 
   if (isPreview) return <PreviewCanvas />;
 
-  return (
-    <>
-      {splashVisible && (
-        <div
-          className="splash-screen"
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 9999,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "var(--app-bg, #1a1a2e)",
-            color: "var(--app-text, #e0e0e0)",
-            opacity: splashFading ? 0 : 1,
-            transition: "opacity 300ms ease-out",
-            pointerEvents: splashFading ? "none" : "auto",
-          }}
-        >
-          <div style={{ fontSize: "2rem", fontWeight: 700, marginBottom: "1rem" }}>
-            Hermes Desktop Studio
-          </div>
-          <div className="splash-spinner" style={{
-            width: 24,
-            height: 24,
-            border: "3px solid var(--app-border, #333)",
-            borderTopColor: "var(--app-accent, #6366f1)",
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-          }} />
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-      )}
-      <AppFrame />
-    </>
-  );
+  // Show first-run wizard on initial launch
+  if (!wizardComplete) {
+    return <FirstRunWizard onComplete={handleWizardComplete} />;
+  }
+
+  // Not yet ready — show startup screen (handles adapter lifecycle)
+  if (!appReady) {
+    return <StartupScreen onReady={() => setAppReady(true)} />;
+  }
+
+  // App is ready — render main UI
+  return <AppFrame />;
 }

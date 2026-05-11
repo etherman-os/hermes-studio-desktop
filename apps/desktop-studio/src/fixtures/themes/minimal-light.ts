@@ -7,6 +7,7 @@ export const minimalLight: ThemePack = {
     version: "0.1.0",
     author: "etherman-os",
     description: "Clean, minimal light theme for bright environments",
+    keywords: ["paper", "minimal"],
   },
   palette: {
     bg: "#ffffff",
@@ -30,6 +31,9 @@ export const minimalLight: ThemePack = {
     kanban_doing: "#e67700",
     kanban_done: "#2f9e44",
     kanban_blocked: "#e03131",
+  },
+  borders: {
+    style: "thin",
   },
   icons: {
     profile: "👤",

@@ -8,7 +8,10 @@ import { useLayoutStore } from "../../stores/layoutStore";
 import { useLogStore } from "../../stores/logStore";
 import { useRunLedgerStore, type RunRecord } from "../../stores/runLedgerStore";
 import { useSessionStore } from "../../stores/sessionStore";
+import { EmptyState } from "../common/EmptyState";
+import { Activity } from "lucide-react";
 import { PreviewLauncher } from "../preview/PreviewLauncher";
+import "./RunLedger.css";
 
 interface TimelineEntry {
   id: string;
@@ -289,12 +292,25 @@ export function RunLedger() {
     const byId = new Map([...stored, ...pending].map((approval) => [approval.id, approval]));
     return Array.from(byId.values());
   }, [approvals, pendingApprovals, run]);
-  const selected = timeline.find((entry) => entry.id === selectedEventId)
+  const selected = React.useMemo(() => (
+    timeline.find((entry) => entry.id === selectedEventId)
     ?? timeline.find((entry) => entry.events.some((event) => event.id === selectedEventId))
     ?? timeline[0]
-    ?? null;
+    ?? null
+  ), [timeline, selectedEventId]);
   const compareOptions = React.useMemo(() => runs.filter((item) => item.runId !== run?.runId), [run?.runId, runs]);
   const [compareTargetId, setCompareTargetId] = React.useState<string>("");
+  const runUrl = React.useMemo(() => (run ? extractRunUrl(run) : null), [run]);
+  const toolCount = React.useMemo(() => timeline.filter((entry) => entry.type === "tool.call").length, [timeline]);
+  const assistantEventCount = React.useMemo(
+    () => (run?.events ?? []).filter((event) => event.type === "assistant.delta" || event.type === "assistant.completed").length,
+    [run?.events],
+  );
+  const warningCount = React.useMemo(
+    () => timeline.filter((entry) => entry.tone === "warning" || entry.tone === "error").length,
+    [timeline],
+  );
+  const approvalCount = React.useMemo(() => Math.max(runApprovals.length, approvalEvents.length), [runApprovals, approvalEvents]);
 
   React.useEffect(() => {
     if (!run || run.events.length > 0 || run.runId.startsWith("pending_") || run.runId.startsWith("local_")) return;
@@ -382,82 +398,131 @@ export function RunLedger() {
 
   if (!run && !loading) {
     return (
-      <div className="workbench-empty" role="status">
-        <div className="workbench-empty-icon" aria-hidden="true">R</div>
-        <div className="workbench-empty-title">No runs captured yet</div>
-        <div className="workbench-empty-copy">
-          Start a prompt from Chat and the run ledger will track stream, tool, approval, warning, memory, and board events here.
-        </div>
-        {error && <div className="inline-warning" role="alert">Run history unavailable: {error}</div>}
-        <div className="error-actions">
-          <button className="tool-button" onClick={() => void loadRecentRuns()} aria-label="Refresh run history">Refresh Run History</button>
-        </div>
-      </div>
+      <>
+        {error && (
+          <div className="run-ledger-notice" role="alert">
+            <span>Run history unavailable: {error}</span>
+          </div>
+        )}
+        <EmptyState
+          icon={Activity}
+          title="No runs yet"
+          description="Start a prompt from Chat and the run ledger will track stream, tool, approval, warning, memory, and board events here."
+          action={{
+            label: "Refresh run history",
+            onClick: () => void loadRecentRuns(),
+          }}
+        />
+      </>
     );
   }
 
   return (
-    <div className="run-ledger">
-      <div className="run-ledger-header">
-        <div>
+    <div className="run-ledger" data-testid="run-ledger">
+      <div className="run-ledger-header" data-testid="run-ledger-header">
+        <div className="run-ledger-heading">
           <div className="workbench-eyebrow">Run Ledger</div>
           <div className="run-ledger-title">{run ? runTitle(run) : "Loading run history"}</div>
         </div>
-        <div className="run-ledger-actions">
-          {run && <button className="tool-button" onClick={() => void createCardFromRun(run.runId)} disabled={savingRunCard}>Create Card from Run</button>}
-          {run && <button className="tool-button" onClick={() => void createRunSummaryArtifact("summary")} disabled={artifactSaving}>Create Artifact from Run</button>}
-          {run && <button className="tool-button" onClick={() => void createRunSummaryArtifact("report")} disabled={artifactSaving}>Create Markdown Report</button>}
-          {run && <button className="tool-button" onClick={() => void createLogSnapshotArtifact()} disabled={artifactSaving}>Create Log Snapshot</button>}
-          {run && extractedArtifactCandidates.length > 0 && (
-            <button className="primary-button" onClick={() => void extractRunArtifacts()} disabled={artifactSaving}>
-              Extract Artifacts ({extractedArtifactCandidates.length})
-            </button>
+        <div className="run-workbench-actions" aria-label="Run workbench actions">
+          {run && (
+            <div className="run-action-group">
+              <div className="run-action-label">Create</div>
+              <div className="run-action-buttons">
+                {extractedArtifactCandidates.length > 0 && (
+                  <button className="primary-button" onClick={() => void extractRunArtifacts()} disabled={artifactSaving}>
+                    Extract Artifacts ({extractedArtifactCandidates.length})
+                  </button>
+                )}
+                <button className="tool-button" onClick={() => void createCardFromRun(run.runId)} disabled={savingRunCard}>Create Card</button>
+                <button className="tool-button" onClick={() => void createRunSummaryArtifact("summary")} disabled={artifactSaving}>Run Artifact</button>
+                <button className="tool-button" onClick={() => void createRunSummaryArtifact("report")} disabled={artifactSaving}>Markdown Report</button>
+                <button className="tool-button" onClick={() => void createLogSnapshotArtifact()} disabled={artifactSaving}>Log Snapshot</button>
+              </div>
+            </div>
           )}
-          {run && extractRunUrl(run) && (
-            <PreviewLauncher
-              url={extractRunUrl(run)!}
-              title={runTitle(run)}
-              label="Preview URL"
-            />
+
+          {run && (
+            <div className="run-action-group">
+              <div className="run-action-label">Inspect</div>
+              <div className="run-action-buttons">
+                {runUrl && (
+                  <PreviewLauncher
+                    url={runUrl}
+                    title={runTitle(run)}
+                    label="Preview URL"
+                  />
+                )}
+                <button className="tool-button" onClick={() => void openRunApprovals()}>Approvals</button>
+                <button className="tool-button" onClick={() => void inspectRunContext()}>Context</button>
+                {run.sessionId && <button className="tool-button" onClick={openSession}>Session</button>}
+              </div>
+            </div>
           )}
-          {run && <button className="tool-button" onClick={() => void openRunApprovals()}>Open Approvals</button>}
-          {run && <button className="tool-button" onClick={() => void inspectRunContext()}>Inspect Context</button>}
-          {run && <button className="tool-button" onClick={() => void handleCopySummary()}>Copy Run Summary</button>}
-          {run && compareOptions.length > 0 && (
-            <select
-              className="studio-select compact"
-              value={compareTargetId}
-              onChange={(event) => setCompareTargetId(event.target.value)}
-              aria-label="Compare run target"
-            >
-              {compareOptions.map((item) => (
-                <option key={item.runId} value={item.runId}>{runTitle(item).slice(0, 42)}</option>
-              ))}
-            </select>
+
+          {run && (
+            <div className="run-action-group">
+              <div className="run-action-label">Export / Compare</div>
+              <div className="run-action-buttons">
+                <button className="tool-button" onClick={() => void handleCopySummary()}>Copy Summary</button>
+                {compareOptions.length > 0 && (
+                  <select
+                    className="studio-select compact run-compare-select"
+                    value={compareTargetId}
+                    onChange={(event) => setCompareTargetId(event.target.value)}
+                    aria-label="Compare run target"
+                  >
+                    {compareOptions.map((item) => (
+                      <option key={item.runId} value={item.runId}>{runTitle(item).slice(0, 42)}</option>
+                    ))}
+                  </select>
+                )}
+                {compareTargetId && (
+                  <button className="tool-button" onClick={() => void compareRuns(run.runId, compareTargetId)} disabled={comparingRuns}>
+                    {comparingRuns ? "Comparing" : "Compare"}
+                  </button>
+                )}
+              </div>
+            </div>
           )}
-          {run && compareTargetId && (
-            <button className="tool-button" onClick={() => void compareRuns(run.runId, compareTargetId)} disabled={comparingRuns}>
-              {comparingRuns ? "Comparing" : "Compare"}
-            </button>
-          )}
-          {run?.sessionId && <button className="tool-button" onClick={openSession}>Open Related Session</button>}
-          <button className="tool-button" onClick={() => void loadRecentRuns()}>{loading ? "Refreshing" : "Refresh"}</button>
+
+          <button className="tool-button run-refresh-button" onClick={() => void loadRecentRuns()}>{loading ? "Refreshing" : "Refresh"}</button>
         </div>
       </div>
 
       {run && (
-        <div className="run-ledger-meta">
-          <span className={`status-pill status-${run.status}`}>{run.status}</span>
-          <span>Run {run.runId}</span>
-          <span>Session {run.sessionId ?? "none"}</span>
-          <span>Backend {run.backend ?? "live"}</span>
-          <span>Model {run.model ?? "unknown"}</span>
-          <span>Workspace {run.workspacePath ?? "none"}</span>
-          <span>{run.events.length} events</span>
-          <span>{Math.max(runApprovals.length, approvalEvents.length)} approvals</span>
-          <span>{duration(run)}</span>
-          <span>Started {formatTime(run.startedAt)}</span>
-          {run.completedAt && <span>Ended {formatTime(run.completedAt)}</span>}
+        <div className="run-workbench-top">
+          <div className="run-status-strip" aria-label="Selected run status summary">
+            <div className="run-status-card primary">
+              <span className="run-status-label">Status</span>
+              <strong><span className={`status-pill status-${run.status}`}>{run.status}</span></strong>
+              <small>{duration(run)} · {run.events.length} events · {toolCount} tools</small>
+            </div>
+            <div className="run-status-card">
+              <span className="run-status-label">Output</span>
+              <strong>{runUrl ? "Preview URL captured" : assistantEventCount ? "Assistant output captured" : "No output yet"}</strong>
+              <small>{assistantEventCount} assistant events</small>
+            </div>
+            <div className="run-status-card">
+              <span className="run-status-label">Artifacts</span>
+              <strong>{extractedArtifactCandidates.length ? `${extractedArtifactCandidates.length} extractable` : "None detected"}</strong>
+              <small>{artifactSaving ? "Saving artifact" : artifactMessage || "Ready to create summaries"}</small>
+            </div>
+            <div className="run-status-card">
+              <span className="run-status-label">Approvals / Logs</span>
+              <strong>{approvalCount} approvals · {warningCount} warnings</strong>
+              <small>{logLines.length ? `${logLines.length} recent log lines loaded` : "Log snapshot loads recent lines"}</small>
+            </div>
+          </div>
+          <div className="run-ledger-meta" aria-label="Selected run identifiers">
+            <span>Run {run.runId}</span>
+            <span>Session {run.sessionId ?? "none"}</span>
+            <span>Backend {run.backend ?? "live"}</span>
+            <span>Model {run.model ?? "unknown"}</span>
+            <span>Workspace {run.workspacePath ?? "none"}</span>
+            <span>Started {formatTime(run.startedAt)}</span>
+            {run.completedAt && <span>Ended {formatTime(run.completedAt)}</span>}
+          </div>
         </div>
       )}
 
@@ -501,7 +566,7 @@ export function RunLedger() {
       )}
 
       <div className="run-ledger-body">
-        <div className="recent-runs-list selectable" role="listbox" aria-label="Recent runs">
+        <div className="recent-runs-list selectable" role="listbox" aria-label="Recent runs" data-testid="run-list">
           <div className="pane-label">Recent Runs</div>
           {runs.map((item) => (
             <button
@@ -509,6 +574,7 @@ export function RunLedger() {
               role="option"
               aria-selected={run?.runId === item.runId}
               className={`recent-run-item ${run?.runId === item.runId ? "active" : ""}`}
+              data-testid={`run-item-${item.runId}`}
               onClick={() => {
                 selectRun(item.runId);
                 if (item.events.length === 0) void loadRunLedger(item.runId);
@@ -516,7 +582,7 @@ export function RunLedger() {
             >
               <span className="recent-run-title">{runTitle(item)}</span>
               <span className="recent-run-meta">
-                <span className={`status-dot status-${item.status}`} aria-hidden="true" />
+                <span className={`status-dot status-${item.status}`} aria-hidden="true" data-testid={`run-status-${item.runId}`} />
                 {item.status}
                 {item.sessionId ? ` - ${item.sessionId}` : ""}
               </span>
@@ -524,7 +590,7 @@ export function RunLedger() {
           ))}
         </div>
 
-        <div className="timeline-list selectable" role="listbox" aria-label="Run timeline">
+        <div className="timeline-list selectable" role="listbox" aria-label="Run timeline" data-testid="timeline-list">
           {timeline.length === 0 && (
             <div className="workbench-empty compact" role="status">No events persisted for this run yet. Live events will appear as the stream arrives.</div>
           )}
@@ -534,6 +600,7 @@ export function RunLedger() {
               role="option"
               aria-selected={selected?.id === entry.id}
               className={`timeline-entry ${entry.tone} ${selected?.id === entry.id ? "active" : ""}`}
+              data-testid={`timeline-entry-${entry.id}`}
               onClick={() => selectEvent(entry.id)}
             >
               <span className="timeline-marker" aria-hidden="true" />

@@ -4,6 +4,7 @@ import { useApprovalStore } from "./approvalStore";
 import { useKanbanStore } from "./kanbanStore";
 import { useRunLedgerStore } from "./runLedgerStore";
 import { useNativeStore } from "./nativeStore";
+import { toast } from "./toastStore";
 
 let messageIdCounter = 0;
 function nextMessageId(): string {
@@ -35,6 +36,8 @@ interface RunState {
   messages: ChatMessage[];
   abortController: AbortController | null;
   tokenUsage: TokenUsage | null;
+  _inactivityTimer: ReturnType<typeof setTimeout> | null;
+  _clearInactivityTimer: () => void;
   sendPrompt: (
     prompt: string,
     sessionId: string,
@@ -72,6 +75,13 @@ export const useRunStore = create<RunState>((set, get) => ({
   ],
   abortController: null,
   tokenUsage: null,
+  _inactivityTimer: null,
+
+  _clearInactivityTimer: () => {
+    const timer = get()._inactivityTimer;
+    if (timer !== null) clearTimeout(timer);
+    set({ _inactivityTimer: null });
+  },
 
   appendUserMessage: (content) => {
     set((s) => ({ messages: [...s.messages, { id: nextMessageId(), role: "user" as const, content }] }));
@@ -102,6 +112,11 @@ export const useRunStore = create<RunState>((set, get) => ({
   sendPrompt: async (prompt, sessionId, options) => {
     const state = get();
     if (state.isStreaming) return;
+
+    // Clear any existing inactivity timer before starting a new run
+    if (state._inactivityTimer !== null) {
+      clearTimeout(state._inactivityTimer);
+    }
 
     state.appendUserMessage(prompt);
     useRunLedgerStore.getState().beginPrompt(prompt, sessionId, { workspacePath: options?.workspacePath ?? null });
@@ -135,6 +150,21 @@ export const useRunStore = create<RunState>((set, get) => ({
 
       // NOTE: Callbacks must call get() to access latest state, never capture `state` via closure.
       // `run` and `sessionId` are safe to close over as they are constants for this execution.
+
+      // Client-side inactivity timer: if no events (including pings) for 60s, treat as disconnected
+      const resetInactivityTimer = (existing: ReturnType<typeof setTimeout> | null, rid: string) => {
+        if (existing !== null) clearTimeout(existing);
+        return setTimeout(() => {
+          const s = get();
+          if (s.isStreaming && s.activeRunId === rid) {
+            s.stopRun();
+            get().appendAssistantChunk("\n[Connection lost: inactivity timeout — no events received for 60 seconds.]");
+            useRunLedgerStore.getState().finishRun(rid, "failed", "inactivity timeout");
+            toast.warn("Connection lost", "Run was stopped because no events were received for 60 seconds.");
+          }
+        }, 60_000);
+      };
+
       const ac = api.streamRunEvents(run.run_id, {
         onEvent: (event) => {
           useRunLedgerStore.getState().recordEvent(event);
@@ -156,7 +186,7 @@ export const useRunStore = create<RunState>((set, get) => ({
         },
         onToolStarted: (p) => get().addToolEvent(p.tool, "running"),
         onToolCompleted: (p) => get().addToolEvent(p.tool, "completed", p.duration_ms),
-        onKanbanUpdated: () => void useKanbanStore.getState().refreshBoard(),
+        onKanbanUpdated: () => useKanbanStore.getState().refreshBoard().catch((err) => console.warn("onKanbanUpdated failed:", err)),
         onRunCompleted: (p) => {
           const prev = get().tokenUsage;
           set({
@@ -170,12 +200,14 @@ export const useRunStore = create<RunState>((set, get) => ({
             },
           });
           useRunLedgerStore.getState().finishRun(run.run_id, "completed");
+          toast.success("Run completed", `Run ${run.run_id.slice(0, 8)} finished successfully`);
           void useNativeStore.getState().sendNotification("Run Completed", `Run ${run.run_id.slice(0, 8)} finished successfully`);
           get().finalizeRun();
         },
         onRunFailed: (p) => {
           get().appendAssistantChunk(`\n[Error: ${p.message}]`);
           useRunLedgerStore.getState().finishRun(run.run_id, "failed", p.message);
+          toast.error("Run failed", p.message);
           void useNativeStore.getState().sendNotification("Run Failed", `Run ${run.run_id.slice(0, 8)} failed: ${p.message}`);
           get().finalizeRun();
         },
@@ -183,16 +215,46 @@ export const useRunStore = create<RunState>((set, get) => ({
           useRunLedgerStore.getState().finishRun(run.run_id, "cancelled");
           get().finalizeRun();
         },
+        onRunDisconnected: (p) => {
+          const reason = p.reason ?? "inactivity_timeout";
+          const message = p.message ?? "Connection lost — no events received for 60 seconds.";
+          get().appendAssistantChunk(`\n[Connection lost: ${message}]`);
+          useRunLedgerStore.getState().finishRun(run.run_id, "failed", message);
+          toast.warn("Connection lost", "Run was stopped because the stream disconnected unexpectedly.");
+          api.stopRun(run.run_id).catch(() => {/* ignore */});
+          get().finalizeRun();
+        },
+        onRunInterrupted: (p) => {
+          const message = p.message ?? "Stream interrupted.";
+          get().appendAssistantChunk(`\n[Stream interrupted: ${message}]`);
+          useRunLedgerStore.getState().finishRun(run.run_id, "failed", message);
+          toast.warn("Stream interrupted", message);
+          get().finalizeRun();
+        },
+        onPing: () => {
+          const currentTimer = get()._inactivityTimer;
+          const newTimer = resetInactivityTimer(currentTimer, run.run_id);
+          set({ _inactivityTimer: newTimer });
+        },
         onError: (err) => {
           get().appendAssistantChunk(`\n[Adapter error: ${err.message}]`);
           useRunLedgerStore.getState().recordLocalWarning(err.message, run.run_id, sessionId);
           useRunLedgerStore.getState().finishRun(run.run_id, "failed", err.message);
           get().finalizeRun();
         },
-        onDone: () => get().finalizeRun(),
+        onDone: () => {
+          const timer = get()._inactivityTimer;
+          if (timer !== null) {
+            clearTimeout(timer);
+          }
+          set({ _inactivityTimer: null });
+          get().finalizeRun();
+        },
       });
 
-      set({ abortController: ac });
+      // Start the inactivity timer
+      const timer = resetInactivityTimer(null, run.run_id);
+      set({ abortController: ac, _inactivityTimer: timer });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       get().appendAssistantChunk(`\n[Failed to start run: ${message}]`);
@@ -200,13 +262,15 @@ export const useRunStore = create<RunState>((set, get) => ({
       const pendingRunId = ledger.currentRunId;
       ledger.recordLocalWarning(message, pendingRunId, sessionId);
       if (pendingRunId) ledger.finishRun(pendingRunId, "failed", message);
-      set({ isStreaming: false });
+    } finally {
+      get()._clearInactivityTimer();
     }
   },
 
   stopRun: async () => {
     const { activeRunId, abortController } = get();
     if (abortController) abortController.abort();
+    get()._clearInactivityTimer();
     if (activeRunId) {
       try { await api.stopRun(activeRunId); } catch { /* ignore */ }
       useRunLedgerStore.getState().finishRun(activeRunId, "cancelled");
@@ -215,10 +279,12 @@ export const useRunStore = create<RunState>((set, get) => ({
   },
 
   finalizeRun: () => {
+    get()._clearInactivityTimer();
     set({ isStreaming: false, activeRunId: null, abortController: null });
   },
 
   newChat: () => {
+    get()._clearInactivityTimer();
     set({
       messages: [
         { id: nextMessageId(), role: "assistant" as const, content: "New chat ready. Start a run to send work to Hermes through the Studio adapter." },
@@ -228,6 +294,7 @@ export const useRunStore = create<RunState>((set, get) => ({
       abortController: null,
       isStreaming: false,
       tokenUsage: null,
+      _inactivityTimer: null,
     });
   },
 

@@ -113,7 +113,14 @@ function upsertEvent(runs: RunRecord[], runId: string, event: StudioEvent): RunR
   return runs.map((run) => {
     if (run.runId !== runId) return run;
     const exists = run.events.some((item) => item.id === event.id);
-    return { ...run, events: exists ? run.events : [...run.events, event] };
+    if (exists) return run;
+    // Guard against out-of-order events by checking timestamps
+    // Only add event if its timestamp is >= the latest event's timestamp in the run
+    if (run.events.length > 0) {
+      const latestTimestamp = run.events[run.events.length - 1].timestamp;
+      if (event.timestamp < latestTimestamp) return run;
+    }
+    return { ...run, events: [...run.events, event] };
   });
 }
 

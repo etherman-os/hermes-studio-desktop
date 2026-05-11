@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import shlex
 import subprocess
 import uuid
@@ -16,8 +17,12 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
+# Shell metacharacters that could be exploited in SSH remote command injection.
+# This validates HERMES_STUDIO_REMOTE_HERMES_BIN before it is embedded in an SSH command.
+_SHELL_METACHAR_RE = re.compile(r"[;&|`$<>{}()\[\]!*?\"'\\ \t\n\r]")
+
 from hermes_adapter.backend_config import get_cli_run_timeout_seconds
-from hermes_adapter.hermes_backend import HermesBackend, _redact
+from hermes_adapter.hermes_backend import HermesBackend, _now_iso, _redact
 from hermes_adapter.hermes_inventory_repository import HermesInventoryRepository
 from hermes_adapter.studio_events import make_studio_event
 
@@ -63,6 +68,11 @@ class HermesCliBackend(HermesBackend):
         self._active_cli_runs: dict[str, dict[str, Any]] = {}
         self._processes: dict[str, asyncio.subprocess.Process] = {}
         self._remote_ssh_target = remote_ssh_target
+        # Validate remote_hermes_bin to prevent shell injection via HERMES_STUDIO_REMOTE_HERMES_BIN
+        if remote_ssh_target and _SHELL_METACHAR_RE.search(remote_hermes_bin):
+            raise ValueError(
+                f"HERMES_STUDIO_REMOTE_HERMES_BIN contains unsafe characters: {remote_hermes_bin!r}"
+            )
         self._remote_hermes_bin = remote_hermes_bin
         self._capability_cache: dict[str, Any] | None = None
 
@@ -283,6 +293,14 @@ class HermesCliBackend(HermesBackend):
         command = self._command_for_run(run)
         cwd = self._cwd_for_run(run)
         timeout = get_cli_run_timeout_seconds()
+        ping_interval = 30.0
+        inactivity_timeout = 60.0
+        # Per-call readline timeout to prevent indefinite blocking on a single syscall.
+        # This is independent of the inactivity timeout and caps how long any single
+        # readline() call can block even when data is potentially trickling in slowly.
+        per_call_timeout = 10.0
+        last_event_time = asyncio.get_running_loop().time()
+        next_ping_at = last_event_time + ping_interval
         process = await asyncio.create_subprocess_exec(
             *command,
             cwd=str(cwd) if cwd else None,
@@ -291,17 +309,58 @@ class HermesCliBackend(HermesBackend):
             stderr=asyncio.subprocess.PIPE,
         )
         self._processes[run_id] = process
-        stderr_task = asyncio.create_task(process.stderr.read() if process.stderr else asyncio.sleep(0, result=b""))
-        deadline = asyncio.get_running_loop().time() + timeout
+        stderr_task: asyncio.Task[bytes] | None = None
         try:
+            stderr_task = asyncio.create_task(process.stderr.read() if process.stderr else asyncio.sleep(0, result=b""))
+            deadline = asyncio.get_running_loop().time() + timeout
             if process.stdout:
                 while True:
-                    remaining = deadline - asyncio.get_running_loop().time()
-                    if remaining <= 0:
-                        raise TimeoutError
-                    chunk = await asyncio.wait_for(process.stdout.readline(), timeout=remaining)
+                    now = asyncio.get_running_loop().time()
+                    # Check inactivity timeout before waiting for next chunk
+                    if now - last_event_time > inactivity_timeout:
+                        process.kill()
+                        yield _event(
+                            "run.disconnected",
+                            {"run_id": run_id, "reason": "inactivity_timeout", "message": "No output received for too long"},
+                            run_id=run_id,
+                            session_id=session_id,
+                        )
+                        return
+                    remaining = deadline - now
+                    wait_timeout = min(remaining, next_ping_at - now) if next_ping_at > now else remaining
+                    if wait_timeout <= 0:
+                        wait_timeout = remaining
+                    # Cap per-call timeout to prevent a single readline() from blocking
+                    # indefinitely even if data trickles in slowly.
+                    call_timeout = min(wait_timeout, per_call_timeout) if per_call_timeout > 0 else wait_timeout
+                    try:
+                        chunk = await asyncio.wait_for(process.stdout.readline(), timeout=call_timeout)
+                    except asyncio.TimeoutError:
+                        # Timeout on wait — check if it's a ping or inactivity timeout
+                        now2 = asyncio.get_running_loop().time()
+                        if next_ping_at <= now2:
+                            yield _event(
+                                "ping",
+                                {"run_id": run_id, "timestamp": _now_iso()},
+                                run_id=run_id,
+                                session_id=session_id,
+                            )
+                            next_ping_at = now2 + ping_interval
+                            last_event_time = now2
+                        if now2 - last_event_time > inactivity_timeout:
+                            process.kill()
+                            yield _event(
+                                "run.disconnected",
+                                {"run_id": run_id, "reason": "inactivity_timeout", "message": "No output received for too long"},
+                                run_id=run_id,
+                                session_id=session_id,
+                            )
+                            return
+                        continue
                     if not chunk:
                         break
+                    last_event_time = asyncio.get_running_loop().time()
+                    next_ping_at = last_event_time + ping_interval
                     text = chunk.decode("utf-8", errors="replace")
                     if text:
                         yield _event("assistant.delta", {"text": text}, run_id=run_id, session_id=session_id, source="hermes")
@@ -313,12 +372,32 @@ class HermesCliBackend(HermesBackend):
         except TimeoutError:
             process.kill()
             await process.wait()
-            stderr_task.cancel()
+            if stderr_task and not stderr_task.done():
+                stderr_task.cancel()
+                try:
+                    await stderr_task
+                except asyncio.CancelledError:
+                    pass
             yield _event("run.failed", {"run_id": run_id, "message": "Hermes CLI run timed out"}, run_id=run_id, session_id=session_id)
             return
+        except asyncio.CancelledError:
+            # Clean up stderr_task on cancellation before re-raising
+            if stderr_task and not stderr_task.done():
+                stderr_task.cancel()
+                try:
+                    await stderr_task
+                except asyncio.CancelledError:
+                    pass
+            raise
         finally:
             self._processes.pop(run_id, None)
             self._active_cli_runs.pop(run_id, None)
+            if stderr_task and not stderr_task.done():
+                stderr_task.cancel()
+                try:
+                    await stderr_task
+                except asyncio.CancelledError:
+                    pass
 
         error = stderr.decode("utf-8", errors="replace").strip()
         if process.returncode != 0:

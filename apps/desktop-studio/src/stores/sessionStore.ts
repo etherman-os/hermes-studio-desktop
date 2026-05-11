@@ -23,7 +23,7 @@ interface SessionState {
 
 export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: [],
-  activeSessionId: "s-1",
+  activeSessionId: null,
   searchQuery: "",
   sessionSource: "unavailable",
   loaded: false,

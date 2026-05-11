@@ -6,18 +6,7 @@ It exists because a local Hermes install has more moving pieces than a chat box:
 
 ## What It Shows
 
-- adapter connection state
-- backend mode and active backend
-- Hermes local CLI and optional gateway reachability
-- active provider/model
-- recent Run Ledger records
-- pending approvals
-- managed Studio/Hermes processes
-- recent delegations
-- Hermes provider, model, skill, MCP, and toolset counts
-- Hermes CLI command/flag discovery from `hermes --help` and `hermes chat --help`
-- Hermes v0.13 checkpoint store status from `hermes checkpoints status`
-- local run presets for implementation, review, debugging, design polish, browser verification, multi-agent orchestration, Kanban swarm planning, video generation, and Studio memory extraction
+Mission Control shows adapter connection state, backend mode and active backend, Hermes local CLI and optional gateway reachability, active provider/model, recent Run Ledger records, pending approvals, managed Studio/Hermes processes, recent delegations, Hermes provider, model, skill, MCP, and toolset counts, Hermes CLI command/flag discovery from `hermes --help` and `hermes chat --help`, Hermes v0.13 checkpoint store status from `hermes checkpoints status`, and local run presets for implementation, review, debugging, design polish, browser verification, multi-agent orchestration, Kanban swarm planning, video generation, and Studio memory extraction.
 
 ## Hermes Runtime Control
 
@@ -43,8 +32,4 @@ Local Hermes discovery still works in this state. Provider/model/skill/MCP/tools
 
 ## Boundaries
 
-- Do not hide mock or fallback state.
-- Do not write to Hermes `state.db`.
-- Do not edit Hermes config files directly.
-- Use Hermes API or CLI surfaces for Hermes-owned actions.
-- Keep Studio workflow state in Studio-owned `studio.db`.
+Do not hide mock or fallback state. Do not write to Hermes `state.db`. Do not edit Hermes config files directly. Use Hermes API or CLI surfaces for Hermes-owned actions. Keep Studio workflow state in Studio-owned `studio.db`.

@@ -105,9 +105,9 @@ export function ApprovalCenter({ compact = false }: ApprovalCenterProps) {
   }
 
   return (
-    <div className={`approval-center ${compact ? "compact" : ""}`} role="region" aria-label="Approval center">
+    <div className={`approval-center ${compact ? "compact" : ""}`} role="region" aria-label="Approval center" data-testid="approval-center">
       {!compact && (
-        <div className="approval-header">
+        <div className="approval-header" data-testid="approval-header">
           <div>
             <div className="workbench-eyebrow">Approval Center</div>
             <h2>Pending and historical tool approvals</h2>
@@ -152,13 +152,14 @@ export function ApprovalCenter({ compact = false }: ApprovalCenterProps) {
       {pending.length > 0 && !compact && (
         <section className="approval-section">
           <div className="context-section-title">Pending</div>
-          <div className="approval-list" role="listbox" aria-label="Pending approvals">
+          <div className="approval-list" role="listbox" aria-label="Pending approvals" data-testid="pending-approval-list">
             {pending.map((approval) => (
               <ApprovalCard
                 key={approval.id}
                 approval={approval}
                 active={selected?.id === approval.id}
                 onClick={() => void loadApprovalDetail(approval.id)}
+                data-testid={`pending-approval-${approval.id}`}
               />
             ))}
           </div>
@@ -166,7 +167,7 @@ export function ApprovalCenter({ compact = false }: ApprovalCenterProps) {
       )}
 
       <div className="approval-body">
-        <div className="approval-list" role="listbox" aria-label="All approvals">
+        <div className="approval-list" role="listbox" aria-label="All approvals" data-testid="all-approval-list">
           {loading && list.length === 0 && <div className="workbench-empty compact" role="status">Loading approvals...</div>}
           {!loading && list.length === 0 && (
             <div className="workbench-empty compact">
@@ -179,12 +180,13 @@ export function ApprovalCenter({ compact = false }: ApprovalCenterProps) {
               approval={approval}
               active={selected?.id === approval.id}
               onClick={() => void loadApprovalDetail(approval.id)}
+              data-testid={`approval-item-${approval.id}`}
             />
           ))}
         </div>
 
         {!compact && (
-          <div className="approval-detail">
+          <div className="approval-detail" data-testid="approval-detail">
             {selected ? (
               <>
                 <div className="event-detail-header">
@@ -250,7 +252,7 @@ export function ApprovalCenter({ compact = false }: ApprovalCenterProps) {
   );
 }
 
-function ApprovalCard({ approval, active, onClick }: { approval: Approval; active: boolean; onClick: () => void }) {
+function ApprovalCard({ approval, active, onClick, ...props }: { approval: Approval; active: boolean; onClick: () => void; "data-testid"?: string }) {
   return (
     <button
       className={`approval-card ${active ? "active" : ""} ${approval.status}`}
@@ -258,6 +260,7 @@ function ApprovalCard({ approval, active, onClick }: { approval: Approval; activ
       role="option"
       aria-selected={active}
       aria-label={`${approvalTitle(approval)} - ${approval.status} - risk ${approval.risk_level}`}
+      data-testid={props["data-testid"]}
     >
       <span className={`approval-risk ${riskTone(approval)}`}>{approval.risk_level}</span>
       <span className="approval-card-main">

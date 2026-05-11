@@ -2,6 +2,44 @@
 
 A local-first, themeable desktop studio for [Hermes Agent](https://github.com/NousResearch/hermes-agent).
 
+![Hermes Desktop Studio — run-centered desktop workbench](./docs/screenshots/hero.png)
+
+## What is this?
+
+Hermes Desktop Studio is a native desktop application that provides a polished interface for working with Hermes Agent. It combines a run-centered workbench, session management, profile handling, and theming into a single desktop app.
+
+## Key Features
+
+- **Native Desktop App** — Built with Tauri for fast, native performance on Linux, macOS, and Windows
+- **Run-Centered Workbench** — Track and revisit all your Hermes Agent sessions in one place
+- **Theme System** — Fully customizable look and feel with semantic token-based theming
+- **Local-First** — All data stays on your machine; connects to Hermes Agent via local adapter
+- **Model Viewer** — Browse and manage your configured AI model providers
+- **Session Management** — Full history of conversations with search and filtering
+- **Profile System** — Switch between different configuration profiles
+
+## Quick Start
+
+```bash
+# Clone and install
+git clone https://github.com/NousResearch/hermes-shell.git
+cd hermes-shell
+pnpm install
+
+# Run the desktop app
+cd apps/desktop-studio
+pnpm tauri dev
+```
+
+For detailed installation instructions, see [INSTALL.md](./INSTALL.md).
+
+## Documentation
+
+- [Installation Guide](./INSTALL.md) — Step-by-step setup for all platforms
+- [First-Time Setup](./SETUP.md) — Configure models, skills, and MCP servers
+- [Architecture Overview](#architecture) — How the pieces fit together
+- [Theme System](#theme-system) — Customizing the look and feel
+
 ## Stack
 
 - **Tauri v2** — Desktop app framework (Rust host)
@@ -18,25 +56,38 @@ A local-first, themeable desktop studio for [Hermes Agent](https://github.com/No
 pnpm install
 
 # Start frontend dev server only
-pnpm --filter @hermes-desktop-studio/desktop-studio dev
+pnpm dev
 
-# Start Tauri desktop app (opens native window)
-pnpm --filter @hermes-desktop-studio/desktop-studio tauri dev
+# Start Tauri desktop app
+pnpm tauri dev
 
 # Build frontend
-pnpm --filter @hermes-desktop-studio/desktop-studio build
+pnpm build
 
 # Build Tauri desktop app
-pnpm --filter @hermes-desktop-studio/desktop-studio tauri build
+pnpm tauri build
 
-# Optional Firefox-compatible frontend render smoke
-pnpm --filter @hermes-desktop-studio/desktop-studio test:visual:firefox
+# Run tests
+pnpm test:e2e
 
-# Install Playwright Firefox if the smoke test asks for it
-pnpm --filter @hermes-desktop-studio/desktop-studio test:visual:install
+# Visual smoke test (optional QA helper)
+pnpm test:visual
 ```
 
-The Tauri command is the product runtime. The visual smoke script is only a QA helper for frontend rendering and may skip if no Playwright-compatible Firefox is available. Generated screenshots are written under `artifacts/visual-smoke/` at the repository root.
+### Troubleshooting
+
+**First run is slow?** — Tauri compiles Rust dependencies on first run; subsequent runs are much faster.
+
+**Port already in use?** — Something else is using port 1420:
+```bash
+lsof -ti:1420 | xargs kill -9
+```
+
+**Rust errors?** — Update your toolchain:
+```bash
+rustup update
+cd src-tauri && cargo clean
+```
 
 ## Architecture
 
@@ -70,6 +121,31 @@ The core app uses stable semantic keys: `profiles`, `sessions`, `chat`,
 `kanban`, `artifacts`, `tools`, `memory`, `logs`, `activity`, `inspector`,
 `command_palette`, `settings`, `theme_gallery`.
 
+### Creating a Theme
+
+1. Duplicate an existing theme in `src/styles/themes/`
+2. Override the CSS variables you want to change
+3. Add your theme name to the theme gallery
+
+## Screenshots
+
+<!-- Screenshot placeholders — replace with actual images -->
+
+**Main workbench:**
+![Main workbench](./docs/screenshots/workbench.png)
+
+**Session panel:**
+![Session panel](./docs/screenshots/sessions.png)
+
+**Theme gallery:**
+![Theme gallery](./docs/screenshots/themes.png)
+
 ## Status
 
 UX-1 foundation — run-centered desktop workbench shell with adapter-backed sessions, logs, profiles, model viewer, theme loading, and current-session Run Ledger. Tauri is the product runtime; browser smoke tests are optional QA helpers.
+
+## Links
+
+- [Hermes Agent](https://github.com/NousResearch/hermes-agent) — The agent this studio connects to
+- [Hermes Shell Repository](https://github.com/NousResearch/hermes-shell) — This project
+- [Documentation](https://hermes-agent.nousresearch.com/docs) — Full documentation

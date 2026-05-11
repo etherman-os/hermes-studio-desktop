@@ -15,6 +15,8 @@ parts/
 sdist/
 var/
 wheels/
+!apps/desktop-studio/src/lib/
+!apps/desktop-studio/src/lib/**
 pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/

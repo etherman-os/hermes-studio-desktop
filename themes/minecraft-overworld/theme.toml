@@ -5,6 +5,7 @@ version = "0.1.0"
 author = "community"
 extends = "default-dark"
 description = "Çimen, taş ve redstone tonlarıyla block hissi veren localfirst Hermes shell teması."
+keywords = ["block", "pixel"]
 
 [compat]
 shell_api = "^1.0"

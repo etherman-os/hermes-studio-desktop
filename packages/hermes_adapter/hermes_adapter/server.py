@@ -57,6 +57,9 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     write_token(token)
     _client = HermesClient()
     yield
+    # Close backend (HermesBackend httpx.AsyncClient) before shutting down.
+    from hermes_adapter.studio_routes import close_backend
+    await close_backend()
     if _client is not None:
         await _client.close()
     _client = None

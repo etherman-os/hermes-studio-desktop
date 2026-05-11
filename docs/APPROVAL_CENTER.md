@@ -18,24 +18,9 @@ Approval records can link to:
 
 Payloads are normalized and redacted before storage. Unknown or incomplete approval payloads are still recorded with `unknown` fields instead of breaking the run stream.
 
-## Status And Risk
+## Status and risk levels
 
-Supported statuses:
-
-- `pending`
-- `approved`
-- `denied`
-- `expired`
-- `cancelled`
-- `unknown`
-
-Supported risk levels:
-
-- `low`
-- `medium`
-- `high`
-- `critical`
-- `unknown`
+Approval records carry a status field with supported values: `pending`, `approved`, `denied`, `expired`, `cancelled`, or `unknown`. Risk levels help surface high-stakes decisions: `low`, `medium`, `high`, `critical`, or `unknown`.
 
 ## API
 
@@ -56,29 +41,17 @@ Those routes update the Studio-owned approval record and try to notify Hermes at
 
 The OpenAPI route parity test fails if these paths drift from `packages/protocol/openapi.yaml`.
 
-## Event Capture
+## Event capture
 
-When a run stream emits normalized Studio events:
-
-- `approval.requested`
-- `approval.resolved`
-
-the adapter records them in `studio.db`. Persistence failure logs a warning and may emit `adapter.warning`, but it must not break live SSE streaming.
+When a run stream emits normalized Studio events — `approval.requested` or `approval.resolved` — the adapter records them in `studio.db`. Persistence failure logs a warning and may emit `adapter.warning`, but it must not break live SSE streaming.
 
 ## Frontend
 
-Approval Center supports:
+The Approval Center UI supports a pending approval list and approval history. Filters let you narrow the view to pending items, approved items, denied items, or high-risk items. The detail panel shows the tool, command or action requested, risk level, reason, run and session links, request payload preview, status, and decision.
 
-- pending approval list
-- approval history
-- filters for pending, approved, denied, and high risk
-- detail panel with tool, command/action, risk, reason, run/session links, request payload preview, status, and decision
-- approve/deny actions for pending approvals
-- pending count badge in the activity rail and status bar
-- Run Ledger action to open approvals for the selected run
-- Context Inspector related approvals for selected run/session context
+Users can approve or deny pending approvals directly from the UI. The activity rail and status bar display a pending approval count badge. Run Ledger includes an action to open approvals scoped to the selected run. Context Inspector shows related approvals for the selected run or session context.
 
-The UI must show whether Hermes was notified. A local-only decision is useful for Studio audit history but is not a claim that Hermes accepted the action.
+The UI must always show whether Hermes received notification of the decision. A local-only decision is useful for Studio audit history but is not a claim that Hermes accepted the action.
 
 ## Security Rules
 

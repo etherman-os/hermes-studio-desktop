@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from hermes_adapter.backend_base import StudioBackend
@@ -15,6 +16,18 @@ from hermes_adapter.backend_config import (
 from hermes_adapter.hermes_backend import HermesBackend
 from hermes_adapter.hermes_cli_backend import HermesCliBackend
 from hermes_adapter.mock_backend import MockBackend
+
+_HEALTH_TIMEOUT_SECONDS = 10.0
+
+
+async def _health_with_timeout(backend: StudioBackend) -> dict[str, Any]:
+    """Call backend.health() with a fixed timeout to prevent indefinite hangs."""
+    try:
+        return await asyncio.wait_for(backend.health(), timeout=_HEALTH_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        return {"status": "unavailable", "reason": "Health check timed out"}
+    except Exception as e:
+        return {"status": "unavailable", "reason": str(e)}
 
 
 async def create_backend() -> tuple[StudioBackend, dict[str, Any]]:
@@ -39,7 +52,7 @@ async def create_backend() -> tuple[StudioBackend, dict[str, Any]]:
 
     if mode == "local":
         backend = HermesCliBackend(hermes_url, hermes_key)
-        health = await backend.health()
+        health = await _health_with_timeout(backend)
         return backend, {
             "backend_mode": "local",
             "active_backend": "local-cli",
@@ -50,7 +63,7 @@ async def create_backend() -> tuple[StudioBackend, dict[str, Any]]:
 
     if mode in {"gateway", "hermes"}:
         backend = HermesBackend(hermes_url, hermes_key)
-        health = await backend.health()
+        health = await _health_with_timeout(backend)
         return backend, {
             "backend_mode": "gateway",
             "hermes_url": hermes_url,
@@ -75,7 +88,7 @@ async def create_backend() -> tuple[StudioBackend, dict[str, Any]]:
             remote_ssh_target=target,
             remote_hermes_bin=get_remote_hermes_bin(),
         )
-        health = await backend.health()
+        health = await _health_with_timeout(backend)
         return backend, {
             "backend_mode": "ssh",
             "active_backend": "ssh",
@@ -86,7 +99,7 @@ async def create_backend() -> tuple[StudioBackend, dict[str, Any]]:
 
     # auto mode: prefer local CLI, then Hermes gateway, then mock.
     local = HermesCliBackend(hermes_url, hermes_key)
-    local_health = await local.health()
+    local_health = await _health_with_timeout(local)
     if local_health.get("hermes_connected", False):
         return local, {
             "backend_mode": "auto",
@@ -97,7 +110,7 @@ async def create_backend() -> tuple[StudioBackend, dict[str, Any]]:
     await local.close()
 
     gateway = HermesBackend(hermes_url, hermes_key)
-    health = await gateway.health()
+    health = await _health_with_timeout(gateway)
 
     if health.get("hermes_connected", False):
         return gateway, {

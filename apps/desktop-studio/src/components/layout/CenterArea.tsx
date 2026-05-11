@@ -1,21 +1,28 @@
-import React from "react";
-import { CENTER_TABS, type CenterTab, useLayoutStore } from "../../stores/layoutStore";
+import React, { Suspense } from "react";
+import { CENTER_TABS, MODE_SURFACES, type CenterTab, useLayoutStore } from "../../stores/layoutStore";
 import { useThemeStore } from "../../stores/themeStore";
-import { ArtifactShelf } from "../artifacts/ArtifactShelf";
+import { LoadingFallback } from "../common/LoadingFallback";
 import { ApprovalCenter } from "../approvals/ApprovalCenter";
-import { ChatSurface } from "../chat/ChatSurface";
 import { ContextInspector } from "../context/ContextInspector";
 import { CronPanel } from "../cron/CronPanel";
+import { CronSurface } from "../cron/CronSurface";
+import { DelegationsSurface } from "../delegation/DelegationsSurface";
 import { DelegationPanel } from "../delegation/DelegationPanel";
-import { DesignCanvas } from "../design/DesignCanvas";
-import { ExtensionsPanel } from "../extensions/ExtensionsPanel";
 import { KanbanBoard } from "../kanban/KanbanBoard";
-import { MissionControl } from "../mission/MissionControl";
 import { ProcessCockpit } from "../process/ProcessCockpit";
 import { RunLedger } from "../runs/RunLedger";
 import { SessionsPanel } from "../sessions/SessionsPanel";
 import { CheckpointTimeline } from "../checkpoints/CheckpointTimeline";
 import { WorktreeLauncher } from "../worktrees/WorktreeLauncher";
+import { ProfilesSurface } from "../profiles/ProfilesSurface";
+import { SettingsSurface } from "../settings/SettingsSurface";
+
+// Lazy-loaded heavy components - code-split to reduce initial bundle
+const ChatSurface = React.lazy(() => import("../chat/ChatSurface") as unknown as Promise<{ default: React.ComponentType<{}> }>);
+const DesignCanvas = React.lazy(() => import("../design/DesignCanvas") as unknown as Promise<{ default: React.ComponentType<{}> }>);
+const MissionControl = React.lazy(() => import("../mission/MissionControl") as unknown as Promise<{ default: React.ComponentType<{}> }>);
+const ArtifactShelf = React.lazy(() => import("../artifacts/ArtifactShelf") as unknown as Promise<{ default: React.ComponentType<{}> }>);
+const ExtensionsPanel = React.lazy(() => import("../extensions/ExtensionsPanel") as unknown as Promise<{ default: React.ComponentType<{}> }>);
 
 const TAB_META: Record<CenterTab, { slot: string }> = {
   mission: { slot: "mission" },
@@ -33,6 +40,8 @@ const TAB_META: Record<CenterTab, { slot: string }> = {
   extensions: { slot: "extensions" },
   delegations: { slot: "delegations" },
   cron: { slot: "cron" },
+  profiles: { slot: "profiles" },
+  settings: { slot: "settings" },
 };
 
 const COMPONENT_MAP: Record<CenterTab, React.ComponentType> = {
@@ -49,28 +58,35 @@ const COMPONENT_MAP: Record<CenterTab, React.ComponentType> = {
   context: ContextInspector,
   approvals: ApprovalCenter,
   extensions: ExtensionsPanel,
-  delegations: DelegationPanel,
-  cron: CronPanel,
+  delegations: DelegationsSurface,
+  cron: CronSurface,
+  profiles: ProfilesSurface,
+  settings: SettingsSurface,
 };
 
 const PRIMARY_CENTER_TABS: CenterTab[] = [
   "mission",
   "runs",
   "chat",
-  "board",
-  "sessions",
   "design",
   "artifacts",
   "processes",
-  "context",
-  "approvals",
 ];
 
 export function CenterArea() {
   const activeTab = useLayoutStore((s) => s.activeTab);
+  const activeMode = useLayoutStore((s) => s.activeMode);
   const setActiveTab = useLayoutStore((s) => s.setActiveTab);
   const label = useThemeStore((s) => s.label);
   const [visitedTabs] = React.useState(() => new Set<CenterTab>(["runs"]));
+
+  // Phase 2: Only mount surfaces relevant to the active mode (plus always-visible surfaces)
+  const alwaysVisibleSurfaces: CenterTab[] = ["mission"];
+  const modeSurfaces = MODE_SURFACES[activeMode] ?? [];
+  const surfacesToMount = React.useMemo(() => {
+    const mounted = new Set<CenterTab>([...alwaysVisibleSurfaces, ...modeSurfaces]);
+    return CENTER_TABS.filter((tab) => mounted.has(tab));
+  }, [activeMode, modeSurfaces]);
   const tabs = React.useMemo(() => {
     const visibleIds = PRIMARY_CENTER_TABS.includes(activeTab)
       ? PRIMARY_CENTER_TABS
@@ -114,16 +130,20 @@ export function CenterArea() {
         ))}
       </div>
       <div className="center-content" role="tabpanel" id={`center-panel-${activeTab}`} aria-labelledby={`center-tab-${activeTab}`}>
-        {CENTER_TABS.map((tabId) => {
-          const tab = { id: tabId, ...TAB_META[tabId] };
-          if (!visitedTabs.has(tab.id)) return null;
-          const Component = COMPONENT_MAP[tab.id];
+        {surfacesToMount.map((tabId) => {
+          // Fallback to activeTab for tabs not yet in MODE_SURFACES (migration safety)
+          if (!visitedTabs.has(tabId)) return null;
+          const Component = COMPONENT_MAP[tabId];
+          // Phase 2: Memoize each surface component to prevent unnecessary re-renders
+          const MemoizedComponent = React.memo(Component);
           return (
             <div
-              key={tab.id}
-              style={{ display: activeTab === tab.id ? "contents" : "none" }}
+              key={tabId}
+              style={{ display: activeTab === tabId ? "contents" : "none" }}
             >
-              <Component />
+              <Suspense fallback={<LoadingFallback />}>
+                <MemoizedComponent />
+              </Suspense>
             </div>
           );
         })}

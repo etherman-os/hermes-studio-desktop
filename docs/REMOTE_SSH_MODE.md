@@ -29,18 +29,8 @@ The remote host must already have Hermes installed and authenticated.
 
 The first SSH layer supports command execution through remote `hermes` CLI. It is enough for basic run handoff and health checks.
 
-Full remote Studio parity is a larger layer because it needs:
-
-- remote Hermes inventory reads
-- remote artifact/file reference mapping
-- remote preview port forwarding
-- remote screenshot/browser evidence collection
-- remote approval trust boundaries
-- local/remote workspace synchronization
+Full remote Studio parity is a larger layer because it needs remote Hermes inventory reads, remote artifact or file reference mapping, remote preview port forwarding, remote screenshot or browser evidence collection, remote approval trust boundaries, and local or remote workspace synchronization.
 
 ## Safety
 
-- Studio never stores remote provider secrets.
-- SSH authentication is delegated to the user's SSH setup.
-- Do not expose Hermes gateway publicly without its own authentication and network boundary.
-- Prefer SSH tunneling or local port forwarding for gateway/API access.
+Studio never stores remote provider secrets. SSH authentication is delegated to the user's SSH setup. Do not expose Hermes gateway publicly without its own authentication and network boundary. Prefer SSH tunneling or local port forwarding for gateway or API access.

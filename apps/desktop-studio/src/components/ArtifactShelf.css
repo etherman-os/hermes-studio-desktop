@@ -1,0 +1,104 @@
+.artifact-studio-detail {
+  min-width: 0;
+}
+
+.artifact-studio-tabs {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--app-spacing-xs);
+  margin: var(--app-spacing-md) 0;
+}
+
+.artifact-studio-tab {
+  min-width: 0;
+  min-height: 52px;
+  padding: 8px 10px;
+  border: 1px solid var(--app-border-subtle);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-control-bg, var(--app-bg));
+  color: var(--app-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.artifact-studio-tab:hover,
+.artifact-studio-tab.active {
+  border-color: var(--app-accent);
+  background: var(--app-accent-subtle, var(--app-surface-alt));
+}
+
+.artifact-studio-tab span,
+.artifact-studio-tab small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-studio-tab span {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.artifact-studio-tab small {
+  margin-top: 4px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+
+.artifact-studio-section {
+  min-width: 0;
+  margin-top: var(--app-spacing-md);
+  padding: var(--app-spacing-md);
+  border: 1px solid var(--app-border-subtle);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface);
+}
+
+.artifact-studio-section .artifact-inline-preview {
+  margin-bottom: var(--app-spacing-sm);
+}
+
+.artifact-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-spacing-xs);
+  justify-content: flex-end;
+}
+
+.artifact-source-editor-full {
+  margin-top: 0;
+}
+
+.artifact-history-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-spacing-md);
+}
+
+.artifact-history-stack .artifact-history {
+  margin-top: 0;
+}
+
+.artifact-studio-section.artifact-variant-studio,
+.artifact-studio-section.artifact-revision-diff {
+  margin-top: var(--app-spacing-md);
+}
+
+@media (max-width: 1180px) {
+  .artifact-studio-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .artifact-studio-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .artifact-section-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

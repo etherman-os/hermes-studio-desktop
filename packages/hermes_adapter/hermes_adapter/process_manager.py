@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import signal
 import time
 import uuid
@@ -20,6 +21,13 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 MAX_LOG_LINES = 2000
+_ENV_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
+_MAX_ENV_VALUE_LENGTH = 4096
+_SSH_TARGET_RE = re.compile(r"^[A-Za-z0-9_.@:%-]+$")
+_ALLOWED_ENV_OVERRIDES: dict[str, set[str]] = {
+    "hermes-remote-ssh-check": {"HERMES_STUDIO_REMOTE_SSH_TARGET"},
+    "hermes-gateway": {"API_SERVER_PORT"},
+}
 
 
 class ProcessStatus(StrEnum):
@@ -140,6 +148,7 @@ class ManagedProcess:
     error: str | None = None
     _process: asyncio.subprocess.Process | None = field(default=None, repr=False)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
+    _output_task: asyncio.Task | None = field(default=None, repr=False)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -185,6 +194,71 @@ class ProcessManager:
             for tid, t in TEMPLATES.items()
         ]
 
+    def _validate_env_overrides(
+        self,
+        template_id: str,
+        env_overrides: dict[str, str] | None,
+    ) -> dict[str, str]:
+        if env_overrides is None:
+            return {}
+        if not isinstance(env_overrides, dict):
+            raise ValueError("Environment overrides must be an object")
+
+        allowed = _ALLOWED_ENV_OVERRIDES.get(template_id, set())
+        validated: dict[str, str] = {}
+        for key, value in env_overrides.items():
+            if not isinstance(key, str) or not _ENV_NAME_RE.fullmatch(key):
+                raise ValueError(f"Invalid environment override name: {key!r}")
+            if key not in allowed:
+                raise ValueError(f"Environment override is not allowed for template '{template_id}': {key}")
+            if not isinstance(value, str):
+                raise ValueError(f"Environment override '{key}' must be a string")
+            if "\x00" in value:
+                raise ValueError(f"Environment override '{key}' contains an invalid NUL byte")
+            if len(value) > _MAX_ENV_VALUE_LENGTH:
+                raise ValueError(f"Environment override '{key}' is too long")
+            if key == "API_SERVER_PORT":
+                try:
+                    port = int(value)
+                except ValueError as exc:
+                    raise ValueError("API_SERVER_PORT must be an integer") from exc
+                if port < 1 or port > 65535:
+                    raise ValueError("API_SERVER_PORT must be between 1 and 65535")
+            if key == "HERMES_STUDIO_REMOTE_SSH_TARGET" and not _SSH_TARGET_RE.fullmatch(value):
+                raise ValueError("HERMES_STUDIO_REMOTE_SSH_TARGET contains unsafe characters")
+            validated[key] = value
+        return validated
+
+    def _resolve_workdir(self, cwd: str | None, template: ProcessTemplate) -> str:
+        if cwd is not None and not isinstance(cwd, str):
+            raise ValueError("Working directory must be a string")
+        if cwd is not None and "\x00" in cwd:
+            raise ValueError("Working directory contains an invalid NUL byte")
+
+        base_dir = os.path.realpath(os.getcwd())
+        requested = cwd or template.cwd or base_dir
+        if not isinstance(requested, str):
+            raise ValueError("Working directory must be a string")
+
+        if os.path.isabs(requested):
+            workdir = os.path.realpath(requested)
+        else:
+            workdir = os.path.realpath(os.path.join(base_dir, requested))
+
+        # Verify the path is a real directory and resolve any symlinks to
+        # prevent TOCTOU races: check with lstat (to detect symlinks) then
+        # follow and verify the target, using O_NOFOLLOW to avoid following
+        # symlinks during the open check.
+        try:
+            flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY
+            fd = os.open(workdir, flags)
+            os.close(fd)
+        except (OSError, ValueError):
+            raise ValueError(f"Working directory does not exist or is not a safe directory: {requested}")
+        if os.path.commonpath([base_dir, workdir]) != base_dir:
+            raise ValueError(f"Working directory is outside the adapter workspace: {requested}")
+        return workdir
+
     async def start_process(
         self,
         template_id: str,
@@ -202,6 +276,8 @@ class ProcessManager:
         process_id = uuid.uuid4().hex[:12]
         started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
+        validated_env_overrides = self._validate_env_overrides(template_id, env_overrides)
+
         proc = ManagedProcess(
             id=process_id,
             template_id=template_id,
@@ -215,17 +291,15 @@ class ProcessManager:
         )
         self._processes[process_id] = proc
 
-        env = {**os.environ, **template.env}
-        if env_overrides:
-            env.update(env_overrides)
-
-        workdir = cwd or template.cwd or os.getcwd()
-
-        if not os.path.isdir(workdir):
+        try:
+            workdir = self._resolve_workdir(cwd, template)
+        except ValueError as exc:
             proc.status = ProcessStatus.ERROR
-            proc.error = f"Working directory does not exist: {workdir}"
+            proc.error = str(exc)
             proc.stopped_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-            raise ValueError(f"Working directory does not exist or is not a directory: {workdir}")
+            raise
+
+        env = {**os.environ, **template.env, **validated_env_overrides}
 
         try:
             process = await asyncio.create_subprocess_shell(
@@ -242,7 +316,7 @@ class ProcessManager:
             proc.logs.append(f"[{started_at}] Process started: {template.command}")
             proc.logs.append(f"[{started_at}] PID: {process.pid}")
 
-            asyncio.create_task(self._stream_output(proc))
+            proc._output_task = asyncio.create_task(self._stream_output(proc))
         except Exception as exc:
             proc.status = ProcessStatus.ERROR
             proc.error = str(exc)
@@ -333,6 +407,9 @@ class ProcessManager:
         proc = self._processes[process_id]
         if proc.status == ProcessStatus.RUNNING:
             raise ValueError("Cannot remove a running process. Stop it first.")
+        # Cancel the orphan stdout/stderr stream task before removing
+        if proc._output_task is not None and not proc._output_task.done():
+            proc._output_task.cancel()
         del self._processes[process_id]
         return True
 

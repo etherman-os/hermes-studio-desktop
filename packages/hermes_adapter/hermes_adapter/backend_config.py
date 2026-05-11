@@ -46,8 +46,26 @@ def get_remote_ssh_target() -> str | None:
 
 
 def get_remote_hermes_bin() -> str:
-    """Read Hermes executable path used on the remote SSH host."""
-    return os.environ.get("HERMES_STUDIO_REMOTE_HERMES_BIN", "hermes")
+    """Read Hermes executable path used on the remote SSH host.
+
+    Returns:
+        Validated path to hermes binary (no shell metacharacters allowed).
+        Defaults to "hermes" if env var is empty or contains unsafe characters.
+    """
+    raw = os.environ.get("HERMES_STUDIO_REMOTE_HERMES_BIN", "hermes").strip()
+    if not raw:
+        return "hermes"
+    # Reject any shell metacharacters that could enable command injection
+    unsafe_chars = set(";&|`$(){}[]<>?!*#\"'\\n\\r\\t")
+    if any(c in unsafe_chars for c in raw):
+        return "hermes"
+    # Reject paths with traversal or absolute-looking paths that could escape intent
+    if raw.startswith("/") or ".." in raw or "/" in raw.lstrip("."):
+        return "hermes"
+    # Enforce max length to prevent abuse
+    if len(raw) > 256:
+        return "hermes"
+    return raw
 
 
 def get_cli_run_timeout_seconds() -> float:

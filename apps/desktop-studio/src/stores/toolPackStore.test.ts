@@ -46,6 +46,7 @@ const mockPacks = {
       compatible: true,
     },
   ],
+  total: 2,
 };
 
 describe("toolPackStore", () => {

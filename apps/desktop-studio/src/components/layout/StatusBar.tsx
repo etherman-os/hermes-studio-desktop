@@ -21,10 +21,25 @@ export function StatusBar() {
   const backendMode = useAdapterStore((s) => s.backendMode);
   const hermesConnected = useAdapterStore((s) => s.hermesConnected);
   const authError = useAdapterStore((s) => s.authError);
+  const connectionMode = useAdapterStore((s) => s.connectionMode);
   const activeProfile = useProfileStore((s) => s.activeProfile);
   const runs = useRunLedgerStore((s) => s.runs);
   const currentRunId = useRunLedgerStore((s) => s.currentRunId);
   const pendingApprovals = useApprovalStore((s) => s.pending.length);
+
+  // Connection mode indicator
+  const modeColors: Record<string, string> = {
+    real: "var(--app-ok)",
+    mock: "var(--app-warn)",
+    offline: "var(--app-danger)",
+  };
+  const modeLabels: Record<string, string> = {
+    real: "Hermes",
+    mock: "Demo Mode",
+    offline: "Offline",
+  };
+  const modeColor = modeColors[connectionMode] ?? "var(--app-danger)";
+  const modeLabel = modeLabels[connectionMode] ?? "Offline";
 
   const statusColor = connected ? "var(--app-ok)" : checking ? "var(--app-warn)" : "var(--app-danger)";
   const statusText = connected ? "Connected" : checking ? "Checking..." : authError ? "Auth missing" : "Disconnected";
@@ -47,18 +62,17 @@ export function StatusBar() {
 
   return (
     <footer className="status-bar" role="contentinfo" aria-label="Status bar">
-      <div className="status-item">
+      <div className="status-item" data-testid="connection-status">
         <span className="status-dot" style={{ background: statusColor }} aria-hidden="true" />
         <span title={statusText}>{statusText}</span>
       </div>
-      <div className="status-item">
+      <div className="status-item" data-testid="profile-display">
         <span>{profileName}</span>
       </div>
-      {connected && (
-        <div className="status-item">
-          <span>{backendLabel}</span>
-        </div>
-      )}
+      <div className="status-item" data-testid="connection-mode" title={`Connection mode: ${connectionMode}`}>
+        <span className="status-dot" style={{ background: modeColor }} aria-hidden="true" />
+        <span>{modeLabel}</span>
+      </div>
       <div className="status-item">
         <span>{run ? run.status : "idle"}</span>
       </div>
@@ -80,6 +94,9 @@ export function StatusBar() {
       >
         <span>{THEME_LABELS[themeMode]}</span>
       </button>
+      <div className="status-item" style={{ opacity: 0.6, fontSize: "0.75em" }} title="Mode switching shortcuts">
+        <span>Ctrl+1-4</span>
+      </div>
     </footer>
   );
 }

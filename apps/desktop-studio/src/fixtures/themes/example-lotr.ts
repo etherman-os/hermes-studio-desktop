@@ -8,6 +8,7 @@ export const exampleLotr: ThemePack = {
     author: "etherman-os",
     extends: "default-dark",
     description: "Middle-earth themed concept pack with earth and gold tones",
+    keywords: ["archive", "manuscript"],
   },
   palette: {
     bg: "#1a150f",

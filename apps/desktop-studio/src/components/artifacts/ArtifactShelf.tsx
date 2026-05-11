@@ -7,6 +7,10 @@ import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useHermesInventoryStore } from "../../stores/hermesInventoryStore";
 import { PreviewLauncher } from "../preview/PreviewLauncher";
 import type { ArtifactRevision } from "../../api/studioClient";
+import { sanitizedPreviewDoc } from "../../utils/previewDocument";
+import "../ArtifactShelf.css";
+
+type ArtifactStudioSection = "preview" | "source" | "variants" | "diff" | "evidence" | "history";
 
 type DiffRow = {
   type: "same" | "added" | "removed";
@@ -17,40 +21,24 @@ type DiffRow = {
 
 const MAX_DIFF_LINES = 420;
 
-function isPreviewable(artifact: { type?: string; content_url?: string | null; content_text?: string | null }) {
-  if (artifact.content_url) return true;
-  if (artifact.type === "report" || artifact.type === "markdown") return false;
-  return false;
+function isRemotePreviewTarget(value?: string | null) {
+  return Boolean(value?.trim().match(/^https?:\/\//i));
 }
 
-function artifactPreviewUrl(artifact: { content_url?: string | null; content_text?: string | null; type?: string }) {
-  if (artifact.content_url) return artifact.content_url;
-  return "";
+function isPreviewable(artifact: { file_path?: string | null }) {
+  return isRemotePreviewTarget(artifact.file_path);
 }
 
-function artifactTarget(artifact: { id: string; file_path?: string | null; content_url?: string | null }) {
-  return artifact.content_url || artifact.file_path || artifact.id;
+function artifactPreviewUrl(artifact: { file_path?: string | null }) {
+  return isRemotePreviewTarget(artifact.file_path) ? artifact.file_path ?? "" : "";
 }
 
-function canRunBrowserEvidence(artifact: { type?: string; file_path?: string | null; content_url?: string | null; content_text?: string | null }) {
-  return (artifact.type === "html" && Boolean(artifact.content_text?.trim())) || Boolean(artifact.content_url || artifact.file_path);
+function artifactTarget(artifact: { id: string; file_path?: string | null }) {
+  return artifact.file_path || artifact.id;
 }
 
-function sanitizedPreviewDoc(content: string) {
-  if (typeof window === "undefined") return content;
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(content, "text/html");
-  doc.querySelectorAll("script, form, iframe, object, embed").forEach((node) => node.remove());
-  doc.querySelectorAll("*").forEach((node) => {
-    for (const attr of [...node.attributes]) {
-      const name = attr.name.toLowerCase();
-      const value = attr.value.trim().toLowerCase();
-      if (name.startsWith("on") || value.startsWith("javascript:")) {
-        node.removeAttribute(attr.name);
-      }
-    }
-  });
-  return `<!doctype html>${doc.documentElement.outerHTML}`;
+function canRunBrowserEvidence(artifact: { type?: string; file_path?: string | null; content_text?: string | null }) {
+  return (artifact.type === "html" && Boolean(artifact.content_text?.trim())) || Boolean(artifact.file_path?.trim());
 }
 
 function cssSelectorForElement(element: Element) {
@@ -183,11 +171,24 @@ export function ArtifactShelf() {
   const [selectedPreviewLabel, setSelectedPreviewLabel] = React.useState("");
   const [htmlDraft, setHtmlDraft] = React.useState("");
   const [selectedRevisionVersion, setSelectedRevisionVersion] = React.useState<number | null>(null);
+  const [activeSection, setActiveSection] = React.useState<ArtifactStudioSection>("preview");
+  const [viewMode, setViewMode] = React.useState<"grid" | "list">("list");
   const visualSelectEnabledRef = React.useRef(false);
+  const visualSelectorCleanupRef = React.useRef<(() => void) | null>(null);
 
   React.useEffect(() => {
     visualSelectEnabledRef.current = visualSelectEnabled;
   }, [visualSelectEnabled]);
+
+  // Cleanup visual selector listeners when visualSelectEnabled changes or component unmounts
+  React.useEffect(() => {
+    return () => {
+      if (visualSelectorCleanupRef.current) {
+        visualSelectorCleanupRef.current();
+        visualSelectorCleanupRef.current = null;
+      }
+    };
+  }, []);
 
   React.useEffect(() => {
     loadArtifacts();
@@ -198,6 +199,7 @@ export function ArtifactShelf() {
     setTargetSelector("");
     setSelectedPreviewLabel("");
     setSelectedRevisionVersion(null);
+    setActiveSection("preview");
   }, [selectedArtifact?.id, selectedArtifact?.type, selectedArtifact?.content_text]);
 
   React.useEffect(() => {
@@ -238,6 +240,11 @@ export function ArtifactShelf() {
   const revisionContentPending = Boolean((selectedArtifact?.revisions ?? []).some(
     (revision) => revision.has_content && revision.content_text === undefined,
   ));
+  const hasHtmlStudio = Boolean(selectedArtifact?.type === "html" && selectedArtifact.content_text);
+  const hasContentText = Boolean(selectedArtifact?.content_text);
+  const variantGroupCount = selectedArtifact?.variant_groups?.length ?? 0;
+  const diffCount = selectedArtifact?.revisions?.length ?? 0;
+  const historyCount = (selectedArtifact?.events?.length ?? 0) + diffCount;
 
   const designSkillIds = skills
     .filter((skill) => skill.installed && (
@@ -368,6 +375,11 @@ export function ArtifactShelf() {
 
   function attachVisualSelector(event: React.SyntheticEvent<HTMLIFrameElement>) {
     const iframe = event.currentTarget;
+    // Remove any previous listeners before attaching new ones
+    if (visualSelectorCleanupRef.current) {
+      visualSelectorCleanupRef.current();
+      visualSelectorCleanupRef.current = null;
+    }
     try {
       const doc = iframe.contentDocument;
       if (!doc || doc.getElementById("hermes-studio-selector-style")) return;
@@ -386,25 +398,33 @@ export function ArtifactShelf() {
       `;
       doc.head.appendChild(style);
 
-      doc.addEventListener("mouseover", (mouseEvent) => {
+      const mouseoverHandler = (e: MouseEvent) => {
         if (!visualSelectEnabledRef.current) return;
-        const target = mouseEvent.target;
+        const target = e.target;
         if (!(target instanceof Element)) return;
         doc.querySelectorAll("[data-hermes-studio-hover]").forEach((node) => node.removeAttribute("data-hermes-studio-hover"));
         target.setAttribute("data-hermes-studio-hover", "true");
-      }, true);
-      doc.addEventListener("click", (mouseEvent) => {
+      };
+      const clickHandler = (e: MouseEvent) => {
         if (!visualSelectEnabledRef.current) return;
-        const target = mouseEvent.target;
+        const target = e.target;
         if (!(target instanceof Element)) return;
-        mouseEvent.preventDefault();
-        mouseEvent.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         doc.querySelectorAll("[data-hermes-studio-selected]").forEach((node) => node.removeAttribute("data-hermes-studio-selected"));
         target.setAttribute("data-hermes-studio-selected", "true");
         const selector = cssSelectorForElement(target);
         setTargetSelector(selector);
         setSelectedPreviewLabel(selectedElementLabel(target));
-      }, true);
+      };
+
+      doc.addEventListener("mouseover", mouseoverHandler, true);
+      doc.addEventListener("click", clickHandler, true);
+
+      visualSelectorCleanupRef.current = () => {
+        doc.removeEventListener("mouseover", mouseoverHandler, true);
+        doc.removeEventListener("click", clickHandler, true);
+      };
     } catch {
       setSelectedPreviewLabel("Preview selector unavailable for this artifact sandbox.");
     }
@@ -420,6 +440,26 @@ export function ArtifactShelf() {
           </div>
         </div>
         <div className="run-ledger-actions">
+          <div className="artifact-view-toggle" role="group" aria-label="View mode">
+            <button
+              type="button"
+              className={`artifact-view-toggle-btn ${viewMode === "list" ? "active" : ""}`}
+              onClick={() => setViewMode("list")}
+              aria-label="List view"
+              title="List view"
+            >
+              ☰
+            </button>
+            <button
+              type="button"
+              className={`artifact-view-toggle-btn ${viewMode === "grid" ? "active" : ""}`}
+              onClick={() => setViewMode("grid")}
+              aria-label="Grid view"
+              title="Grid view"
+            >
+              ⊞
+            </button>
+          </div>
           <select
             value={filterType}
             onChange={(e) => {
@@ -475,28 +515,53 @@ export function ArtifactShelf() {
       <div className="run-ledger-body">
         <div className="recent-runs-list selectable">
           <div className="pane-label">Artifacts ({artifacts.length})</div>
-          {artifacts.map((artifact) => (
-            <button
-              key={artifact.id}
-              className={`recent-run-item ${selectedArtifactId === artifact.id ? "active" : ""}`}
-              onClick={() => void selectArtifact(artifact.id)}
-            >
-              <span className="recent-run-title">{artifact.title}</span>
-              <span className="recent-run-meta">
-                <span className="status-dot status-completed" />
-                {artifact.type}
-                {artifact.run_id ? ` · run ${artifact.run_id}` : ""}
-              </span>
-            </button>
-          ))}
           {artifacts.length === 0 && !loading && (
-            <div className="workbench-empty compact">
-              No artifacts found. Create one from the Run Ledger.
+            <div className="artifact-shelf-empty" role="status">
+              <div className="artifact-shelf-empty-icon" aria-hidden="true">&#x1F4DA;</div>
+              <div className="artifact-shelf-empty-title">No artifacts yet</div>
+              <div className="artifact-shelf-empty-copy">
+                Artifacts created from run summaries, markdown reports, or design work will appear here.
+              </div>
             </div>
+          )}
+          {viewMode === "grid" ? (
+            <div className="artifact-grid-view">
+              {artifacts.map((artifact) => (
+                <button
+                  key={artifact.id}
+                  className={`artifact-grid-item ${selectedArtifactId === artifact.id ? "active" : ""}`}
+                  onClick={() => void selectArtifact(artifact.id)}
+                >
+                  <div className="artifact-grid-item-type">{artifact.type}</div>
+                  <div className="artifact-grid-item-title">{artifact.title}</div>
+                  {artifact.description && (
+                    <div className="artifact-grid-item-desc">{artifact.description}</div>
+                  )}
+                  <div className="artifact-grid-item-meta">
+                    {artifact.run_id ? `run ${artifact.run_id.slice(0, 8)}` : artifact.source}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            artifacts.map((artifact) => (
+              <button
+                key={artifact.id}
+                className={`recent-run-item ${selectedArtifactId === artifact.id ? "active" : ""}`}
+                onClick={() => void selectArtifact(artifact.id)}
+              >
+                <span className="recent-run-title">{artifact.title}</span>
+                <span className="recent-run-meta">
+                  <span className="status-dot status-completed" />
+                  {artifact.type}
+                  {artifact.run_id ? ` · run ${artifact.run_id}` : ""}
+                </span>
+              </button>
+            ))
           )}
         </div>
 
-        <div className="event-detail selectable">
+        <div className="event-detail artifact-studio-detail selectable">
           {selectedArtifact ? (
             <>
               <div className="event-detail-header">
@@ -530,132 +595,213 @@ export function ArtifactShelf() {
                   </>
                 )}
               </dl>
-              {isPreviewable(selectedArtifact) && (
-                <div style={{ padding: "8px 0" }}>
-                  <PreviewLauncher
-                    url={artifactPreviewUrl(selectedArtifact)}
-                    title={selectedArtifact.title}
-                    label="Preview in Window"
-                  />
-                </div>
-              )}
-              {selectedArtifact.type === "html" && selectedArtifact.content_text && (
-                <div className="artifact-live-studio">
-                  <div className={`artifact-inline-preview ${visualSelectEnabled ? "selecting" : ""}`}>
-                    <iframe
-                      title={`${selectedArtifact.title} preview`}
-                      srcDoc={safeHtmlPreview}
-                      sandbox="allow-same-origin"
-                      onLoad={attachVisualSelector}
-                    />
-                  </div>
-                  <div className="artifact-source-editor">
-                    <div className="source-editor-toolbar">
-                      <span>Live source</span>
-                      <div>
+
+              <div className="artifact-studio-tabs" role="tablist" aria-label="Artifact Studio sections">
+                {[
+                  ["preview", "Preview", hasHtmlStudio || isPreviewable(selectedArtifact) ? "ready" : "details"],
+                  ["source", "Source", hasContentText ? "content" : selectedArtifact.file_path ? "reference" : "empty"],
+                  ["variants", "Variants", `${variantGroupCount}`],
+                  ["diff", "Diff", `${diffCount}`],
+                  ["evidence", "Evidence", canRunBrowserEvidence(selectedArtifact) ? "runnable" : "brief"],
+                  ["history", "History", `${historyCount}`],
+                ].map(([id, label, meta]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeSection === id}
+                    className={`artifact-studio-tab ${activeSection === id ? "active" : ""}`}
+                    onClick={() => setActiveSection(id as ArtifactStudioSection)}
+                  >
+                    <span>{label}</span>
+                    <small>{meta}</small>
+                  </button>
+                ))}
+              </div>
+
+              {activeSection === "preview" && (
+                <section className="artifact-studio-section">
+                  <div className="artifact-section-header">
+                    <div>
+                      <div className="inventory-section-title">Preview</div>
+                      <span>Inspect the current artifact before editing or handing it off.</span>
+                    </div>
+                    <div className="artifact-section-actions">
+                      {isPreviewable(selectedArtifact) && (
+                        <PreviewLauncher
+                          url={artifactPreviewUrl(selectedArtifact)}
+                          title={selectedArtifact.title}
+                          label="Preview in Window"
+                        />
+                      )}
+                      {hasHtmlStudio && (
                         <PreviewLauncher
                           html={htmlDraft || (selectedArtifact.content_text ?? "")}
                           title={selectedArtifact.title}
                           label="Open Preview Window"
                         />
-                        <button className="tool-button" type="button" onClick={() => setHtmlDraft(selectedArtifact.content_text ?? "")}>
-                          Reset
-                        </button>
-                        <button
-                          className="primary-button"
-                          type="button"
-                          disabled={saving || htmlDraft === (selectedArtifact.content_text ?? "")}
-                          onClick={() => void saveHtmlDraft()}
-                        >
-                          {saving ? "Saving" : "Save"}
-                        </button>
-                      </div>
+                      )}
                     </div>
-                    <textarea
-                      className="studio-textarea artifact-source-textarea"
-                      value={htmlDraft}
-                      onChange={(event) => setHtmlDraft(event.target.value)}
-                      spellCheck={false}
-                    />
                   </div>
-                </div>
+                  {hasHtmlStudio ? (
+                    <>
+                      <div className={`artifact-inline-preview ${visualSelectEnabled ? "selecting" : ""}`}>
+                        <iframe
+                          title={`${selectedArtifact.title} preview`}
+                          srcDoc={safeHtmlPreview}
+                          sandbox="allow-same-origin"
+                          onLoad={attachVisualSelector}
+                        />
+                      </div>
+                      <div className="visual-selector-toolbar">
+                        <button
+                          className={`tool-button ${visualSelectEnabled ? "active" : ""}`}
+                          type="button"
+                          onClick={() => setVisualSelectEnabled((current) => !current)}
+                        >
+                          {visualSelectEnabled ? "Selecting Element" : "Click-to-Edit"}
+                        </button>
+                        <span>{selectedPreviewLabel || "Click an element in the preview to target Hermes precisely."}</span>
+                      </div>
+                    </>
+                  ) : selectedArtifact.content_text ? (
+                    <pre className="event-payload">{selectedArtifact.content_text.slice(0, 4000)}</pre>
+                  ) : artifactTarget(selectedArtifact) !== selectedArtifact.id ? (
+                    <pre className="event-payload">{artifactTarget(selectedArtifact)}</pre>
+                  ) : (
+                    <div className="workbench-empty compact">This artifact has no inline previewable content.</div>
+                  )}
+                </section>
               )}
-              <div className="artifact-design-panel">
-                <div className="inventory-section-title">Design actions</div>
-                {selectedArtifact.type === "html" && selectedArtifact.content_text && (
-                  <div className="visual-selector-toolbar">
-                    <button
-                      className={`tool-button ${visualSelectEnabled ? "active" : ""}`}
-                      type="button"
-                      onClick={() => setVisualSelectEnabled((current) => !current)}
-                    >
-                      {visualSelectEnabled ? "Selecting Element" : "Click-to-Edit"}
-                    </button>
-                    <span>{selectedPreviewLabel || "Click an element in the preview to target Hermes precisely."}</span>
+
+              {activeSection === "source" && (
+                <section className="artifact-studio-section">
+                  <div className="artifact-section-header">
+                    <div>
+                      <div className="inventory-section-title">Source</div>
+                      <span>{hasHtmlStudio ? "Edit live HTML source with reversible history." : "Read the stored source or reference."}</span>
+                    </div>
                   </div>
-                )}
-                <input
-                  className="studio-input"
-                  value={targetSelector}
-                  onChange={(event) => setTargetSelector(event.target.value)}
-                  placeholder="Optional CSS selector or component path"
-                  aria-label="Selected visual target"
-                />
-                <textarea
-                  className="studio-textarea artifact-design-textarea"
-                  value={visualPrompt}
-                  onChange={(event) => setVisualPrompt(event.target.value)}
-                  placeholder="Targeted visual edit..."
-                  aria-label="Targeted visual edit prompt"
-                />
-                <div className="quick-visual-grid">
-                  {[
-                    ["Text", "Rewrite the selected element text to be clearer, shorter, and more production-ready."],
-                    ["Color", "Improve the selected element color, contrast, hover/focus state, and visual relationship to the surrounding design."],
-                    ["Spacing", "Refine spacing, padding, alignment, and responsive fit around the selected element."],
-                    ["Motion", "Add tasteful motion or interaction feedback to the selected element without hurting accessibility."],
-                  ].map(([label, instruction]) => (
+                  {hasHtmlStudio ? (
+                    <div className="artifact-source-editor artifact-source-editor-full">
+                      <div className="source-editor-toolbar">
+                        <span>Live source</span>
+                        <div>
+                          <button className="tool-button" type="button" onClick={() => setHtmlDraft(selectedArtifact.content_text ?? "")}>
+                            Reset
+                          </button>
+                          <button
+                            className="primary-button"
+                            type="button"
+                            disabled={saving || htmlDraft === (selectedArtifact.content_text ?? "")}
+                            onClick={() => void saveHtmlDraft()}
+                          >
+                            {saving ? "Saving" : "Save"}
+                          </button>
+                        </div>
+                      </div>
+                      <textarea
+                        className="studio-textarea artifact-source-textarea"
+                        value={htmlDraft}
+                        onChange={(event) => setHtmlDraft(event.target.value)}
+                        spellCheck={false}
+                      />
+                    </div>
+                  ) : selectedArtifact.content_text ? (
+                    <pre className="event-payload">{selectedArtifact.content_text.slice(0, 4000)}</pre>
+                  ) : artifactTarget(selectedArtifact) !== selectedArtifact.id ? (
+                    <pre className="event-payload">{artifactTarget(selectedArtifact)}</pre>
+                  ) : (
+                    <div className="workbench-empty compact">No source content is stored for this artifact.</div>
+                  )}
+                </section>
+              )}
+
+              {activeSection === "evidence" && (
+                <section className="artifact-studio-section artifact-design-panel">
+                  <div className="artifact-section-header">
+                    <div>
+                      <div className="inventory-section-title">Evidence & Handoff</div>
+                      <span>Target a selector, request visual work, collect browser evidence, or preserve design memory.</span>
+                    </div>
+                  </div>
+                  {hasHtmlStudio && (
+                    <div className="visual-selector-toolbar">
+                      <button
+                        className={`tool-button ${visualSelectEnabled ? "active" : ""}`}
+                        type="button"
+                        onClick={() => setVisualSelectEnabled((current) => !current)}
+                      >
+                        {visualSelectEnabled ? "Selecting Element" : "Click-to-Edit"}
+                      </button>
+                      <span>{selectedPreviewLabel || "Use Preview to click an element, or enter a selector below."}</span>
+                    </div>
+                  )}
+                  <input
+                    className="studio-input"
+                    value={targetSelector}
+                    onChange={(event) => setTargetSelector(event.target.value)}
+                    placeholder="Optional CSS selector or component path"
+                    aria-label="Selected visual target"
+                  />
+                  <textarea
+                    className="studio-textarea artifact-design-textarea"
+                    value={visualPrompt}
+                    onChange={(event) => setVisualPrompt(event.target.value)}
+                    placeholder="Targeted visual edit..."
+                    aria-label="Targeted visual edit prompt"
+                  />
+                  <div className="quick-visual-grid">
+                    {[
+                      ["Text", "Rewrite the selected element text to be clearer, shorter, and more production-ready."],
+                      ["Color", "Improve the selected element color, contrast, hover/focus state, and visual relationship to the surrounding design."],
+                      ["Spacing", "Refine spacing, padding, alignment, and responsive fit around the selected element."],
+                      ["Motion", "Add tasteful motion or interaction feedback to the selected element without hurting accessibility."],
+                    ].map(([label, instruction]) => (
+                      <button
+                        key={label}
+                        type="button"
+                        className="tool-button"
+                        onClick={() => setVisualPrompt(`${targetSelector ? `For ${targetSelector}: ` : ""}${instruction}`)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="artifact-design-actions">
                     <button
-                      key={label}
-                      type="button"
-                      className="tool-button"
-                      onClick={() => setVisualPrompt(`${targetSelector ? `For ${targetSelector}: ` : ""}${instruction}`)}
+                      className="primary-button"
+                      disabled={!visualPrompt.trim()}
+                      onClick={() => void sendArtifactPrompt("visual-edit")}
                     >
-                      {label}
+                      Visual Edit
                     </button>
-                  ))}
-                </div>
-                <div className="artifact-design-actions">
-                  <button
-                    className="primary-button"
-                    disabled={!visualPrompt.trim()}
-                    onClick={() => void sendArtifactPrompt("visual-edit")}
-                  >
-                    Visual Edit
-                  </button>
-                  <button className="tool-button" onClick={() => void sendArtifactPrompt("variants")}>
-                    A/B Variants
-                  </button>
-                  <button className="tool-button" onClick={() => void sendArtifactPrompt("browser-check")}>
-                    Browser Check
-                  </button>
-                  <button
-                    className="tool-button"
-                    disabled={saving || !canRunBrowserEvidence(selectedArtifact)}
-                    title={canRunBrowserEvidence(selectedArtifact) ? "Capture a local Playwright screenshot and report" : "Requires HTML content, URL, or file path"}
-                    onClick={() => void runBrowserEvidence(selectedArtifact.id)}
-                  >
-                    Run Evidence
-                  </button>
-                  <button className="tool-button" onClick={() => void sendArtifactPrompt("video-brief")}>
-                    Video Brief
-                  </button>
-                  <button className="tool-button" onClick={() => void sendArtifactPrompt("design-memory")}>
-                    Design DNA
-                  </button>
-                </div>
-              </div>
-              <div className="artifact-variant-studio">
+                    <button className="tool-button" onClick={() => void sendArtifactPrompt("variants")}>
+                      A/B Variants
+                    </button>
+                    <button className="tool-button" onClick={() => void sendArtifactPrompt("browser-check")}>
+                      Browser Check
+                    </button>
+                    <button
+                      className="tool-button"
+                      disabled={saving || !canRunBrowserEvidence(selectedArtifact)}
+                      title={canRunBrowserEvidence(selectedArtifact) ? "Capture a local Playwright screenshot and report" : "Requires HTML content, URL, or file path"}
+                      onClick={() => void runBrowserEvidence(selectedArtifact.id)}
+                    >
+                      Run Evidence
+                    </button>
+                    <button className="tool-button" onClick={() => void sendArtifactPrompt("video-brief")}>
+                      Video Brief
+                    </button>
+                    <button className="tool-button" onClick={() => void sendArtifactPrompt("design-memory")}>
+                      Design DNA
+                    </button>
+                  </div>
+                </section>
+              )}
+
+              {activeSection === "variants" && (
+                <section className="artifact-studio-section artifact-variant-studio">
                 <div className="artifact-section-header">
                   <div>
                     <div className="inventory-section-title">Variant Studio</div>
@@ -731,9 +877,11 @@ export function ArtifactShelf() {
                     </div>
                   </div>
                 ))}
-              </div>
-              {selectedArtifact.content_text && selectedArtifact.revisions && selectedArtifact.revisions.length > 0 && (
-                <div className="artifact-revision-diff">
+                </section>
+              )}
+
+              {activeSection === "diff" && (
+                <section className="artifact-studio-section artifact-revision-diff">
                   <div className="artifact-section-header">
                     <div>
                       <div className="inventory-section-title">Revision Diff</div>
@@ -779,7 +927,7 @@ export function ArtifactShelf() {
                       )}
                     </div>
                   </div>
-                  {selectedRevision ? (
+                  {selectedArtifact.content_text && selectedArtifact.revisions && selectedArtifact.revisions.length > 0 && selectedRevision ? (
                     <>
                       {selectedArtifact.type === "html" && selectedRevision.content_text && currentComparableContent && (
                         <div className="artifact-diff-preview-grid">
@@ -823,46 +971,51 @@ export function ArtifactShelf() {
                     </>
                   ) : (
                     <div className="workbench-empty compact">
-                      Revision content has not been loaded for this artifact yet.
+                      {selectedArtifact.content_text ? "Revision content has not been loaded for this artifact yet." : "This artifact has no text content to diff."}
                     </div>
                   )}
-                </div>
+                </section>
               )}
-              {selectedArtifact.events && selectedArtifact.events.length > 0 && (
-                <div className="artifact-history">
-                  <div className="inventory-section-title">Artifact History</div>
-                  {selectedArtifact.events.map((event) => (
-                    <div key={event.id} className="artifact-history-row">
-                      <span>{event.type}</span>
-                      <small>{new Date(event.created_at).toLocaleString()}</small>
+
+              {activeSection === "history" && (
+                <section className="artifact-studio-section artifact-history-stack">
+                  {selectedArtifact.events && selectedArtifact.events.length > 0 && (
+                    <div className="artifact-history">
+                      <div className="inventory-section-title">Artifact History</div>
+                      {selectedArtifact.events.map((event) => (
+                        <div key={event.id} className="artifact-history-row">
+                          <span>{event.type}</span>
+                          <small>{new Date(event.created_at).toLocaleString()}</small>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-              {selectedArtifact.revisions && selectedArtifact.revisions.length > 0 && (
-                <div className="artifact-history">
-                  <div className="inventory-section-title">Artifact Revisions</div>
-                  {selectedArtifact.revisions.map((revision) => (
-                    <div key={revision.id} className="artifact-history-row">
-                      <span>
-                        v{revision.version} · {revision.event_type}
-                        {revision.has_content ? " · content" : ""}
-                      </span>
-                      <small>{new Date(revision.created_at).toLocaleString()}</small>
-                      <button
-                        className="tool-button"
-                        type="button"
-                        disabled={saving || revision.version === selectedArtifact.revisions?.[0]?.version}
-                        onClick={() => void revertArtifact(selectedArtifact.id, revision.version)}
-                      >
-                        Revert
-                      </button>
+                  )}
+                  {selectedArtifact.revisions && selectedArtifact.revisions.length > 0 && (
+                    <div className="artifact-history">
+                      <div className="inventory-section-title">Artifact Revisions</div>
+                      {selectedArtifact.revisions.map((revision) => (
+                        <div key={revision.id} className="artifact-history-row">
+                          <span>
+                            v{revision.version} · {revision.event_type}
+                            {revision.has_content ? " · content" : ""}
+                          </span>
+                          <small>{new Date(revision.created_at).toLocaleString()}</small>
+                          <button
+                            className="tool-button"
+                            type="button"
+                            disabled={saving || revision.version === selectedArtifact.revisions?.[0]?.version}
+                            onClick={() => void revertArtifact(selectedArtifact.id, revision.version)}
+                          >
+                            Revert
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-              {selectedArtifact.content_text && (
-                <pre className="event-payload">{selectedArtifact.content_text.slice(0, 4000)}</pre>
+                  )}
+                  {historyCount === 0 && (
+                    <div className="workbench-empty compact">No events or revisions are available for this artifact yet.</div>
+                  )}
+                </section>
               )}
             </>
           ) : (

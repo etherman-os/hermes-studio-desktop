@@ -91,13 +91,13 @@ session = "🧭"
 tools = "⛏"
 
 [labels]
-profiles = "Dünyalar"
+profiles = "Worlds"
 sessions = "Ender Chest"
 
 [chat]
 assistant_prefix = "🧙 Hermes"
-user_prefix = "🧑 Oyuncu"
-tool_prefix = "⛏ Araç"
+user_prefix = "🧑 Player"
+tool_prefix = "⛏ Tool"
 ```
 
 ## Layout Pack Format (TOML)
@@ -141,19 +141,8 @@ Hermes YAML skins can be imported with a mapping:
 
 ## Theme API
 
-Theme management is available through the `/studio/themes/*` endpoints:
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/studio/themes` | GET | List all available themes |
-| `/studio/themes/active` | GET | Get the currently active theme |
-| `/studio/themes/{theme_id}` | GET | Get a specific theme by ID |
-| `/studio/themes/activate` | POST | Activate a theme (body: `{"theme_id": "..."}`) |
-| `/studio/themes/reload` | POST | Reload themes from disk |
+Theme management is available through the `/studio/themes/*` endpoints. `GET /studio/themes` lists all available themes. `GET /studio/themes/active` returns the currently active theme. `GET /studio/themes/{theme_id}` returns a specific theme by ID. `POST /studio/themes/activate` activates a theme — send `{"theme_id": "..."}` in the body. `POST /studio/themes/reload` reloads themes from disk.
 
 Theme activation persists in `~/.config/hermes-desktop-studio/config.json`.
 
-Themes are discovered from:
-1. Built-in themes in `themes/` directory
-2. User-installed themes in the platform data directory
-3. Workspace-local themes in `.hermes-shell/`
+Themes are discovered from built-in themes in the `themes/` directory, user-installed themes in the platform data directory, and workspace-local themes in `.hermes-shell/`.

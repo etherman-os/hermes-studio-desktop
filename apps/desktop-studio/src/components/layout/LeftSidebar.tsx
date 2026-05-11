@@ -7,9 +7,11 @@ import { useAdapterStore } from "../../stores/adapterStore";
 import { useRunLedgerStore } from "../../stores/runLedgerStore";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import { useUiStore } from "../../stores/uiStore";
+import { ModeSwitcher } from "./ModeSwitcher";
+import { HermesArsenalQuickPanel } from "../arsenal/HermesArsenalQuickPanel";
 import { ApprovalCenter } from "../approvals/ApprovalCenter";
 import { ContextInspector } from "../context/ContextInspector";
-import { CronPanel } from "../cron/CronPanel";
+import { CronSurface } from "../cron/CronSurface";
 import { DelegationPanel } from "../delegation/DelegationPanel";
 import { ExtensionsPanel } from "../extensions/ExtensionsPanel";
 import { RuntimeStatus } from "../runtime/RuntimeStatus";
@@ -17,12 +19,15 @@ import { LoadingSkeleton } from "../Skeleton";
 
 export function LeftSidebar() {
   const section = useLayoutStore((s) => s.sidebarSection);
+  const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
   const label = useThemeStore((s) => s.label);
   const icon = useThemeStore((s) => s.icon);
 
   return (
     <aside className="sidebar" role="complementary" aria-label={`${label(section)} sidebar`}>
       <div className="sidebar-header" id="sidebar-heading">{label(section)}</div>
+      {!sidebarCollapsed && <ModeSwitcher />}
+      {!sidebarCollapsed && <HermesArsenalQuickPanel />}
       <div className="sidebar-content" aria-labelledby="sidebar-heading">
         {section === "runs" && <RunsList />}
         {section === "mission" && <MissionSection />}
@@ -31,6 +36,7 @@ export function LeftSidebar() {
         {section === "sessions" && <SessionsList />}
         {section === "design" && <DesignSection />}
         {section === "artifacts" && <ArtifactsSection />}
+        {section === "more" && <MoreSection />}
         {section === "checkpoints" && <GitSection />}
         {section === "worktrees" && <GitSection />}
         {section === "context" && <ContextSection />}
@@ -156,6 +162,44 @@ function ArtifactsSection() {
   );
 }
 
+function MoreSection() {
+  const setActiveTab = useLayoutStore((s) => s.setActiveTab);
+  const setSidebarSection = useLayoutStore((s) => s.setSidebarSection);
+  const setBottomTab = useLayoutStore((s) => s.setBottomTab);
+  const openBottomPanel = useLayoutStore((s) => s.openBottomPanel);
+
+  function openCenter(tab: Parameters<typeof setActiveTab>[0], section = tab) {
+    setActiveTab(tab);
+    setSidebarSection(section);
+  }
+
+  function openBottom(tab: "logs" | "diagnostics") {
+    setBottomTab(tab);
+    openBottomPanel();
+  }
+
+  return (
+    <div className="sidebar-stack">
+      <div className="sidebar-group-label">Studio surfaces</div>
+      <button className="sidebar-item" onClick={() => openCenter("board")}>Board</button>
+      <button className="sidebar-item" onClick={() => openCenter("sessions")}>Sessions</button>
+      <button className="sidebar-item" onClick={() => openCenter("checkpoints")}>Checkpoints</button>
+      <button className="sidebar-item" onClick={() => openCenter("worktrees")}>Worktrees</button>
+      <button className="sidebar-item" onClick={() => openCenter("extensions")}>Hermes Arsenal</button>
+      <button className="sidebar-item" onClick={() => openCenter("delegations")}>Delegations</button>
+      <button className="sidebar-item" onClick={() => openCenter("cron")}>Scheduled Jobs</button>
+      <button className="sidebar-item" onClick={() => setSidebarSection("profiles")}>Profiles</button>
+
+      <div className="sidebar-group-label">Operations</div>
+      <button className="sidebar-item" onClick={() => openBottom("logs")}>Logs</button>
+      <button className="sidebar-item" onClick={() => openBottom("diagnostics")}>Diagnostics</button>
+      <button className="sidebar-item" onClick={() => setSidebarSection("theme_gallery")}>Themes</button>
+
+      <div className="sidebar-note">Less-used tools stay one click away without competing with the daily production flow.</div>
+    </div>
+  );
+}
+
 function GitSection() {
   const setActiveTab = useLayoutStore((s) => s.setActiveTab);
   return (
@@ -202,7 +246,7 @@ function DelegationsSection() {
 function CronSection() {
   return (
     <div className="sidebar-embedded">
-      <CronPanel />
+      <CronSurface />
     </div>
   );
 }

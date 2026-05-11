@@ -6,6 +6,10 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from typing import Any
 
+from hermes_adapter.artifact_repository import ArtifactRepository
+from hermes_adapter.kanban_repository import KanbanRepository
+from hermes_adapter.run_ledger_repository import RunLedgerRepository
+
 
 class StudioBackend(ABC):
     """Abstract backend interface for Hermes Desktop Studio.
@@ -75,20 +79,14 @@ class StudioBackend(ABC):
 
     async def get_recent_runs(self, limit: int = 50) -> dict[str, Any]:
         """Return recent Studio-owned run ledger records."""
-        from hermes_adapter.run_ledger_repository import RunLedgerRepository
-
         return RunLedgerRepository().get_recent_runs(limit=limit)
 
     async def get_run(self, run_id: str) -> dict[str, Any]:
         """Return a Studio-owned run ledger record."""
-        from hermes_adapter.run_ledger_repository import RunLedgerRepository
-
         return RunLedgerRepository().get_run(run_id)
 
     async def get_run_ledger(self, run_id: str) -> dict[str, Any]:
         """Return a Studio-owned run ledger record and its persisted event timeline."""
-        from hermes_adapter.run_ledger_repository import RunLedgerRepository
-
         return RunLedgerRepository().get_ledger(run_id)
 
     @abstractmethod
@@ -159,138 +157,92 @@ class StudioBackend(ABC):
 
     async def get_kanban_boards(self) -> dict[str, Any]:
         """Return persistent Studio-owned Kanban board summaries."""
-        from hermes_adapter.kanban_repository import KanbanRepository
-
         return {"boards": KanbanRepository().get_boards()}
 
     async def get_default_kanban_board(self) -> dict[str, Any]:
         """Return the persistent default Studio-owned Kanban board."""
-        from hermes_adapter.kanban_repository import KanbanRepository
-
         return KanbanRepository().get_default_board()
 
     async def get_kanban_board(self, board_id: str) -> dict[str, Any]:
         """Return a persistent Studio-owned Kanban board by ID."""
-        from hermes_adapter.kanban_repository import KanbanRepository
-
         return KanbanRepository().get_board(board_id)
 
     async def create_kanban_card(self, input_data: dict[str, Any]) -> dict[str, Any]:
         """Create a persistent Studio-owned Kanban card."""
-        from hermes_adapter.kanban_repository import KanbanRepository
-
         return KanbanRepository().create_card(input_data)
 
     async def update_kanban_card(self, card_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
         """Update a persistent Studio-owned Kanban card."""
-        from hermes_adapter.kanban_repository import KanbanRepository
-
         return KanbanRepository().update_card(card_id, input_data)
 
     async def move_kanban_card(self, card_id: str, column_id: str, position: int) -> dict[str, Any]:
         """Move a persistent Studio-owned Kanban card."""
-        from hermes_adapter.kanban_repository import KanbanRepository
-
         return KanbanRepository().move_card(card_id, column_id, position)
 
     async def archive_kanban_card(self, card_id: str) -> dict[str, Any]:
         """Archive a persistent Studio-owned Kanban card."""
-        from hermes_adapter.kanban_repository import KanbanRepository
-
         return KanbanRepository().archive_card(card_id)
 
     async def link_kanban_card_to_session(self, card_id: str, session_id: str) -> dict[str, Any]:
         """Link a persistent Studio-owned Kanban card to a Hermes session ID."""
-        from hermes_adapter.kanban_repository import KanbanRepository
-
         return KanbanRepository().link_card_to_session(card_id, session_id)
 
     async def link_kanban_card_to_run(self, card_id: str, run_id: str) -> dict[str, Any]:
         """Link a persistent Studio-owned Kanban card to a Hermes run ID."""
-        from hermes_adapter.kanban_repository import KanbanRepository
-
         return KanbanRepository().link_card_to_run(card_id, run_id)
 
     async def list_artifacts(self, filters: dict[str, Any]) -> dict[str, Any]:
         """Return persistent Studio-owned artifact summaries."""
-        from hermes_adapter.artifact_repository import ArtifactRepository
-
         return ArtifactRepository().list_artifacts(**filters)
 
     async def get_artifact(self, artifact_id: str) -> dict[str, Any]:
         """Return a persistent Studio-owned artifact detail."""
-        from hermes_adapter.artifact_repository import ArtifactRepository
-
         return ArtifactRepository().get_artifact(artifact_id)
 
     async def create_artifact(self, input_data: dict[str, Any]) -> dict[str, Any]:
         """Create a persistent Studio-owned artifact."""
-        from hermes_adapter.artifact_repository import ArtifactRepository
-
         return ArtifactRepository().create_artifact(input_data)
 
     async def update_artifact(self, artifact_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
         """Update a persistent Studio-owned artifact."""
-        from hermes_adapter.artifact_repository import ArtifactRepository
-
         return ArtifactRepository().update_artifact(artifact_id, input_data)
 
     async def list_artifact_revisions(self, artifact_id: str, *, include_content: bool = False) -> dict[str, Any]:
         """Return Studio-owned artifact revision history."""
-        from hermes_adapter.artifact_repository import ArtifactRepository
-
         return ArtifactRepository().list_revisions(artifact_id, include_content=include_content)
 
     async def revert_artifact(self, artifact_id: str, version: int) -> dict[str, Any]:
         """Revert a Studio-owned artifact to a stored revision."""
-        from hermes_adapter.artifact_repository import ArtifactRepository
-
         return ArtifactRepository().revert_artifact(artifact_id, version)
 
     async def list_artifact_variant_groups(self, artifact_id: str) -> dict[str, Any]:
         """Return Studio-owned variant groups for an artifact."""
-        from hermes_adapter.artifact_repository import ArtifactRepository
-
         return ArtifactRepository().list_variant_groups(artifact_id)
 
     async def create_artifact_variant_group(self, artifact_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
         """Create a Studio-owned A/B variant group for an artifact."""
-        from hermes_adapter.artifact_repository import ArtifactRepository
-
         return ArtifactRepository().create_variant_group(artifact_id, input_data)
 
     async def add_artifact_variant(self, group_id: str, input_data: dict[str, Any]) -> dict[str, Any]:
         """Add a Studio-owned variant to an artifact variant group."""
-        from hermes_adapter.artifact_repository import ArtifactRepository
-
         return ArtifactRepository().add_variant(group_id, input_data)
 
     async def apply_artifact_variant(self, group_id: str, variant_id: str) -> dict[str, Any]:
         """Apply a Studio-owned variant to its source artifact."""
-        from hermes_adapter.artifact_repository import ArtifactRepository
-
         return ArtifactRepository().apply_variant(group_id, variant_id)
 
     async def archive_artifact(self, artifact_id: str) -> dict[str, Any]:
         """Archive a persistent Studio-owned artifact."""
-        from hermes_adapter.artifact_repository import ArtifactRepository
-
         return ArtifactRepository().archive_artifact(artifact_id)
 
     async def link_artifact_to_run(self, artifact_id: str, run_id: str) -> dict[str, Any]:
         """Link a persistent Studio-owned artifact to a Hermes run ID."""
-        from hermes_adapter.artifact_repository import ArtifactRepository
-
         return ArtifactRepository().link_artifact_to_run(artifact_id, run_id)
 
     async def link_artifact_to_session(self, artifact_id: str, session_id: str) -> dict[str, Any]:
         """Link a persistent Studio-owned artifact to a Hermes session ID."""
-        from hermes_adapter.artifact_repository import ArtifactRepository
-
         return ArtifactRepository().link_artifact_to_session(artifact_id, session_id)
 
     async def link_artifact_to_card(self, artifact_id: str, card_id: str) -> dict[str, Any]:
         """Link a persistent Studio-owned artifact to a Studio Kanban card ID."""
-        from hermes_adapter.artifact_repository import ArtifactRepository
-
         return ArtifactRepository().link_artifact_to_card(artifact_id, card_id)

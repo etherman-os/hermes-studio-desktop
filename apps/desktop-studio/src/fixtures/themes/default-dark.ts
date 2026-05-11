@@ -7,6 +7,7 @@ export const defaultDark: ThemePack = {
     version: "0.1.0",
     author: "etherman-os",
     description: "Professional dark theme with blue accent",
+    keywords: ["studio"],
   },
   palette: {
     bg: "#0f1117",

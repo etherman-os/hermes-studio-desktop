@@ -52,10 +52,10 @@ export function ProcessCard({ process, isSelected, onSelect, onStop, onRemove, o
   }, [expanded, isRunning, process.id, loadLogs]);
 
   return (
-    <div className={`process-card ${isSelected ? "selected" : ""} ${process.status}`} onClick={onSelect}>
-      <div className="process-card-header">
+    <div className={`process-card ${isSelected ? "selected" : ""} ${process.status}`} onClick={onSelect} data-testid={`process-card-${process.id}`}>
+      <div className="process-card-header" data-testid="process-card-header">
         <div className="process-card-info">
-          <span className="status-dot" style={{ background: statusColor }} />
+          <span className="status-dot" style={{ background: statusColor }} data-testid="process-status-dot" />
           <span className="process-card-name">{process.name}</span>
           <span className={`status-pill status-${process.status}`}>{process.status}</span>
         </div>

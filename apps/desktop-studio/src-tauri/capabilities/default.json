@@ -12,6 +12,7 @@
     "notification:allow-show",
     "notification:allow-request-permission",
     "notification:allow-is-permission-granted",
+    "deep-link:default",
     "core:window:allow-close",
     "core:window:allow-hide",
     "core:window:allow-show",

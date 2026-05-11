@@ -12,6 +12,8 @@ Hardened with:
 
 from __future__ import annotations
 
+import logging
+import threading
 import os
 import re
 import shutil
@@ -23,6 +25,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger("hermes_adapter.studio_storage")
 
 _APP_DIR_NAME = "hermes-desktop-studio"
 _DB_FILENAME = "studio.db"
@@ -524,6 +528,7 @@ class StudioStorage:
             last_error="Storage not initialized",
         )
         self._cached_conn: sqlite3.Connection | None = None
+        self._conn_lock = threading.Lock()
 
     def initialize(self) -> StudioStorageStatus:
         """Create the data directory, open the database, and run migrations."""
@@ -559,6 +564,7 @@ class StudioStorage:
                 integrity_ok=True,
             )
         except (OSError, sqlite3.DatabaseError, StudioStorageError) as exc:
+            logger.warning("StudioStorage.initialize failed: %s", exc)
             self._status = StudioStorageStatus(
                 available=False,
                 schema_version=0,
@@ -582,32 +588,39 @@ class StudioStorage:
         Reuses a cached connection when possible.  Each call still commits
         on success and rolls back on failure, but avoids the overhead of
         re-opening the file for every operation.
+
+        The connection is checked out under a lock and held for the duration
+        of the context manager to prevent concurrent use of the same connection,
+        which would cause SQLite busy-timeout or write conflicts.
         """
         status = self.initialize()
         if not status.available:
             raise StudioStorageError(status.last_error or "Studio storage unavailable")
 
-        if self._cached_conn is not None:
+        with self._conn_lock:
+            if self._cached_conn is not None:
+                try:
+                    self._cached_conn.execute("SELECT 1")
+                except sqlite3.DatabaseError:
+                    with suppress(sqlite3.DatabaseError):
+                        self._cached_conn.close()
+                    self._cached_conn = None
+
+            if self._cached_conn is None:
+                conn = sqlite3.connect(self.db_path)
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA foreign_keys = ON")
+                _enable_wal(conn)
+                self._cached_conn = conn
+            else:
+                conn = self._cached_conn
+
             try:
-                self._cached_conn.execute("SELECT 1")
-            except sqlite3.DatabaseError:
-                self._cached_conn = None
-
-        if self._cached_conn is None:
-            conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA foreign_keys = ON")
-            _enable_wal(conn)
-            self._cached_conn = conn
-        else:
-            conn = self._cached_conn
-
-        try:
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
+                yield conn
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
 
     def close(self) -> None:
         """Close the cached connection if open."""
@@ -665,6 +678,12 @@ class StudioStorage:
                     if row and int(row["value"]) == target_version:
                         conn.close()
                         shutil.copy2(backup, self.db_path)
+                        # Reset cached connection to avoid stale handle after restore
+                        with self._conn_lock:
+                            if self._cached_conn is not None:
+                                with suppress(sqlite3.DatabaseError):
+                                    self._cached_conn.close()
+                                self._cached_conn = None
                         return True
                 finally:
                     conn.close()

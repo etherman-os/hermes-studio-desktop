@@ -40,11 +40,14 @@ router = APIRouter(prefix="/studio")
 logger = logging.getLogger(__name__)
 
 _BROWSER_EVIDENCE_TIMEOUT_SECONDS = 45
+MAX_ARTIFACT_CONTENT_SIZE = 1_000_000  # 1MB limit to prevent DoS via large content_text
 _SCRIPT_TAG_RE = re.compile(r"<script\b[^<]*(?:(?!</script>)<[^<]*)*</script>", re.IGNORECASE)
 _BLOCKED_EMBED_RE = re.compile(r"<(iframe|object|embed)\b[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
 _EVENT_ATTR_RE = re.compile(r"\s+on[a-zA-Z]+\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s>]+)", re.IGNORECASE)
 _JAVASCRIPT_URL_RE = re.compile(r"\s+(href|src)\s*=\s*(['\"])\s*javascript:[^'\"]*\2", re.IGNORECASE)
 _CLI_SECRET_RE = re.compile(r"Bearer\s+\S+|(?i:sk-|xai-|tvly-|ghp_)[a-zA-Z0-9._-]+|\b[a-f0-9]{32,}\b")
+
+_BACKEND_LOCK_TIMEOUT = 30.0
 
 # Backend instance — initialized on first request
 _backend: StudioBackend | None = None
@@ -52,14 +55,65 @@ _backend_status: dict[str, Any] = {}
 _backend_lock = asyncio.Lock()
 
 
+async def close_backend() -> None:
+    """Close the global backend if it exists and has a close method."""
+    global _backend
+    if _backend is not None:
+        close = getattr(_backend, "close", None)
+        if callable(close):
+            await close()
+        _backend = None
+
+
+def _audit_log_config_change(action: str, detail: dict[str, Any], actor: str) -> None:
+    """Log a config change to the audit trail (S-4).
+
+    Records timestamp, actor, action, and redacted key/value so that
+    config mutations are auditable without exposing secrets.
+    """
+    try:
+        from hermes_adapter.audit_logger import get_audit_logger
+        audit = get_audit_logger()
+        if audit:
+            # Redact sensitive config values
+            redacted_detail = {}
+            for k, v in detail.items():
+                if k in ("value", "token", "key", "secret", "password", "api_key"):
+                    redacted_detail[k] = "[REDACTED]"
+                elif isinstance(v, str) and len(v) > 64:
+                    redacted_detail[k] = v[:64] + "...[TRUNCATED]"
+                else:
+                    redacted_detail[k] = v
+            audit.log_config_change(
+                actor=actor,
+                resource="studio.config",
+                detail={"action": action, **redacted_detail},
+            )
+    except Exception:
+        pass  # Audit logging must never break config mutations
+
+
 async def _get_backend() -> StudioBackend:
     """Get or create the backend instance."""
     global _backend, _backend_status
-    if _backend is None:
-        async with _backend_lock:
-            if _backend is None:
-                from hermes_adapter.backend_factory import create_backend
-                _backend, _backend_status = await create_backend()
+    if _backend is not None:
+        return _backend
+
+    async with _backend_lock:
+        # Double-check after acquiring lock
+        if _backend is not None:
+            return _backend
+        from hermes_adapter.backend_factory import create_backend
+        try:
+            backend_future = asyncio.create_task(create_backend())
+            result = await asyncio.wait_for(backend_future, timeout=_BACKEND_LOCK_TIMEOUT)
+            _backend, _backend_status = result
+        except asyncio.TimeoutError:
+            logger.error("Backend initialization timed out after %.1fs", _BACKEND_LOCK_TIMEOUT)
+            raise HTTPException(
+                status_code=503,
+                detail=_error_detail("backend_unavailable", "Backend initialization timed out", retryable=True),
+            )
     return _backend
 
 
@@ -108,7 +162,8 @@ async def _patch_model_config_via_local_hermes(body: dict[str, Any]) -> dict[str
         result["gateway_connected"] = False
         return result
     finally:
-        await backend.close()
+        if hasattr(backend, "close") and callable(backend.close):
+            await backend.close()
 
 
 async def _patch_config_via_local_hermes(key: str, value: Any) -> dict[str, Any]:
@@ -122,7 +177,8 @@ async def _patch_config_via_local_hermes(key: str, value: Any) -> dict[str, Any]
         result["gateway_connected"] = False
         return result
     finally:
-        await backend.close()
+        if hasattr(backend, "close") and callable(backend.close):
+            await backend.close()
 
 
 async def _model_name(backend: StudioBackend) -> str | None:
@@ -336,10 +392,16 @@ async def bootstrap(_token: None = Depends(require_token)) -> dict[str, Any]:
         data["backend_status"] = _backend_status
         data["storage"] = get_studio_storage_status()
         return data
-    except Exception as e:
+    except (ValueError, RuntimeError) as e:
         raise HTTPException(
             status_code=500,
             detail=_error_detail("bootstrap_error", str(e), retryable=True),
+        ) from e
+    except Exception as e:
+        logger.exception("Unexpected bootstrap error: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail=_error_detail("bootstrap_error", "An unexpected error occurred during bootstrap", retryable=True),
         ) from e
 
 
@@ -1149,7 +1211,19 @@ async def list_session_approvals(session_id: str, _token: None = Depends(require
 
 
 @router.post("/runs")
-async def start_run(body: dict[str, Any], _token: None = Depends(require_token)) -> dict[str, Any]:
+async def start_run(
+    body: dict[str, Any],
+    _token: None = Depends(require_token),
+    idempotency_key: str | None = None,
+) -> dict[str, Any]:
+    """Start a new run.
+
+    NOTE: This endpoint is NOT idempotent. Retries with the same session_id
+    and prompt may create duplicate runs. Clients must track run_id from the
+    response and avoid retrying unless they receive a network error before
+    getting a response. For safe retries, the caller should generate and
+    pass an X-Idempotency-Key header (future enhancement).
+    """
     backend = await _get_backend()
     session_id = body.get("session_id", "default")
     prompt = body.get("prompt", "")
@@ -1248,17 +1322,43 @@ async def stream_run_events(run_id: str, _token: None = Depends(require_token)) 
     async def event_generator() -> AsyncIterator[str]:
         warned_about_run_persistence = False
         warned_about_approval_persistence = False
-        async for event in backend.stream_run_events(run_id):
-            enriched = _event_with_run_id(event, run_id)
-            warning = _persist_run_event(run_id, enriched)
-            approval_warning = _persist_approval_event(enriched)
-            yield _sse(enriched)
-            if warning and not warned_about_run_persistence:
-                warned_about_run_persistence = True
-                yield _sse(warning)
-            if approval_warning and not warned_about_approval_persistence:
-                warned_about_approval_persistence = True
-                yield _sse(approval_warning)
+        try:
+            async for event in backend.stream_run_events(run_id):
+                enriched = _event_with_run_id(event, run_id)
+                warning = _persist_run_event(run_id, enriched)
+                approval_warning = _persist_approval_event(enriched)
+                yield _sse(enriched)
+                if warning and not warned_about_run_persistence:
+                    warned_about_run_persistence = True
+                    yield _sse(warning)
+                if approval_warning and not warned_about_approval_persistence:
+                    warned_about_approval_persistence = True
+                    yield _sse(approval_warning)
+        except asyncio.CancelledError:
+            # Client disconnected — emit an interrupted event before closing.
+            interrupted = make_studio_event(
+                "run.interrupted",
+                {"run_id": run_id, "reason": "client_disconnected"},
+                source="studio",
+                run_id=run_id,
+            )
+            _persist_run_event(run_id, interrupted)
+            yield _sse(interrupted)
+            return
+        except Exception as exc:
+            logger.exception("SSE stream error for run_id=%s: %s", run_id, exc)
+            interrupted = make_studio_event(
+                "run.interrupted",
+                {"run_id": run_id, "reason": "stream_error", "message": str(exc)},
+                source="studio",
+                run_id=run_id,
+            )
+            _persist_run_event(run_id, interrupted)
+            yield _sse(interrupted)
+            return
+        finally:
+            warned_about_run_persistence = False
+            warned_about_approval_persistence = False
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -1317,6 +1417,8 @@ async def patch_model_config(body: dict[str, Any], _token: None = Depends(requir
             status_code=400,
             detail=_error_detail("invalid_request", "At least one model config field is required"),
         )
+    # Audit log for model config changes
+    _audit_log_config_change("patch_model_config", body, actor="studio-user")
     try:
         if _auto_fell_back_to_mock():
             result = await _patch_model_config_via_local_hermes(body)
@@ -1860,6 +1962,16 @@ async def run_artifact_browser_evidence(
     backend = await _get_backend()
     try:
         artifact = await backend.get_artifact(artifact_id)
+        content_text = artifact.get("content_text")
+        if isinstance(content_text, str) and len(content_text.encode("utf-8")) > MAX_ARTIFACT_CONTENT_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail=_error_detail(
+                    "artifact_content_too_large",
+                    f"Artifact content_text exceeds maximum size of {MAX_ARTIFACT_CONTENT_SIZE} bytes (1MB)",
+                    source="studio",
+                ),
+            )
         evidence_dir = _browser_evidence_dir()
         target_url, disable_javascript = _browser_target_from_artifact(artifact, evidence_dir)
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
@@ -2020,6 +2132,21 @@ async def start_process(body: dict[str, Any], _token: None = Depends(require_tok
     template_id = body.get("template_id", "")
     cwd = body.get("cwd")
     env_overrides = body.get("env")
+    if not isinstance(template_id, str):
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("process_start_error", "template_id must be a string", source="studio"),
+        )
+    if cwd is not None and not isinstance(cwd, str):
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("process_start_error", "cwd must be a string", source="studio"),
+        )
+    if env_overrides is not None and not isinstance(env_overrides, dict):
+        raise HTTPException(
+            status_code=400,
+            detail=_error_detail("process_start_error", "env must be an object", source="studio"),
+        )
     try:
         return await manager.start_process(template_id, cwd=cwd, env_overrides=env_overrides)
     except ValueError as e:
@@ -2159,6 +2286,8 @@ async def patch_config(body: dict[str, Any], _token: None = Depends(require_toke
             status_code=400,
             detail=_error_detail("invalid_request", "key is required"),
         )
+    # Audit log for config changes (redacted)
+    _audit_log_config_change("patch_config", {"key": key, "value": "[REDACTED]"}, actor="studio-user")
     try:
         if _auto_fell_back_to_mock():
             return await _patch_config_via_local_hermes(key, value)
@@ -2302,7 +2431,8 @@ async def start_run_in_worktree(
         raise _worktree_http_error(e) from e
 
     worktree_path = wt["worktree_path"]
-    result = await backend.start_run(session_id, prompt, profile)
+    run_context = {"workspace_path": worktree_path}
+    result = await backend.start_run(session_id, prompt, profile, context=run_context)
     run_id = result.get("run_id")
     if run_id:
         _persist_started_run(

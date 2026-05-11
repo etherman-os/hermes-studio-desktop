@@ -92,7 +92,7 @@ export function CommandPalette() {
   if (!open) return null;
 
   return (
-    <div className="command-palette-overlay" onClick={close} role="dialog" aria-modal="true" aria-label="Command palette">
+    <div className="command-palette-overlay" onClick={close} role="dialog" aria-modal="true" aria-label="Command palette" data-testid="command-palette">
       <div className="command-palette" onClick={(e) => e.stopPropagation()}>
         <input
           className="command-palette-input"
