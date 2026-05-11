@@ -3,6 +3,16 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
+// Detect if we're in Tauri context
+function isTauriContext(): boolean {
+  try {
+    // @ts-expect-error - Tauri injects this
+    return typeof window !== "undefined" && window.__TAURI_INTERNALS__ !== undefined;
+  } catch {
+    return false;
+  }
+}
+
 interface NativeState {
   trayActive: boolean;
   shortcutsRegistered: boolean;
@@ -22,6 +32,13 @@ export const useNativeStore = create<NativeState>((set, get) => ({
   notificationPermission: false,
 
   init: async () => {
+    // Web dev mode - skip native features
+    if (!isTauriContext()) {
+      console.info("[nativeStore] Skipping native init (web dev mode)");
+      set({ trayActive: true, shortcutsRegistered: false, notificationsEnabled: false, notificationPermission: false });
+      return;
+    }
+
     try {
       const { isPermissionGranted, requestPermission } = await import(
         "@tauri-apps/plugin-notification"

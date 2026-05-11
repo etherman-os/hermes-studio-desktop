@@ -1,74 +1,69 @@
-__pycache__/
-*.py[cod]
+
+*~
 *$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+AGENTS.md
+apps/desktop-studio/dist/
 !apps/desktop-studio/src/lib/
 !apps/desktop-studio/src/lib/**
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual environments
-venv/
-ENV/
-env/
-.venv
-
-# IDEs
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Project runtime
+apps/desktop-studio/src-tauri/target/
+artifacts/
+build/
+.coverage
 data/
 *.db
 *.db-journal
-*.db-wal
 *.db-shm
-
-# Logs
-*.log
-
-# Test artifacts
-.pytest_cache/
-.coverage
+*.db-wal
+develop-eggs/
+dist/
+downloads/
+.DS_Store
+*.egg
+*.egg-info/
+.eggs/
+eggs/
+env/
+ENV/
 htmlcov/
-artifacts/
-
-# TUI/Textual
-.textualize/
-
-# Reference / Planning docs (not for repo)
-*.pdf
-
-# Node / pnpm
-node_modules/
+.idea/
+# IDEs
+.installed.cfg
+lib/
+lib64/
 *.local
-
+*.log
+# Logs
+MANIFEST
+node_modules/
+# Node / pnpm
+# OS
+package-lock.json
+parts/
+*.pdf
+pip-wheel-metadata/
+# Project runtime
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.Python
+# Reference / Planning docs (not for repo)
+sdist/
+share/python-wheels/
+*.so
+*.swo
+*.swp
 # Tauri
-apps/desktop-studio/src-tauri/target/
-
+# Test artifacts
+test-*.cjs
+test-debug.*
+test-*.mjs
+.textualize/
+Thumbs.db
+# TUI/Textual
+var/
+.venv
+venv/
+# Virtual environments
 # Vite
-apps/desktop-studio/dist/
+.vscode/
+wheels/

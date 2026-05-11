@@ -17,12 +17,11 @@ import { WorktreeLauncher } from "../worktrees/WorktreeLauncher";
 import { ProfilesSurface } from "../profiles/ProfilesSurface";
 import { SettingsSurface } from "../settings/SettingsSurface";
 
-// Lazy-loaded heavy components - code-split to reduce initial bundle
-const ChatSurface = React.lazy(() => import("../chat/ChatSurface") as unknown as Promise<{ default: React.ComponentType<{}> }>);
-const DesignCanvas = React.lazy(() => import("../design/DesignCanvas") as unknown as Promise<{ default: React.ComponentType<{}> }>);
-const MissionControl = React.lazy(() => import("../mission/MissionControl") as unknown as Promise<{ default: React.ComponentType<{}> }>);
-const ArtifactShelf = React.lazy(() => import("../artifacts/ArtifactShelf") as unknown as Promise<{ default: React.ComponentType<{}> }>);
-const ExtensionsPanel = React.lazy(() => import("../extensions/ExtensionsPanel") as unknown as Promise<{ default: React.ComponentType<{}> }>);
+import { ChatSurface } from "../chat/ChatSurface";
+import { DesignCanvas } from "../design/DesignCanvas";
+import { MissionControl } from "../mission/MissionControl";
+import { ArtifactShelf } from "../artifacts/ArtifactShelf";
+import { ExtensionsPanel } from "../extensions/ExtensionsPanel";
 
 const TAB_META: Record<CenterTab, { slot: string }> = {
   mission: { slot: "mission" },
