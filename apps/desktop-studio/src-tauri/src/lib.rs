@@ -1,7 +1,7 @@
 use std::{
     env,
     fs,
-    io::{BufRead, BufReader, Write as IoWrite},
+    io::{Read, Write as IoWrite},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::atomic::{AtomicBool, Ordering},
@@ -15,7 +15,6 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, WebviewWindowBuilder, WebviewUrl,
 };
-use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 const ADAPTER_PORT: u16 = 39191;
@@ -150,7 +149,7 @@ fn check_adapter_http_health() -> bool {
 
 /// Check if the adapter process is still running
 fn is_adapter_process_running() -> bool {
-    let guard = ADAPTER_PROCESS.lock().unwrap();
+    let mut guard = ADAPTER_PROCESS.lock().unwrap();
     if let Some(ref mut child) = *guard {
         child.try_wait().ok().map(|status| status.is_none()).unwrap_or(false)
     } else {
@@ -159,7 +158,7 @@ fn is_adapter_process_running() -> bool {
 }
 
 /// Log adapter stdout/stderr from a child process in a background thread
-fn log_adapter_output(stdout: Option<fs::File>, stderr: Option<fs::File>, log_path: PathBuf) {
+fn log_adapter_output<R1: Read + Send + 'static, R2: Read + Send + 'static>(stdout: Option<R1>, stderr: Option<R2>, log_path: PathBuf) {
     thread::spawn(move || {
         let _ = fs::create_dir_all(&log_path);
         if let Some(mut out) = stdout {
@@ -196,7 +195,7 @@ fn wait_for_adapter_ready(timeout_ms: u64) -> Result<(), String> {
     let start = std::time::Instant::now();
     let poll_interval = Duration::from_millis(ADAPTER_POLL_INTERVAL_MS);
 
-    while start.elapsed().as_millis() as u64 < timeout_ms {
+    while (start.elapsed().as_millis() as u64) < timeout_ms {
         if check_adapter_http_health() {
             return Ok(());
         }
@@ -335,7 +334,7 @@ fn ensure_adapter_running(app: AppHandle) -> Result<serde_json::Value, String> {
     ADAPTER_STARTED.store(true, Ordering::SeqCst);
 
     // Start the adapter process
-    let child = start_adapter_process().map_err(|e| {
+    let mut child = start_adapter_process().map_err(|e| {
         ADAPTER_STARTED.store(false, Ordering::SeqCst);
         emit_adapter_status(&app, "error", &format!("Failed to start adapter: {}", e));
         e
@@ -629,7 +628,7 @@ fn auto_start_adapter(app: &AppHandle) {
     let app_handle = app.clone();
     thread::spawn(move || {
         match start_adapter_process() {
-            Ok(child) => {
+            Ok(mut child) => {
                 // Log output before storing handle
                 let log_dir = dirs::data_local_dir()
                     .unwrap_or_else(|| PathBuf::from("."))
@@ -675,7 +674,6 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_deep_link::init())
-        .deep_link_handler(handle_deep_link)
         .invoke_handler(tauri::generate_handler![
             get_adapter_auth_token,
             send_notification,
