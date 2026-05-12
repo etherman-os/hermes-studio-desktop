@@ -152,9 +152,10 @@ def is_token_expired(max_age: float = DEFAULT_TOKEN_EXPIRY_SECONDS) -> bool:
         return (time.monotonic() - _token_created_at) > max_age
 
     path = get_token_path()
+    mtime: float | None = None
     try:
         mtime = path.stat().st_mtime
-        if _file_token_mtime_at_read is None or _file_token_mtime_at_read != mtime:
+        if _file_token_mtime_at_read is None or _file_token_mtime_at_read != mtime:  # noqa: F823
             # First read or file was replaced — reset the monotonic reference
             _file_token_mtime_at_read = mtime
             _file_token_checked_at = time.monotonic()

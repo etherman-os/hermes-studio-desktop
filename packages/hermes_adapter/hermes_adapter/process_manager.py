@@ -253,8 +253,8 @@ class ProcessManager:
             flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY
             fd = os.open(workdir, flags)
             os.close(fd)
-        except (OSError, ValueError):
-            raise ValueError(f"Working directory does not exist or is not a safe directory: {requested}")
+        except (OSError, ValueError) as err:
+            raise ValueError(f"Working directory does not exist or is not a safe directory: {requested}") from err
         if os.path.commonpath([base_dir, workdir]) != base_dir:
             raise ValueError(f"Working directory is outside the adapter workspace: {requested}")
         return workdir

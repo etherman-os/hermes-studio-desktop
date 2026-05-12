@@ -108,12 +108,12 @@ async def _get_backend() -> StudioBackend:
             backend_future = asyncio.create_task(create_backend())
             result = await asyncio.wait_for(backend_future, timeout=_BACKEND_LOCK_TIMEOUT)
             _backend, _backend_status = result
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("Backend initialization timed out after %.1fs", _BACKEND_LOCK_TIMEOUT)
             raise HTTPException(
                 status_code=503,
                 detail=_error_detail("backend_unavailable", "Backend initialization timed out", retryable=True),
-            )
+            ) from None
     return _backend
 
 

@@ -8,6 +8,7 @@ logs, profiles, config, skills, models, and MCP inventory.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import re
 import shlex
@@ -21,10 +22,10 @@ from typing import Any
 # This validates HERMES_STUDIO_REMOTE_HERMES_BIN before it is embedded in an SSH command.
 _SHELL_METACHAR_RE = re.compile(r"[;&|`$<>{}()\[\]!*?\"'\\ \t\n\r]")
 
-from hermes_adapter.backend_config import get_cli_run_timeout_seconds
-from hermes_adapter.hermes_backend import HermesBackend, _now_iso, _redact
-from hermes_adapter.hermes_inventory_repository import HermesInventoryRepository
-from hermes_adapter.studio_events import make_studio_event
+from hermes_adapter.backend_config import get_cli_run_timeout_seconds  # noqa: E402
+from hermes_adapter.hermes_backend import HermesBackend, _now_iso, _redact  # noqa: E402
+from hermes_adapter.hermes_inventory_repository import HermesInventoryRepository  # noqa: E402
+from hermes_adapter.studio_events import make_studio_event  # noqa: E402
 
 
 def _event(
@@ -335,7 +336,7 @@ class HermesCliBackend(HermesBackend):
                     call_timeout = min(wait_timeout, per_call_timeout) if per_call_timeout > 0 else wait_timeout
                     try:
                         chunk = await asyncio.wait_for(process.stdout.readline(), timeout=call_timeout)
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         # Timeout on wait — check if it's a ping or inactivity timeout
                         now2 = asyncio.get_running_loop().time()
                         if next_ping_at <= now2:
@@ -374,30 +375,24 @@ class HermesCliBackend(HermesBackend):
             await process.wait()
             if stderr_task and not stderr_task.done():
                 stderr_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await stderr_task
-                except asyncio.CancelledError:
-                    pass
             yield _event("run.failed", {"run_id": run_id, "message": "Hermes CLI run timed out"}, run_id=run_id, session_id=session_id)
             return
         except asyncio.CancelledError:
             # Clean up stderr_task on cancellation before re-raising
             if stderr_task and not stderr_task.done():
                 stderr_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await stderr_task
-                except asyncio.CancelledError:
-                    pass
             raise
         finally:
             self._processes.pop(run_id, None)
             self._active_cli_runs.pop(run_id, None)
             if stderr_task and not stderr_task.done():
                 stderr_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await stderr_task
-                except asyncio.CancelledError:
-                    pass
 
         error = stderr.decode("utf-8", errors="replace").strip()
         if process.returncode != 0:
