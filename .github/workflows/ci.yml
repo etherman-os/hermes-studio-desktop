@@ -232,12 +232,22 @@ jobs:
       - name: Frontend build
         run: pnpm run build
 
-      - name: Tauri build
+      - name: Tauri build (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          & .\.venv\Scripts\Activate.ps1
+          pnpm tauri build --target x86_64-pc-windows-msvc
+
+      - name: Tauri build (Unix)
+        if: matrix.platform != 'windows-latest'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           source .venv/bin/activate
-          pnpm tauri build --target ${{ matrix.platform == 'ubuntu-24.04' && 'x86_64-unknown-linux-gnu' || matrix.platform == 'macos-14' && 'aarch64-apple-darwin' || 'x86_64-pc-windows-msvc' }}
+          pnpm tauri build --target ${{ matrix.platform == 'ubuntu-24.04' && 'x86_64-unknown-linux-gnu' || 'aarch64-apple-darwin' }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
