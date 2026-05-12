@@ -94,8 +94,8 @@ def _load_yaml_safe(text: str) -> dict[str, Any] | None:
         result = yaml.safe_load(text)
         if isinstance(result, dict):
             return result
-    except Exception:
-        pass
+    except yaml.YAMLError as e:
+        logger.debug("Failed to parse YAML content: %s", e)
     return None
 
 

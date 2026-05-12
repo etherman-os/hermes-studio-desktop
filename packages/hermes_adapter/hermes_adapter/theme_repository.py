@@ -112,8 +112,8 @@ class ThemeRepository:
                     saved = config.get("active_theme")
                     if isinstance(saved, str) and saved:
                         self._active_theme_id = saved
-        except Exception:
-            pass
+        except (OSError, json.JSONDecodeError) as e:
+            logger.debug("Could not load active theme ID from %s: %s", _STUDIO_CONFIG_FILE, e)
 
     def _save_active_theme_id(self, theme_id: str) -> None:
         """Persist active theme ID to studio config."""

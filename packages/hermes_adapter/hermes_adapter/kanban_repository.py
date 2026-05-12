@@ -155,7 +155,7 @@ class KanbanRepository:
                 WHERE {where}
                 ORDER BY updated_at DESC, id DESC
                 LIMIT ?
-                """,
+                """,  # noqa: S608
                 (*params, safe_limit),
             ).fetchall()
             return [self._card_dict(row) for row in rows]

@@ -88,8 +88,8 @@ def _is_api_key_configured(env_path: Path, key_patterns: list[str]) -> bool:
                 for pattern in key_patterns:
                     if pattern in k:
                         return True
-    except Exception:
-        pass
+    except OSError as e:
+        logger.debug("Could not read env file %s: %s", env_path, e)
     return False
 
 

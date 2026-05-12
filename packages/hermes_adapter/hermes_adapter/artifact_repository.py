@@ -234,7 +234,7 @@ class ArtifactRepository:
                 {where}
                 ORDER BY created_at DESC, id DESC
                 LIMIT ?
-                """,
+                """,  # noqa: S608
                 (*params, safe_limit),
             ).fetchall()
             return {
@@ -318,7 +318,7 @@ class ArtifactRepository:
                 now = _now_iso()
                 assignments = ", ".join(f"{key} = ?" for key in updates)
                 conn.execute(
-                    f"UPDATE artifacts SET {assignments}, updated_at = ? WHERE id = ?",
+                    f"UPDATE artifacts SET {assignments}, updated_at = ? WHERE id = ?",  # noqa: S608
                     (*updates.values(), now, clean_artifact_id),
                 )
                 updated = self._require_artifact(conn, clean_artifact_id, include_content=True)
@@ -538,7 +538,7 @@ class ArtifactRepository:
         with self._storage.connect() as conn:
             self._require_artifact(conn, clean_artifact_id)
             conn.execute(
-                f"UPDATE artifacts SET {field} = ?, updated_at = ? WHERE id = ?",
+                f"UPDATE artifacts SET {field} = ?, updated_at = ? WHERE id = ?",  # noqa: S608
                 (clean_value, _now_iso(), clean_artifact_id),
             )
             self._add_artifact_event(conn, clean_artifact_id, event_type, {field: clean_value})

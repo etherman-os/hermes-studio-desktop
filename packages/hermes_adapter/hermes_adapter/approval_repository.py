@@ -187,7 +187,7 @@ class ApprovalRepository:
                 {where}
                 ORDER BY created_at DESC, id DESC
                 LIMIT ?
-                """,
+                """,  # noqa: S608
                 (*params, safe_limit),
             ).fetchall()
             return {"approvals": [self._approval_dict(row, include_payload=False) for row in rows], "total": len(rows)}

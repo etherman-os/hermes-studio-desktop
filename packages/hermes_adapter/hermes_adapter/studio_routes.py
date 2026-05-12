@@ -90,8 +90,8 @@ def _audit_log_config_change(action: str, detail: dict[str, Any], actor: str) ->
                 resource="studio.config",
                 detail={"action": action, **redacted_detail},
             )
-    except Exception:
-        pass  # Audit logging must never break config mutations
+    except Exception:  # noqa: S110 — Audit logging must never break config mutations
+        pass
 
 
 async def _get_backend() -> StudioBackend:
@@ -1170,7 +1170,7 @@ async def approve_approval(approval_id: str, _token: None = Depends(require_toke
                 "run_id": approval.get("run_id"),
                 "session_id": approval.get("session_id"),
             })
-        except Exception:
+        except Exception:  # noqa: S110 — SSE event recording is non-critical after approval already succeeded
             pass
         return result
     except ValueError as e:
@@ -1192,7 +1192,7 @@ async def deny_approval(approval_id: str, _token: None = Depends(require_token))
                 "run_id": approval.get("run_id"),
                 "session_id": approval.get("session_id"),
             })
-        except Exception:
+        except Exception:  # noqa: S110 — SSE event recording is non-critical after approval already succeeded
             pass
         return result
     except ValueError as e:

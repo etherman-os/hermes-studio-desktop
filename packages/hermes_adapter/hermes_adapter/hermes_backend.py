@@ -416,8 +416,8 @@ class HermesBackend(StudioBackend):
                 )
                 if data is not None:
                     capabilities = _capabilities_from_response(data)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to fetch capabilities: %s", exc)
 
         # Get recent sessions if available
         recent_sessions: list[dict[str, Any]] = []
@@ -681,7 +681,7 @@ class HermesBackend(StudioBackend):
                         data = json.loads(body.decode("utf-8"))
                         if isinstance(data, dict):
                             fallback = _extract_hermes_error(data) or fallback
-                    except Exception:
+                    except (json.JSONDecodeError, UnicodeDecodeError):
                         pass
                     yield _sse_event(
                         "run.failed",
@@ -966,8 +966,8 @@ class HermesBackend(StudioBackend):
                 )
                 if data is not None:
                     capabilities = _capabilities_from_response(data)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to fetch capabilities: %s", exc)
             try:
                 data = await _fetch_json(
                     self._client,
@@ -984,8 +984,8 @@ class HermesBackend(StudioBackend):
                             for raw_model in models
                             if (normalized := _normalize_available_model(raw_model, provider))
                         ]
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to fetch available models: %s", exc)
 
         if not available_models:
             config_models = base_config.get("available_models", [])

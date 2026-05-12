@@ -87,8 +87,8 @@ class ProfileRepository:
                         cursor.execute("SELECT COUNT(*) FROM sessions")
                         session_count = cursor.fetchone()[0]
                     conn.close()
-                except Exception:
-                    pass
+                except sqlite3.Error as e:
+                    logger.debug("Could not read session count from %s: %s", profile_dir, e)
 
             return {
                 "id": name,
@@ -114,8 +114,8 @@ class ProfileRepository:
                     profile = config.get("profile") or config.get("active_profile")
                     if isinstance(profile, str):
                         return profile
-        except Exception:
-            pass
+        except (OSError, yaml.YAMLError) as e:
+            logger.debug("Could not detect active profile from config: %s", e)
 
         # Check env var
         return os.environ.get("HERMES_PROFILE") or None

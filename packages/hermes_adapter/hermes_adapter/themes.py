@@ -62,5 +62,6 @@ class ThemeManager:
         self._base.load_theme(theme_id)
         self._active_theme_id = theme_id
         theme_info = self.get_active_theme()
-        assert theme_info is not None
+        if theme_info is None:
+            raise ValueError("Failed to load theme info")
         return theme_info
