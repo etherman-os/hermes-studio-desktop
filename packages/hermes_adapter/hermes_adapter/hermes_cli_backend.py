@@ -12,6 +12,7 @@ import contextlib
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import uuid
 from collections.abc import AsyncIterator
@@ -22,7 +23,11 @@ from typing import Any
 # This validates HERMES_STUDIO_REMOTE_HERMES_BIN before it is embedded in an SSH command.
 _SHELL_METACHAR_RE = re.compile(r"[;&|`$<>{}()\[\]!*?\"'\\ \t\n\r]")
 
-from hermes_adapter._subprocess import run_hermes, run_hermes_over_ssh  # noqa: E402
+from hermes_adapter._subprocess import (  # noqa: E402
+    run_hermes,
+    run_hermes_over_ssh,
+    validate_remote_ssh_target,
+)
 from hermes_adapter.backend_config import get_cli_run_timeout_seconds  # noqa: E402
 from hermes_adapter.hermes_backend import HermesBackend, _now_iso, _redact  # noqa: E402
 from hermes_adapter.hermes_inventory_repository import HermesInventoryRepository  # noqa: E402
@@ -69,6 +74,10 @@ class HermesCliBackend(HermesBackend):
         super().__init__(base_url, api_key)
         self._active_cli_runs: dict[str, dict[str, Any]] = {}
         self._processes: dict[str, asyncio.subprocess.Process] = {}
+        # Validate remote_ssh_target against shell metacharacters and format.
+        # Raises ValueError if the target contains blocked characters or is malformed.
+        if remote_ssh_target:
+            remote_ssh_target = validate_remote_ssh_target(remote_ssh_target)
         self._remote_ssh_target = remote_ssh_target
         # Validate remote_hermes_bin to prevent shell injection via HERMES_STUDIO_REMOTE_HERMES_BIN
         if remote_ssh_target and _SHELL_METACHAR_RE.search(remote_hermes_bin):
@@ -100,7 +109,7 @@ class HermesCliBackend(HermesBackend):
     async def _cli_capture(self, args: list[str], *, timeout: int = 10) -> subprocess.CompletedProcess[str]:
         def _run() -> subprocess.CompletedProcess[str]:
             if self._remote_ssh_target:
-                # S603/S607: ssh resolved via shutil.which(); remote_target/bin pre-validated at construction
+                # S603/S607: ssh resolved via shutil.which(); remote_target validated by regex in run_hermes_over_ssh; remote_bin validated at construction
                 return run_hermes_over_ssh(self._remote_ssh_target, self._remote_hermes_bin, args, timeout=float(timeout))  # noqa: S603, S607
             # S603/S607: hermes_path resolved via shutil.which(); args are hardcoded/internal literals
             return run_hermes(args, timeout=float(timeout), check_returncode=None)  # noqa: S603, S607
@@ -433,8 +442,13 @@ class HermesCliBackend(HermesBackend):
 
     def _base_cli_command(self, args: list[str]) -> list[str]:
         if self._remote_ssh_target:
+            # Build SSH command with explicit ssh resolution, target validation,
+            # binary validation, and shell-quoted args to prevent injection.
+            ssh_path = shutil.which("ssh") or "ssh"
+            if _SHELL_METACHAR_RE.search(self._remote_hermes_bin):
+                raise ValueError(f"remote_hermes_bin contains unsafe characters: {self._remote_hermes_bin!r}")
             remote_command = " ".join(shlex.quote(part) for part in [self._remote_hermes_bin, *args])
-            return ["ssh", self._remote_ssh_target, remote_command]
+            return [ssh_path, self._remote_ssh_target, remote_command]
         return ["hermes", *args]
 
     def _command_for_run(self, run: dict[str, Any]) -> list[str]:

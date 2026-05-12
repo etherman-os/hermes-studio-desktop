@@ -15,6 +15,7 @@ S603 / S607 noqa policy:
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -22,6 +23,44 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+# ----------------------------------------------------------------------
+# Remote SSH target validation
+# ----------------------------------------------------------------------
+
+
+_SSH_TARGET_RE = re.compile(
+    r"^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$|^[a-zA-Z0-9.-]+$|^[0-9]+(?:\.[0-9]+){3}$"
+)
+_SSH_TARGET_BLOCK_RE = re.compile(r"[;&|`$\"'<>\[\]{}!*?() \t\n\r\\]")
+
+
+def validate_remote_ssh_target(target: str) -> str:
+    """Validate an SSH target string to prevent command injection.
+
+    Allows only safe ``user@host`` and ``host`` formats. Rejects targets
+    containing shell metacharacters, whitespace, port specifications,
+    options, or other potentially dangerous content.
+
+    Args:
+        target: The SSH target string to validate.
+
+    Returns:
+        The validated target (identity — raises on invalid).
+
+    Raises:
+        ValueError: The target contains unsafe characters or an invalid format.
+    """
+    if not target or len(target) > 253:
+        raise ValueError(f"SSH target must be 1-253 characters, got: {target!r}")
+    # Check for any blocked shell metacharacters
+    if _SSH_TARGET_BLOCK_RE.search(target):
+        raise ValueError(f"SSH target contains unsafe characters: {target!r}")
+    # Require either user@host, bare host, or dotted host
+    if not _SSH_TARGET_RE.match(target):
+        raise ValueError(f"SSH target has invalid format: {target!r}")
+    return target
+
 
 # ----------------------------------------------------------------------
 # Executable resolution
@@ -165,7 +204,8 @@ def run_hermes_over_ssh(
     """Run a hermes command over SSH to a pre-validated remote target.
 
     Args:
-        remote_target: Pre-validated SSH host string (user@host format).
+        remote_target: SSH target string — must be validated via
+            ``validate_remote_ssh_target()`` before calling this function.
         remote_bin: Pre-resolved absolute path to hermes on remote.
         args: Hermes subcommand and arguments.
         timeout: Seconds before the process is killed.
@@ -173,10 +213,15 @@ def run_hermes_over_ssh(
     Returns:
         CompletedProcess with stdout/stderr captured.
     """
+    # Validate the SSH target to ensure it is safe to embed in an SSH command.
+    # Raises ValueError on invalid format or blocked characters.
+    validate_remote_ssh_target(remote_target)
     ssh_path = shutil.which("ssh") or "ssh"
     cmd_list = [remote_bin, *args]
     remote_cmd = " ".join(_shell_quote(str(part)) for part in cmd_list)
-    return subprocess.run(  # noqa: S603, S607  # ssh resolved to absolute; target/bin pre-validated by caller
+    # noqa: S603  # ssh_path resolved via which(); remote_target validated by regex; remote_bin validated at construction
+    # noqa: S607  # ssh_path absolute after which(); remote_target validated; remote_bin pre-validated by caller
+    return subprocess.run(  # noqa: S603, S607
         [ssh_path, remote_target, remote_cmd],
         capture_output=True,
         text=True,

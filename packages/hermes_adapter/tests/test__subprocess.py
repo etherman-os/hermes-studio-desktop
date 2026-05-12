@@ -12,6 +12,7 @@ from hermes_adapter._subprocess import (
     _resolve_hermes_executable,
     run_git,
     run_hermes,
+    validate_remote_ssh_target,
 )
 
 
@@ -68,3 +69,55 @@ class TestRunHermes:
         result = run_hermes(["this-is-not-a-command"], timeout=10)
         # Hermes exits non-zero for unknown subcommand
         assert result.returncode != 0
+
+
+class TestValidateRemoteSshTarget:
+    """Test validate_remote_ssh_target() security validation."""
+
+    @pytest.mark.parametrize(
+        "valid_target",
+        [
+            "user@example.com",
+            "example.com",
+            "user@192.168.1.10",
+            "my-server",
+            "user@server.example.org",
+            "192.168.1.1",
+            "server-with-dashes.example.com",
+            "user@192.168.1.1",
+            "a@b.c",
+        ],
+    )
+    def test_valid_targets_accepted(self, valid_target: str) -> None:
+        result = validate_remote_ssh_target(valid_target)
+        assert result == valid_target
+
+    @pytest.mark.parametrize(
+        "invalid_target",
+        [
+            "host; rm -rf /",
+            "user@host -oProxyCommand=...",
+            "user@host\ncmd",
+            "$(evil)",
+            "host|grep",
+            "host`id`",
+            "user@host>out",
+            "host${VAR}",
+            "user@host and stuff",
+            "host and stuff",
+            "user@host.domain with spaces",
+            "host\twith\ttabs",
+            "",
+            "a" * 254,
+            "user@host\r\n",
+            'user@host"quote',
+            "host[brackets]",
+            "user@host{brace}",
+            "host(withparens)",
+            "user@host*glob",
+            "user@host?question",
+        ],
+    )
+    def test_invalid_targets_rejected(self, invalid_target: str) -> None:
+        with pytest.raises(ValueError, match="unsafe|invalid|1-253"):
+            validate_remote_ssh_target(invalid_target)

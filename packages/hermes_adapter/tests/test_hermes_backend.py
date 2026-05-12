@@ -527,6 +527,40 @@ exit 2
         assert "--ignore-rules" in args
         assert "--resume" in args and "session-1" in args
 
+    @pytest.mark.parametrize(
+        "invalid_target",
+        [
+            "host; rm -rf /",
+            "user@host -oProxyCommand=...",
+            "user@host\ncmd",
+            "$(evil)",
+            "host|grep",
+            "user@host and stuff",
+        ],
+    )
+    def test_remote_ssh_target_rejects_invalid_format(self, invalid_target: str) -> None:
+        with pytest.raises(ValueError):
+            HermesCliBackend(remote_ssh_target=invalid_target)
+
+    @pytest.mark.parametrize(
+        "valid_target",
+        [
+            "user@example.com",
+            "example.com",
+            "user@192.168.1.10",
+            "192.168.1.1",
+        ],
+    )
+    def test_remote_ssh_target_accepts_valid_format(self, valid_target: str) -> None:
+        # Should not raise — valid target
+        backend = HermesCliBackend(remote_ssh_target=valid_target)
+        assert backend._remote_ssh_target == valid_target
+
+    @pytest.mark.parametrize("invalid_bin", ["bin; rm -rf /", "bin$(whoami)", "bin`id`"])
+    def test_remote_hermes_bin_rejects_unsafe_chars(self, invalid_bin: str) -> None:
+        with pytest.raises(ValueError, match="unsafe"):
+            HermesCliBackend(remote_ssh_target="user@example.com", remote_hermes_bin=invalid_bin)
+
 
 # ---------------------------------------------------------------------------
 # Auto mode fallback test
