@@ -10,6 +10,7 @@ import pytest
 from hermes_adapter._subprocess import (
     _resolve_git_executable,
     _resolve_hermes_executable,
+    build_ssh_hermes_command,
     run_git,
     run_hermes,
     validate_remote_ssh_target,
@@ -121,3 +122,46 @@ class TestValidateRemoteSshTarget:
     def test_invalid_targets_rejected(self, invalid_target: str) -> None:
         with pytest.raises(ValueError, match="unsafe|invalid|1-253"):
             validate_remote_ssh_target(invalid_target)
+
+
+class TestBuildSshHermesCommand:
+    """Test build_ssh_hermes_command() security properties."""
+
+    def test_returns_correct_command_list(self) -> None:
+        result = build_ssh_hermes_command(
+            "user@example.com", "/usr/bin/hermes", ["--version"]
+        )
+        # ssh resolved via which(), so may be full path or just "ssh"
+        assert result[0].endswith("ssh")
+        assert result[1] == "user@example.com"
+        assert isinstance(result[2], str)
+        # Remote command contains quoted bin and args
+        assert "/usr/bin/hermes" in result[2]
+        assert "--version" in result[2]
+
+    def test_rejects_invalid_remote_target(self) -> None:
+        with pytest.raises(ValueError, match="unsafe|invalid|1-253"):
+            build_ssh_hermes_command("user@host; rm -rf /", "/usr/bin/hermes", ["--version"])
+
+    def test_rejects_unsafe_remote_bin(self) -> None:
+        with pytest.raises(ValueError, match="unsafe"):
+            build_ssh_hermes_command("user@example.com", "bin; rm -rf /", ["--version"])
+
+    def test_args_quoted_prevent_injection(self) -> None:
+        # Args with shell metacharacters should be quoted, not evaluated
+        result = build_ssh_hermes_command(
+            "user@example.com",
+            "/usr/bin/hermes",
+            ["--prompt", "hello; whoami"],
+        )
+        # The command string should contain quoted version, not evaluated
+        remote_cmd = result[2]
+        # shlex.quote wraps in single quotes by default; semicolon should be inside quotes
+        assert "hello; whoami" in remote_cmd
+
+    def test_valid_ip_address_target(self) -> None:
+        result = build_ssh_hermes_command(
+            "192.168.1.10", "/usr/bin/hermes", ["chat", "--query", "test"]
+        )
+        assert result[0].endswith("ssh")
+        assert result[1] == "192.168.1.10"

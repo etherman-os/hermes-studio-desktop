@@ -32,7 +32,11 @@ if TYPE_CHECKING:
 _SSH_TARGET_RE = re.compile(
     r"^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+$|^[a-zA-Z0-9.-]+$|^[0-9]+(?:\.[0-9]+){3}$"
 )
-_SSH_TARGET_BLOCK_RE = re.compile(r"[;&|`$\"'<>\[\]{}!*?() \t\n\r\\]")
+_SSH_TARGET_BLOCK_RE = re.compile(r"[;&|`$\"'<>\[\\]{}!*?() \\t\n\r\\]")
+# Shell metacharacters for remote binary validation in SSH command construction.
+# Mirrors hermes_cli_backend._SHELL_METACHAR_RE — kept here so _subprocess.py
+# is self-contained and build_ssh_hermes_command() doesn't need an import from backend.
+_SHELL_METACHAR_RE = re.compile(r"[;&|`$<>{}()\[\]!*?\"'\\ \t\n\r]")
 
 
 def validate_remote_ssh_target(target: str) -> str:
@@ -194,6 +198,43 @@ def run_hermes(
 # ----------------------------------------------------------------------
 
 
+def build_ssh_hermes_command(
+    remote_target: str,
+    remote_bin: str,
+    args: Sequence[str],
+) -> list[str]:
+    """Build a safe SSH command list for running hermes remotely.
+
+    This is the reference implementation for SSH command construction used by
+    both the synchronous ``run_hermes_over_ssh()`` and the streaming path in
+    ``HermesCliBackend._base_cli_command()``.
+
+    Security chain:
+      - ssh executable resolved via ``shutil.which("ssh")``
+      - remote_target validated via ``validate_remote_ssh_target()`` regex
+      - remote_bin validated against shell metacharacters before embedding
+      - each arg quoted via ``shlex.quote()`` to prevent injection
+
+    Args:
+        remote_target: SSH target string — must be pre-validated by caller.
+        remote_bin: Pre-resolved absolute path to hermes on remote.
+        args: Hermes subcommand and arguments.
+
+    Returns:
+        A list: ``["ssh", resolved_path, remote_target, "<quoted bin> <quoted args>"]``.
+
+    Raises:
+        ValueError: remote_target or remote_bin contains unsafe characters.
+    """
+    validate_remote_ssh_target(remote_target)
+    if _SHELL_METACHAR_RE.search(remote_bin):
+        raise ValueError(f"remote_bin contains unsafe characters: {remote_bin!r}")
+    ssh_path = shutil.which("ssh") or "ssh"
+    cmd_list = [remote_bin, *args]
+    remote_cmd = " ".join(_shell_quote(str(part)) for part in cmd_list)
+    return [ssh_path, remote_target, remote_cmd]
+
+
 def run_hermes_over_ssh(
     remote_target: str,
     remote_bin: str,
@@ -212,22 +253,18 @@ def run_hermes_over_ssh(
 
     Returns:
         CompletedProcess with stdout/stderr captured.
+
+    Security chain:
+        - local subprocess: ``shell=False`` (list-arg dispatch)
+        - ssh executable: resolved via ``shutil.which("ssh")``
+        - remote target: validated via ``validate_remote_ssh_target()`` regex
+        - remote hermes binary: validated against shell metacharacters
+        - remote command args: all quoted via ``shlex.quote()``
+        - timeout: set to prevent indefinite hanging
     """
-    # Validate the SSH target to ensure it is safe to embed in an SSH command.
-    # Raises ValueError on invalid format or blocked characters.
-    validate_remote_ssh_target(remote_target)
-    ssh_path = shutil.which("ssh") or "ssh"
-    cmd_list = [remote_bin, *args]
-    remote_cmd = " ".join(_shell_quote(str(part)) for part in cmd_list)
-    # noqa: S603  # ssh_path resolved via which(); remote_target validated by regex; remote_bin validated at construction
-    # noqa: S607  # ssh_path absolute after which(); remote_target validated; remote_bin pre-validated by caller
-    return subprocess.run(  # noqa: S603, S607
-        [ssh_path, remote_target, remote_cmd],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=True,
-    )
+    # Build command via centralized helper (validates target + bin internally).
+    cmd = build_ssh_hermes_command(remote_target, remote_bin, args)
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=True)  # noqa: S603, S607  # ssh resolved via which(); target validated by regex; bin validated; list-arg dispatch; timeout set
 
 
 # ----------------------------------------------------------------------

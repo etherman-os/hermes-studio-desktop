@@ -11,8 +11,6 @@ import asyncio
 import contextlib
 import os
 import re
-import shlex
-import shutil
 import subprocess
 import uuid
 from collections.abc import AsyncIterator
@@ -24,6 +22,7 @@ from typing import Any
 _SHELL_METACHAR_RE = re.compile(r"[;&|`$<>{}()\[\]!*?\"'\\ \t\n\r]")
 
 from hermes_adapter._subprocess import (  # noqa: E402
+    build_ssh_hermes_command,
     run_hermes,
     run_hermes_over_ssh,
     validate_remote_ssh_target,
@@ -442,13 +441,13 @@ class HermesCliBackend(HermesBackend):
 
     def _base_cli_command(self, args: list[str]) -> list[str]:
         if self._remote_ssh_target:
-            # Build SSH command with explicit ssh resolution, target validation,
-            # binary validation, and shell-quoted args to prevent injection.
-            ssh_path = shutil.which("ssh") or "ssh"
-            if _SHELL_METACHAR_RE.search(self._remote_hermes_bin):
-                raise ValueError(f"remote_hermes_bin contains unsafe characters: {self._remote_hermes_bin!r}")
-            remote_command = " ".join(shlex.quote(part) for part in [self._remote_hermes_bin, *args])
-            return [ssh_path, self._remote_ssh_target, remote_command]
+            # Use centralized builder for consistent security properties:
+            # ssh resolved via which(); target validated by regex; bin validated
+            # by _SHELL_METACHAR_RE; args via shlex.quote(); timeout set by caller.
+            # noqa: S603, S607  # builder validates target/bin; ssh resolved via which(); list-arg dispatch
+            return build_ssh_hermes_command(
+                self._remote_ssh_target, self._remote_hermes_bin, args
+            )
         return ["hermes", *args]
 
     def _command_for_run(self, run: dict[str, Any]) -> list[str]:
