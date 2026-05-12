@@ -183,6 +183,7 @@ jobs:
     needs: docs
     if: github.ref == 'refs/heads/main' || github.event_name == 'release'
     strategy:
+      fail-fast: false
       matrix:
         platform: [ubuntu-24.04, macos-14, windows-latest]
     steps:
@@ -213,7 +214,16 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm
 
-      - name: Install dependencies
+      - name: Install dependencies (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          pnpm install --frozen-lockfile
+          python -m venv .venv
+          & .\.venv\Scripts\Activate.ps1; pip install -e ".[dev]"
+
+      - name: Install dependencies (Unix)
+        if: matrix.platform != 'windows-latest'
         run: |
           pnpm install --frozen-lockfile
           python -m venv .venv
