@@ -381,6 +381,7 @@ exit 2
             return subprocess.CompletedProcess(args, 0, stdout="profile switched", stderr="")
 
         monkeypatch.setattr("hermes_adapter._subprocess.subprocess.run", fake_run)
+        monkeypatch.setattr("hermes_adapter._subprocess.shutil.which", lambda name: f"/fake/path/{name}")
 
         backend = HermesBackend("http://hermes.test")
         result = await backend.activate_profile("research")
