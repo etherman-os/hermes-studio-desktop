@@ -13,12 +13,12 @@ Hardened with:
 from __future__ import annotations
 
 import logging
-import threading
 import os
 import re
 import shutil
 import sqlite3
 import sys
+import threading
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass

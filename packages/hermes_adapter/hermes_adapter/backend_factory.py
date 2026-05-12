@@ -24,7 +24,7 @@ async def _health_with_timeout(backend: StudioBackend) -> dict[str, Any]:
     """Call backend.health() with a fixed timeout to prevent indefinite hangs."""
     try:
         return await asyncio.wait_for(backend.health(), timeout=_HEALTH_TIMEOUT_SECONDS)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return {"status": "unavailable", "reason": "Health check timed out"}
     except Exception as e:
         return {"status": "unavailable", "reason": str(e)}

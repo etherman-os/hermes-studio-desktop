@@ -18,7 +18,6 @@ import httpx
 from hermes_adapter.backend_base import StudioBackend
 from hermes_adapter.backend_config import get_debug_events
 from hermes_adapter.config_repository import ConfigRepository
-from hermes_adapter.event_normalizer import normalize_kanban_updated_payload
 from hermes_adapter.log_repository import LogRepository, get_hermes_logs_dir
 from hermes_adapter.profile_repository import ProfileRepository
 from hermes_adapter.session_repository import SessionRepository, find_state_db, get_hermes_home
@@ -1039,9 +1038,9 @@ class HermesBackend(StudioBackend):
         if self._client is not None:
             import warnings
             warnings.warn(
-                f"HermesBackend was garbage-collected without close() being called. "
-                f"This may leave httpx.AsyncClient open. Ensure close() is called "
-                f"on backend shutdown.",
+                "HermesBackend was garbage-collected without close() being called. "
+                "This may leave httpx.AsyncClient open. Ensure close() is called "
+                "on backend shutdown.",
                 ResourceWarning,
                 stacklevel=2,
             )

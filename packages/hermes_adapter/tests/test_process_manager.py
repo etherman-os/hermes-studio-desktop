@@ -144,7 +144,7 @@ def test_get_process_manager_singleton() -> None:
 
 
 class _EmptyStdout:
-    def __aiter__(self) -> "_EmptyStdout":
+    def __aiter__(self) -> _EmptyStdout:
         return self
 
     async def __anext__(self) -> bytes:

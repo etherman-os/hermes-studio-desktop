@@ -5,9 +5,9 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
+import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
-import pytest
 
 from hermes_adapter.security import (
     DEFAULT_TOKEN_EXPIRY_SECONDS,
