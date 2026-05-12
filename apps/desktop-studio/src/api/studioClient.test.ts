@@ -80,12 +80,17 @@ describe("studioClient protocol surface", () => {
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("VITE_HERMES_STUDIO_ADAPTER_TOKEN", "dev-token");
 
     const api = await loadClient();
+    await api.initializeAdapterAuth();
     await api.checkAdapterHealthDetailed();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:39191/studio/health");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      headers: expect.objectContaining({ Authorization: "Bearer dev-token" }),
+    });
   });
 
   it("parses the standard error envelope", async () => {

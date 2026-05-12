@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useRunLedgerStore } from "./runLedgerStore";
 import type { StudioEvent } from "../api/studioClient";
 import * as api from "../api/studioClient";
@@ -44,6 +44,12 @@ describe("runLedgerStore", () => {
   beforeEach(() => {
     resetStore();
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-07T00:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("starts a run with a synthetic run.started event", () => {
