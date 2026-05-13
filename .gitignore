@@ -61,6 +61,9 @@ test-*.mjs
 Thumbs.db
 # TUI/Textual
 var/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
 .venv
 venv/
 # Virtual environments
