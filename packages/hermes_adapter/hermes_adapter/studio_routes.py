@@ -36,6 +36,7 @@ from hermes_adapter.studio_events import make_studio_event
 from hermes_adapter.studio_storage import get_studio_storage_status
 from hermes_adapter.tool_pack_repository import ToolPackRepository
 from hermes_adapter.worktree_repository import WorktreeRepository
+from hermes_adapter.htg_status import probe_htg_status
 
 router = APIRouter(prefix="/studio")
 logger = logging.getLogger(__name__)
@@ -974,6 +975,27 @@ async def test_hermes_mcp_server(server_id: str, _token: None = Depends(require_
         "error": None if parsed["ok"] else (parsed.get("message") or result.stderr or result.stdout),
         **parsed,
     }
+
+
+@router.get("/htg/status")
+async def get_htg_status(_token: None = Depends(require_token)) -> dict[str, Any]:
+    """Return HoldTheGoblin read-only status: availability, project info, events.
+
+    Calls only read-only/safe HTG tools:
+    - doctor: project detection and scanner configuration
+    - events --limit 20: recent event log
+    - checkpoint_list: existing checkpoints (read-only)
+    - config_validate: HTG config schema validation
+
+    Does NOT call (hard rule for this pilot):
+    - checkpoint_create / checkpoint_rollback
+    - deploy_run
+    - verify
+    - readiness with runVerify=true
+    - policy_evaluate / risk_assess
+    """
+    status = await probe_htg_status()
+    return {"htg": status, "summary": {"available": status.get("available", False)}}
 
 
 @router.get("/hermes/toolsets")

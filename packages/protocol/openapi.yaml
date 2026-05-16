@@ -948,6 +948,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/HermesToolsetList"
 
+  /studio/htg/status:
+    get:
+      summary: HoldTheGoblin read-only status probe
+      description: |
+        Returns HoldTheGoblin availability, doctor output, recent events, and
+        checkpoint list. Read-only inspection only — does not create checkpoints
+        or modify any project state.
+
+        Read-only tools called:
+        - doctor: project detection and scanner config
+        - events --limit 20: recent event log
+        - checkpoint_list: existing checkpoints
+        - config_validate: HTG config validation
+
+        NOT called (hard rule): checkpoint_create, checkpoint_rollback,
+        deploy_run, verify, readiness with runVerify=true,
+        policy_evaluate, risk_assess.
+      operationId: getHtgStatus
+      responses:
+        "200":
+          description: HTG status response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HtgStatusResponse"
+
   /studio/hermes/toolsets/configure:
     post:
       summary: Enable or disable a Hermes toolset through the Hermes CLI
@@ -3873,6 +3899,71 @@ components:
       required:
         - mcp_servers
         - total
+        - summary
+
+    HtgStatusResponse:
+      type: object
+      description: HoldTheGoblin read-only status probe response
+      properties:
+        htg:
+          type: object
+          description: Full HTG probe result
+          properties:
+            available:
+              type: boolean
+              description: Whether HTG CLI is available
+            reason:
+              type: string
+              nullable: true
+              description: Reason if unavailable
+            cli_path:
+              type: string
+              nullable: true
+              description: Detected HTG CLI path
+            root:
+              type: string
+              nullable: true
+              description: HTG project root if detected
+            doctor:
+              type: object
+              nullable: true
+              description: Output of HTG doctor command
+            doctor_error:
+              type: string
+              nullable: true
+            events:
+              type: array
+              nullable: true
+              items:
+                type: object
+            events_error:
+              type: string
+              nullable: true
+            checkpoints:
+              type: array
+              nullable: true
+              items:
+                type: object
+            checkpoints_error:
+              type: string
+              nullable: true
+            config_valid:
+              type: boolean
+              nullable: true
+            config_error:
+              type: string
+              nullable: true
+          required:
+            - available
+        summary:
+          type: object
+          properties:
+            available:
+              type: boolean
+          required:
+            - available
+      required:
+        - htg
         - summary
 
     HermesMcpProbeResult:
