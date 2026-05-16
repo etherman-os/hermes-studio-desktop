@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from hermes_adapter.events import is_terminal_event, normalize_hermes_event
 from hermes_adapter.hermes_api import HermesClient
+from hermes_adapter.htg_routes import router as htg_router
 from hermes_adapter.models import (
     BootstrapResponse,
     ConfigView,
@@ -372,6 +373,7 @@ def create_app(enable_legacy_shell_routes: bool | None = None) -> FastAPI:
     application.add_exception_handler(HTTPException, _http_exception_handler)
     application.add_exception_handler(RequestValidationError, _validation_exception_handler)
     application.include_router(studio_router)
+    application.include_router(htg_router)
     application.get("/health")(health_root)
 
     legacy_enabled = (
