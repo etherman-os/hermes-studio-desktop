@@ -205,7 +205,14 @@ async def probe_htg_status(root: str | None = None) -> dict[str, Any]:
         }
 
     # Check if local checkout exists but not built
-    if HTG_CLI_LOCAL.exists() and not Path(HTG_LOCAL_CHECKOUT / "dist" / "src" / "cli.js").exists():
+    def _local_htg_unavailable() -> bool:
+        try:
+            return HTG_CLI_LOCAL.exists() and not Path(HTG_LOCAL_CHECKOUT / "dist" / "src" / "cli.js").exists()
+        except PermissionError:
+            # CI runner may deny stat on the HTG binary path
+            return True
+
+    if _local_htg_unavailable():
         return {
             "available": False,
             "reason": _HTG_BUILD_REQUIRED,
